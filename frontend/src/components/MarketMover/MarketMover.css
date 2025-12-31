@@ -1,0 +1,720 @@
+/* Add this to frontend/src/components/MarketMover/MarketMover.css */
+
+/* MarketMover Page Styles */
+.market-mover-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: calc(100vh - 100px);
+  background: #0a0e1b;
+  color: #ffffff;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.page-header h1 {
+  font-size: 3rem;
+  margin: 0 0 1rem 0;
+  background: linear-gradient(135deg, #00d4ff 0%, #667eea 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-subtitle {
+  font-size: 1.25rem;
+  color: #8892b0;
+  margin: 0 0 1.5rem 0;
+}
+
+.user-ticket-display {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 170, 68, 0.1);
+  border: 2px solid #ffaa44;
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.ticket-balance {
+  color: #ffaa44;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid #1a1f2e;
+  border-top: 3px solid #00d4ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 2px solid #ef4444;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.error-banner p {
+  color: #ef4444;
+  margin: 0 0 1rem 0;
+}
+
+.retry-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.retry-btn:hover {
+  background: #dc2626;
+}
+
+/* Voting Status Section */
+.voting-status-section {
+  margin-bottom: 3rem;
+}
+
+.status-card {
+  background: #1a1f2e;
+  border-radius: 16px;
+  padding: 2rem;
+  border: 2px solid #2a2f3e;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.status-card.status-active {
+  border-color: #44ff44;
+  background: linear-gradient(135deg, rgba(68, 255, 68, 0.05) 0%, rgba(0, 212, 255, 0.05) 100%);
+}
+
+.status-card.status-inactive {
+  border-color: #666666;
+  background: rgba(102, 102, 102, 0.05);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.status-header h2 {
+  margin: 0;
+  font-size: 2rem;
+  color: #ffffff;
+}
+
+.status-icon {
+  font-size: 2.5rem;
+}
+
+.pulse-dot {
+  width: 12px;
+  height: 12px;
+  background: #44ff44;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(68, 255, 68, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(68, 255, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(68, 255, 68, 0);
+  }
+}
+
+.status-time {
+  color: #8892b0;
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+/* BID UP Section */
+.bid-up-section {
+  margin-bottom: 3rem;
+}
+
+.bid-up-card {
+  background: linear-gradient(135deg, rgba(255, 170, 68, 0.1) 0%, rgba(255, 68, 68, 0.1) 100%);
+  border: 2px solid #ffaa44;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.bid-up-card h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.75rem;
+  color: #ffaa44;
+}
+
+.bid-up-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.player-name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.boost-badge {
+  background: #ffaa44;
+  color: #0a0e1b;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.time-remaining {
+  color: #8892b0;
+  font-size: 1.125rem;
+}
+
+/* Actions Section */
+.actions-section {
+  margin-bottom: 3rem;
+}
+
+.actions-section h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  color: #00d4ff;
+}
+
+.action-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.action-card {
+  background: #1a1f2e;
+  border: 2px solid #2a2f3e;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-card:hover:not(.disabled) {
+  transform: translateY(-5px);
+  border-color: #00d4ff;
+  box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+}
+
+.action-card.vote-card {
+  border-color: rgba(68, 255, 68, 0.5);
+}
+
+.action-card.vote-card:hover:not(.disabled) {
+  border-color: #44ff44;
+  box-shadow: 0 10px 30px rgba(68, 255, 68, 0.2);
+}
+
+.action-card.ownership-card {
+  border-color: rgba(0, 212, 255, 0.5);
+}
+
+.action-card.ownership-card:hover:not(.disabled) {
+  border-color: #00d4ff;
+  box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+}
+
+.action-card.shop-card {
+  border-color: rgba(255, 170, 68, 0.5);
+}
+
+.action-card.shop-card:hover {
+  border-color: #ffaa44;
+  box-shadow: 0 10px 30px rgba(255, 170, 68, 0.2);
+}
+
+.action-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.action-card h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  color: #ffffff;
+}
+
+.action-card p {
+  color: #8892b0;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.6;
+}
+
+.card-cost {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.875rem;
+}
+
+.disabled-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+}
+
+.disabled-overlay span {
+  color: #ef4444;
+  font-weight: bold;
+  font-size: 1.125rem;
+}
+
+/* Leaderboard Section */
+.leaderboard-section {
+  margin-bottom: 3rem;
+}
+
+.leaderboard-section h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  color: #00d4ff;
+}
+
+.leaderboard-card {
+  background: #1a1f2e;
+  border-radius: 16px;
+  border: 2px solid #2a2f3e;
+  overflow: hidden;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.leader-row {
+  display: flex;
+  align-items: center;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #2a2f3e;
+  transition: all 0.3s;
+}
+
+.leader-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.leader-row:last-child {
+  border-bottom: none;
+}
+
+.leader-row.top-three {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.1) 0%, transparent 100%);
+}
+
+.rank {
+  font-weight: bold;
+  font-size: 1.25rem;
+  width: 60px;
+  color: #8892b0;
+}
+
+.rank-1 { color: #ffd700; }
+.rank-2 { color: #c0c0c0; }
+.rank-3 { color: #cd7f32; }
+
+.leader-row .player-name {
+  flex: 1;
+  font-weight: 600;
+  color: #ffffff;
+  margin-left: 1rem;
+}
+
+.vote-count {
+  color: #44ff44;
+  font-weight: bold;
+  font-size: 1.125rem;
+}
+
+.no-votes {
+  padding: 3rem;
+  text-align: center;
+  color: #8892b0;
+}
+
+/* How It Works Section */
+.how-it-works-section {
+  margin-bottom: 3rem;
+}
+
+.how-it-works-section h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  color: #00d4ff;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.step-card {
+  background: #1a1f2e;
+  border: 2px solid #2a2f3e;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.step-card:hover {
+  border-color: #00d4ff;
+  transform: translateY(-3px);
+}
+
+.step-number {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #00d4ff 0%, #667eea 100%);
+  color: #0a0e1b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0 auto 1rem;
+}
+
+.step-card h4 {
+  margin: 0 0 1rem 0;
+  color: #ffffff;
+  font-size: 1.25rem;
+}
+
+.step-card p {
+  color: #8892b0;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .market-mover-page {
+    padding: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 2rem;
+  }
+
+  .action-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .steps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bid-up-content {
+    flex-direction: column;
+  }
+
+  .status-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .leader-row {
+    padding: 1rem;
+  }
+}
+/* Add these styles to MarketMover.css */
+
+/* Ownership Modal Enhancements */
+.ownership-modal {
+  max-width: 450px;
+  width: 90%;
+}
+
+.modal-description {
+  color: #888;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #ccc;
+  font-size: 14px;
+}
+
+.ownership-select,
+.ownership-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #fff;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.ownership-select:focus,
+.ownership-input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+/* Autocomplete Container */
+.autocomplete-container {
+  position: relative;
+}
+
+.selected-checkmark {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #4ade80;
+  font-weight: bold;
+}
+
+/* Autocomplete Dropdown */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.autocomplete-item {
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #333;
+  transition: background 0.15s;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: #2a2a2a;
+}
+
+.autocomplete-item.selected {
+  background: #1a3a5c;
+}
+
+.autocomplete-item .player-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.autocomplete-item .player-meta {
+  font-size: 12px;
+  color: #888;
+}
+
+.autocomplete-empty {
+  padding: 16px;
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+}
+
+/* Selected Player Badge */
+.selected-player-badge {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #1a3a1a;
+  border: 1px solid #2d5a2d;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #4ade80;
+}
+
+.selected-player-badge strong {
+  color: #fff;
+}
+
+/* Modal Action Buttons */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.primary-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: #4a9eff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #3a8eef;
+}
+
+.primary-btn:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.secondary-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: transparent;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.secondary-btn:hover {
+  background: #2a2a2a;
+  border-color: #666;
+}
+
+/* Ownership Result Display */
+.ownership-result {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.result-player-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.result-percentage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.percentage-value {
+  font-size: 56px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #4a9eff, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.percentage-label {
+  font-size: 14px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+.result-description {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0;
+  padding: 12px 16px;
+  background: #1e1e1e;
+  border-radius: 8px;
+}

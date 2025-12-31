@@ -1,0 +1,110 @@
+/* frontend/src/components/Header/Header.css */
+.header {
+  background-color: #1a1a2e;
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-left {
+  flex: 1;
+}
+
+.site-title {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #4a7c7e;
+}
+
+.header-nav {
+  display: flex;
+  gap: 1rem;
+  flex: 2;
+  justify-content: center;
+}
+
+.nav-button {
+  background: none;
+  border: none;
+  color: #ccc;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.nav-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.nav-button.active {
+  color: #4a7c7e;
+  background-color: rgba(74, 124, 126, 0.2);
+}
+
+.header-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.username {
+  font-weight: 500;
+}
+
+.balance-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.balance {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #4fc3f7;
+}
+
+.tickets {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: #ffd54f;
+}
+
+.ticket-icon {
+  font-size: 1rem;
+}
+
+.ticket-count {
+  font-weight: 500;
+}
+
+.logout-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.logout-button:hover {
+  background-color: #c82333;
+}

@@ -1,0 +1,173 @@
+.ticket-shop-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.shop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #eee;
+}
+
+.shop-header h1 {
+  margin: 0;
+}
+
+.balance-display {
+  display: flex;
+  gap: 20px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.shop-info {
+  background: #f0f8ff;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+}
+
+.shop-info h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.shop-info ul {
+  margin: 10px 0;
+  padding-left: 25px;
+}
+
+.shop-info li {
+  margin: 5px 0;
+}
+
+.packages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.package-card {
+  position: relative;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.package-card:hover:not(.disabled) {
+  border-color: #007bff;
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.package-card.selected {
+  border-color: #007bff;
+  background: #f0f8ff;
+}
+
+.package-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bonus-banner {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: #ff4444;
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.package-tickets {
+  margin-bottom: 15px;
+}
+
+.ticket-count {
+  display: block;
+  font-size: 36px;
+  font-weight: bold;
+  color: #333;
+}
+
+.ticket-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.package-price {
+  font-size: 28px;
+  font-weight: bold;
+  color: #28a745;
+  margin-bottom: 10px;
+}
+
+.package-value {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.popular-badge,
+.best-value-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #ffc107;
+  color: #333;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.best-value-badge {
+  background: #28a745;
+  color: white;
+}
+
+.purchase-button {
+  width: 100%;
+  padding: 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.purchase-button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.purchase-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.shop-footer {
+  text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.disclaimer {
+  color: #666;
+  font-size: 14px;
+  font-style: italic;
+}

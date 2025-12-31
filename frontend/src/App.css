@@ -1,0 +1,643 @@
+/* frontend/src/App.css */
+.App {
+  min-height: 100vh;
+  background-color: #0a0e1b;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+/* Loading Screen */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: #0a0e1b;
+  color: #ffffff;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 3px solid #1a1f2e;
+  border-top: 3px solid #00d4ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Navigation */
+.main-nav {
+  background-color: #1a1f2e;
+  border-bottom: 1px solid #2a2f3e;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: #8892b0;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.sidebar-toggle:hover {
+  background-color: #2a2f3e;
+  color: #ffffff;
+}
+
+.nav-brand {
+  color: #00d4ff;
+  text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-center {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-link {
+  color: #8892b0;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.nav-link:hover {
+  color: #ffffff;
+  background-color: #2a2f3e;
+}
+
+.nav-link.active {
+  color: #00d4ff;
+  background-color: #00d4ff20;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ff4444;
+  color: #ffffff;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #2a2f3e;
+  border-radius: 8px;
+}
+
+.username {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.balance {
+  color: #44ff44;
+  font-weight: bold;
+}
+
+.tickets {
+  color: #ffaa44;
+}
+
+.achievement-points {
+  color: #00d4ff;
+  font-weight: 600;
+}
+
+.logout-btn {
+  background-color: #ff4444;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logout-btn:hover {
+  background-color: #ff6666;
+  transform: translateY(-2px);
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -300px;
+  width: 300px;
+  height: 100vh;
+  background-color: #1a1f2e;
+  border-right: 1px solid #2a2f3e;
+  transition: left 0.3s ease;
+  z-index: 99;
+  overflow-y: auto;
+  padding-top: 70px;
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #2a2f3e;
+}
+
+.sidebar-header h3 {
+  color: #00d4ff;
+  margin: 0;
+}
+
+.sidebar-close {
+  background: none;
+  border: none;
+  color: #8892b0;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.sidebar-close:hover {
+  background-color: #2a2f3e;
+  color: #ffffff;
+}
+
+.sidebar-content {
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.stat-card {
+  background-color: #0a0e1b;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #2a2f3e;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #8892b0;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #00d4ff;
+}
+
+.sidebar-section {
+  padding: 1.5rem;
+  border-top: 1px solid #2a2f3e;
+}
+
+.sidebar-section h4 {
+  color: #ffffff;
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+}
+
+.notification-settings {
+  padding: 1rem 0;
+}
+
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 50px;
+  height: 25px;
+  background-color: #2a2f3e;
+  border-radius: 25px;
+  position: relative;
+  transition: background-color 0.3s;
+  margin-right: 1rem;
+}
+
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  width: 21px;
+  height: 21px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #00d4ff;
+}
+
+.toggle-switch input:checked + .toggle-slider::after {
+  transform: translateX(25px);
+}
+
+.toggle-label {
+  color: #8892b0;
+  font-size: 0.875rem;
+}
+
+.notification-unsupported {
+  color: #ff4444;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.sidebar-link {
+  display: block;
+  color: #8892b0;
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  transition: all 0.3s;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+button.sidebar-link {
+  font-family: inherit;
+}
+
+.sidebar-link:hover {
+  background-color: #2a2f3e;
+  color: #ffffff;
+  transform: translateX(5px);
+}
+
+/* Main Content */
+.main-content {
+  min-height: calc(100vh - 70px);
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-open {
+  margin-left: 300px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .nav-container {
+    padding: 1rem;
+  }
+
+  .nav-center {
+    display: none;
+  }
+
+  .user-info {
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    left: -100%;
+  }
+
+  .main-content.sidebar-open {
+    margin-left: 0;
+  }
+
+  .nav-right {
+    gap: 1rem;
+  }
+
+  .user-info {
+    display: none;
+  }
+
+  .sidebar-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.main-content > * {
+  animation: fadeIn 0.5s ease;
+}
+
+/* Utility Classes */
+.text-center {
+  text-align: center;
+}
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+.text-success { color: #44ff44; }
+.text-danger { color: #ff4444; }
+.text-warning { color: #ffaa44; }
+.text-info { color: #00d4ff; }
+.text-muted { color: #8892b0; }
+/* Add to frontend/src/App.css */
+.achievements-button {
+  position: fixed;
+  top: 70px;
+  left: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border: 2px solid #ffd700;
+  color: #0a0e1b;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+  transition: all 0.3s;
+  z-index: 100;
+}
+
+.achievements-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+}
+
+.achievements-page {
+  padding: 2rem;
+  position: relative;
+}
+
+.back-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 8px 16px;
+  background: #2a2f3e;
+  border: 1px solid #3a3f4e;
+  border-radius: 6px;
+  color: #8892b0;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.back-button:hover {
+  background: #3a3f4e;
+  color: #00d4ff;
+}/* Add to frontend/src/App.css */
+.achievements-button {
+  position: fixed;
+  top: 70px;
+  left: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border: 2px solid #ffd700;
+  color: #0a0e1b;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+  transition: all 0.3s;
+  z-index: 100;
+}
+
+.achievements-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+}
+
+.achievements-page {
+  padding: 2rem;
+  position: relative;
+}
+
+.back-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 8px 16px;
+  background: #2a2f3e;
+  border: 1px solid #3a3f4e;
+  border-radius: 6px;
+  color: #8892b0;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.back-button:hover {
+  background: #3a3f4e;
+  color: #00d4ff;
+}
+
+/* Add these styles to your existing frontend/src/App.css file */
+
+/* Toast Notification Styles */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  background: #333;
+  color: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 500px;
+  pointer-events: all;
+  animation: slideIn 0.3s ease-out;
+  transition: all 0.3s ease;
+}
+
+.toast.success {
+  background: #10b981;
+}
+
+.toast.error {
+  background: #ef4444;
+}
+
+.toast.warning {
+  background: #f59e0b;
+}
+
+.toast.info {
+  background: #3b82f6;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.7;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.toast.exiting {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+/* Connection status indicator */
+.connection-status {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Responsive design for toasts */
+@media (max-width: 768px) {
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+  
+  .toast {
+    min-width: unset;
+    width: 100%;
+  }
+}

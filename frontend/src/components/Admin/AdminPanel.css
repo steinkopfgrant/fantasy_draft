@@ -1,0 +1,330 @@
+/* frontend/src/components/Admin/AdminPanel.css */
+.admin-panel {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: calc(100vh - 100px);
+}
+
+.access-denied {
+  text-align: center;
+  padding: 4rem;
+}
+
+.admin-header {
+  margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+  margin-bottom: 1rem;
+  color: #00d4ff;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 2px solid #2a2a3e;
+  padding-bottom: 0;
+}
+
+.admin-tabs button {
+  background: transparent;
+  border: none;
+  color: #888;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+
+.admin-tabs button:hover {
+  color: #fff;
+}
+
+.admin-tabs button.active {
+  color: #00d4ff;
+  border-bottom-color: #00d4ff;
+}
+
+.admin-content {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 2rem;
+  min-height: 500px;
+}
+
+/* Overview Tab */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
+  background: #2a2a3e;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-card h3 {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #00d4ff;
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: #2a2a3e;
+  padding: 0.75rem;
+  text-align: left;
+  color: #00d4ff;
+  font-weight: normal;
+}
+
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #2a2a3e;
+  color: #fff;
+}
+
+tr:hover {
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.status {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.status.open { background: #00d4ff33; color: #00d4ff; }
+.status.closed { background: #ff444433; color: #ff4444; }
+.status.live { background: #44ff4433; color: #44ff44; }
+.status.completed { background: #88888833; color: #888; }
+
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  background: #00d4ff;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-sm:hover {
+  background: #00a4cf;
+}
+
+/* Dev Tools Tab */
+.dev-tools-tab h2 {
+  margin-bottom: 1.5rem;
+  color: #ffd700;
+}
+
+.dev-input-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #2a2a3e;
+  border-radius: 8px;
+}
+
+.dev-input-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #888;
+}
+
+.contest-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.5rem;
+  background: #1a1a2e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.selected-id {
+  display: inline-block;
+  margin-left: 1rem;
+  color: #00d4ff;
+  font-family: monospace;
+}
+
+.dev-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.action-group {
+  background: #2a2a3e;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.action-group h3 {
+  margin-bottom: 1rem;
+  color: #00d4ff;
+  font-size: 1rem;
+}
+
+.action-group button {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(45deg, #00d4ff, #00a4cf);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.action-group button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+}
+
+.action-group button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Game State Viewer */
+.game-state-viewer {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #2a2a3e;
+  border-radius: 8px;
+}
+
+.game-state-viewer h3 {
+  margin-bottom: 1rem;
+  color: #00d4ff;
+}
+
+.state-summary p {
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.state-summary strong {
+  color: #888;
+  margin-right: 0.5rem;
+}
+
+details {
+  margin-top: 1rem;
+}
+
+details summary {
+  cursor: pointer;
+  color: #00d4ff;
+  padding: 0.5rem;
+  background: #1a1a2e;
+  border-radius: 4px;
+}
+
+details pre {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background: #0a0a0e;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 300px;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+/* Logs Tab */
+.logs-container {
+  margin-top: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  background: #0a0a0e;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.clear-logs {
+  float: right;
+  padding: 0.5rem 1rem;
+  background: #ff4444;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.no-logs {
+  text-align: center;
+  color: #888;
+  padding: 2rem;
+}
+
+.log-entry {
+  padding: 0.5rem;
+  margin-bottom: 0.25rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.log-time {
+  color: #666;
+  margin-right: 1rem;
+}
+
+.log-message {
+  color: #fff;
+}
+
+.log-info { background: rgba(136, 136, 136, 0.1); }
+.log-success { background: rgba(68, 255, 68, 0.1); }
+.log-error { 
+  background: rgba(255, 68, 68, 0.1); 
+  color: #ff6666;
+}
+
+/* Loading State */
+.admin-panel button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .dev-actions {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
