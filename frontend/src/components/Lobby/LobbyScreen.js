@@ -96,7 +96,7 @@ const LobbyScreen = () => {
   // Server health check utility
   const checkServerHealth = useCallback(async () => {
     try {
-      const response = await axios.get('/api/health', {
+      const response = await axios.get('/health', {
         timeout: 5000,
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
