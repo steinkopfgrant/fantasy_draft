@@ -305,11 +305,16 @@ const PLAYER_POOLS = {
 
 class MarketMoverService {
   constructor() {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      keyPrefix: 'mm:'
-    });
+    // Use REDIS_URL if available (Railway), otherwise fall back to individual vars
+    if (process.env.REDIS_URL) {
+      this.redis = new Redis(process.env.REDIS_URL, { keyPrefix: 'mm:' });
+    } else {
+      this.redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        keyPrefix: 'mm:'
+      });
+    }
     
     // Voting duration - 2 hours per period
     // Voting NEVER stops - just resets immediately after finalization
