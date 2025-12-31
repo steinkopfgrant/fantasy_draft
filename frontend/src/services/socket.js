@@ -53,13 +53,15 @@ class SocketService {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       console.log('🔌 Initiating socket connection...');
-      
       const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      
+
       // Disconnect any existing socket first
       if (this.socket) {
         this.disconnect();
       }
+      
+      // Re-store token after disconnect (disconnect clears it)
+      this.authToken = token;
 
       // Create socket with authentication token
       this.socket = io(API_URL, {
