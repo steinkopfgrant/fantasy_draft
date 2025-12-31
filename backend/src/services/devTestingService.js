@@ -6,11 +6,15 @@ const Redis = require('ioredis');
 
 class DevTestingService {
   constructor() {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      keyPrefix: 'ffsale:'
-    });
+    if (process.env.REDIS_URL) {
+      this.redis = new Redis(process.env.REDIS_URL, { keyPrefix: 'ffsale:' });
+    } else {
+      this.redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        keyPrefix: 'ffsale:'
+      });
+    }
     this.testUsers = [];
     this.activeTestRooms = new Map();
   }

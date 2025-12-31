@@ -26,11 +26,15 @@ const UNFILLED_ROOM_LIMIT = 20;
 class ContestService {
   constructor() {
     this.io = null;
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      keyPrefix: 'ffsale:'
-    });
+    if (process.env.REDIS_URL) {
+      this.redis = new Redis(process.env.REDIS_URL, { keyPrefix: 'ffsale:' });
+    } else {
+      this.redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        keyPrefix: 'ffsale:'
+      });
+    }
     this.activeDrafts = new Map();
     this.draftTimers = new Map();
     

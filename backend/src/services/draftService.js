@@ -4,11 +4,15 @@ const { PLAYER_POOLS, getMatchupString } = require('../utils/gameLogic');
 
 class DraftService {
   constructor() {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      keyPrefix: 'draft:'
-    });
+    if (process.env.REDIS_URL) {
+      this.redis = new Redis(process.env.REDIS_URL, { keyPrefix: 'draft:' });
+    } else {
+      this.redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        keyPrefix: 'draft:'
+      });
+    }
     this.io = null;
   }
   
