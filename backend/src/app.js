@@ -198,6 +198,9 @@ app.get('/health', (req, res) => {
 app.get('/api/health', async (req, res) => {
   try {
     await db.sequelize.authenticate();
+    console.log("🔄 Syncing database tables...");
+    await db.sequelize.sync({ alter: true });
+    console.log("✅ Database tables synced!");
     const dbStatus = true;
     
     let redisStatus = false;
@@ -381,6 +384,9 @@ async function startServer() {
   try {
     // Test database connection
     await db.sequelize.authenticate();
+    console.log("🔄 Syncing database tables...");
+    await db.sequelize.sync({ alter: true });
+    console.log("✅ Database tables synced!");
     console.log('✅ Database connection established successfully');
 
     // Sync database models
