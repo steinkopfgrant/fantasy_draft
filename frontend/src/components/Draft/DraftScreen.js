@@ -542,17 +542,27 @@ const DraftScreen = ({ showToast }) => {
     return standardizedRoster;
   }, [standardizeSlotName]);
 
-  // FIXED: Enhanced roster merging
-  const mergeRosterData = useCallback((oldRoster, newRoster) => {
+    // FIXED: Enhanced roster merging with duplicate prevention
+    const mergeRosterData = useCallback((oldRoster, newRoster) => {
     const current = processRosterData(oldRoster) || {};
     const incoming = processRosterData(newRoster) || {};
     
     // Start with current to preserve existing data
     const merged = { ...current };
     
-    // Add new valid players
+    // Add new valid players - WITH DUPLICATE CHECK
     Object.entries(incoming).forEach(([position, player]) => {
       if (player && player.name && typeof player.name === 'string' && player.name.trim()) {
+        // CRITICAL: Check if this player is already in merged roster under different slot
+        const playerAlreadyInRoster = Object.entries(merged).some(([existingSlot, existingPlayer]) => 
+          existingSlot !== position && existingPlayer && existingPlayer.name && existingPlayer.name === player.name
+        );
+        
+        if (playerAlreadyInRoster) {
+          console.log(`⏭️ Skipping duplicate player: ${player.name} (already in roster under different slot)`);
+          return;
+        }
+        
         merged[position] = player;
         console.log(`🔄 Merged: ${position} = ${player.name}`);
       }
