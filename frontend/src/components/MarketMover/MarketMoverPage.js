@@ -27,8 +27,8 @@ const MarketMoverPage = () => {
   const [voting, setVoting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [allNFLPlayers, setAllNFLPlayers] = useState([]);  // For voting (excludes FIRE SALE/COOL DOWN)
-  const [allPlayersForOwnership, setAllPlayersForOwnership] = useState([]);  // For ownership (ALL players)
+  const [allNFLPlayers, setAllNFLPlayers] = useState([]);
+  const [allPlayersForOwnership, setAllPlayersForOwnership] = useState([]);
   const [showOwnershipModal, setShowOwnershipModal] = useState(false);
   const [ownershipQuery, setOwnershipQuery] = useState({ contestId: '', playerName: '' });
   const [ownershipSearchQuery, setOwnershipSearchQuery] = useState('');
@@ -46,7 +46,6 @@ const MarketMoverPage = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Update tickets from user state when it changes
   useEffect(() => {
     if (user?.tickets !== undefined) {
       setUserTickets(user.tickets);
@@ -54,7 +53,6 @@ const MarketMoverPage = () => {
   }, [user?.tickets]);
 
   useEffect(() => {
-    // Update countdown timer
     if (marketMoverData.votingActive && marketMoverData.timeRemaining > 0) {
       if (countdownInterval) clearInterval(countdownInterval);
       
@@ -71,7 +69,6 @@ const MarketMoverPage = () => {
     }
   }, [marketMoverData.votingActive, marketMoverData.endTime]);
 
-  // Fetch user tickets directly from profile endpoint
   const fetchUserTickets = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -112,16 +109,13 @@ const MarketMoverPage = () => {
         userVoteReason: data.userVoteReason
       });
       
-      // Update tickets if returned from status endpoint
       if (data.userTickets !== undefined) {
         setUserTickets(data.userTickets);
       }
       
-      // Set available players from backend (real player pools)
       if (data.availablePlayers && data.availablePlayers.length > 0) {
         setAllNFLPlayers(data.availablePlayers);
         
-        // For ownership checks, include ALL players (including FIRE SALE and COOL DOWN)
         const fireSalePlayers = (data.fireSaleList || []).map(p => ({
           id: p.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
           name: p.name,
@@ -230,7 +224,6 @@ const MarketMoverPage = () => {
       );
 
       if (response.data.success) {
-        // Show result in modal instead of toast
         setOwnershipResult({
           playerName: response.data.playerName,
           ownership: response.data.ownership
@@ -265,7 +258,6 @@ const MarketMoverPage = () => {
     return `${hours}h ${minutes}m ${seconds}s`;
   };
 
-  // Filter players based on search query
   const filteredPlayers = searchQuery.trim() === '' 
     ? [] 
     : allNFLPlayers.filter(player => 
@@ -274,20 +266,51 @@ const MarketMoverPage = () => {
         player.position.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
-  // Filter players for ownership modal dropdown (searches ALL players including FIRE SALE/COOL DOWN)
   const filteredOwnershipPlayers = ownershipSearchQuery.trim() === ''
     ? []
     : allPlayersForOwnership.filter(player =>
         player.name.toLowerCase().includes(ownershipSearchQuery.toLowerCase()) ||
         player.team?.toLowerCase().includes(ownershipSearchQuery.toLowerCase()) ||
         player.position?.toLowerCase().includes(ownershipSearchQuery.toLowerCase())
-      ).slice(0, 10); // Limit to 10 results for performance
+      ).slice(0, 10);
 
-  // Handle selecting a player from ownership dropdown
   const handleSelectOwnershipPlayer = (player) => {
     setOwnershipQuery({ ...ownershipQuery, playerName: player.name });
     setOwnershipSearchQuery(player.name);
     setShowOwnershipDropdown(false);
+  };
+
+  // Jersey Card Component for Fire Sale / Cool Down
+  const JerseyCard = ({ player, rank, type }) => {
+    const isFireSale = type === 'fire';
+    return (
+      <div className={`jersey-card ${type}`}>
+        <div className="jersey-rank-badge">#{rank}</div>
+        <div className="jersey-visual">
+          <svg viewBox="0 0 100 100" className="jersey-svg">
+            {/* Jersey shape */}
+            <path 
+              d="M20,25 L35,20 L50,25 L65,20 L80,25 L85,40 L75,45 L75,85 L25,85 L25,45 L15,40 Z" 
+              className={`jersey-path ${type}`}
+            />
+            {/* Jersey number */}
+            <text x="50" y="60" textAnchor="middle" className="jersey-number-text">
+              {rank}
+            </text>
+          </svg>
+          <div className={`jersey-effect ${type}`}>
+            {isFireSale ? '🔥' : '❄️'}
+          </div>
+        </div>
+        <div className="jersey-details">
+          <span className="jersey-player-name">{player.name}</span>
+          <span className="jersey-player-meta">{player.position} • {player.team}</span>
+          <div className="jersey-votes-badge">
+            <span>{player.votes} votes</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -303,217 +326,223 @@ const MarketMoverPage = () => {
 
   return (
     <div className="market-mover-page">
-      <div className="page-header">
-        <h1>📊 Market Mover Hub</h1>
-        <p className="page-subtitle">
-          Vote for players to get FIRE SALE or COOL DOWN status!
-        </p>
-        <div className="user-ticket-display">
-          <span className="ticket-balance">Your Tickets: {userTickets} 🎟️</span>
+      {/* Compact Header with Status */}
+      <div className="mm-header">
+        <div className="mm-header-left">
+          <h1>🗳️ Market Mover</h1>
+          <div className={`mm-status-badge ${marketMoverData.votingActive ? 'active' : 'inactive'}`}>
+            {marketMoverData.votingActive ? (
+              <>
+                <span className="status-dot"></span>
+                VOTING OPEN • {formatTimeRemaining(marketMoverData.timeRemaining)}
+              </>
+            ) : (
+              'VOTING CLOSED'
+            )}
+          </div>
+        </div>
+        <div className="mm-header-right">
+          <div className="ticket-badge">
+            <span className="ticket-icon">🎟️</span>
+            <span className="ticket-count">{userTickets}</span>
+          </div>
         </div>
       </div>
 
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={fetchMarketMoverStatus} className="retry-btn">
-            Try Again
-          </button>
+          <button onClick={fetchMarketMoverStatus} className="retry-btn">Try Again</button>
         </div>
       )}
 
-      {/* Voting Status */}
-      <div className="voting-status-section">
-        <div className={`status-card ${marketMoverData.votingActive ? 'status-active' : 'status-inactive'}`}>
-          <div className="status-header">
-            <span className="status-icon">{marketMoverData.votingActive ? '🗳️' : '🔒'}</span>
-            <h2>{marketMoverData.votingActive ? 'VOTING ACTIVE' : 'VOTING CLOSED'}</h2>
-            {marketMoverData.votingActive && <span className="pulse-dot"></span>}
+      {/* Main Content Grid - Fire Sale & Cool Down */}
+      <div className="mm-main-grid">
+        {/* FIRE SALE Section */}
+        <div className="modifier-section fire-section">
+          <div className="section-header fire-header">
+            <div className="header-icon-row">
+              <span className="header-icon">🔥</span>
+              <span className="header-icon">🔥</span>
+              <span className="header-icon">🔥</span>
+            </div>
+            <h2>FIRE SALE</h2>
+            <p className="section-tagline">Hot players guaranteed on boards</p>
           </div>
-          {marketMoverData.nextVoteTime && (
-            <p className="status-time">
-              {marketMoverData.votingActive 
-                ? `Voting ends in: ${formatTimeRemaining(marketMoverData.timeRemaining)}`
-                : 'Voting period ended'
-              }
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* FIRE SALE & COOL DOWN Lists */}
-      <div className="modifier-lists">
-        <div className="fire-sale-section">
-          <h3>🔥 FIRE SALE</h3>
-          <p className="modifier-description">
-            100% guaranteed one appears • 50% chance each additional
-          </p>
-          <div className="player-list">
+          <div className="section-rules fire-rules">
+            <div className="rule-item">
+              <span className="rule-badge gold">1st</span>
+              <span>100% appears on every board</span>
+            </div>
+            <div className="rule-item">
+              <span className="rule-badge silver">2nd+</span>
+              <span>50% chance each additional</span>
+            </div>
+          </div>
+          <div className="jersey-list">
             {marketMoverData.fireSaleList.length > 0 ? (
               marketMoverData.fireSaleList.map((player, idx) => (
-                <div key={idx} className="list-item fire-sale">
-                  <span className="rank">#{idx + 1}</span>
-                  <span className="name">{player.name}</span>
-                  <span className="votes">{player.votes} votes</span>
-                </div>
+                <JerseyCard key={idx} player={player} rank={idx + 1} type="fire" />
               ))
             ) : (
-              <div className="empty-list">No FIRE SALE players yet</div>
+              <div className="empty-roster fire">
+                <div className="empty-icon">👕</div>
+                <p>No Fire Sale players yet</p>
+                <span>Vote to add players!</span>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="cool-down-section">
-          <h3>❄️ COOL DOWN</h3>
-          <p className="modifier-description">
-            1/10 probability modifier (appears ~10x less often)
-          </p>
-          <div className="player-list">
+        {/* COOL DOWN Section */}
+        <div className="modifier-section ice-section">
+          <div className="section-header ice-header">
+            <div className="header-icon-row">
+              <span className="header-icon">❄️</span>
+              <span className="header-icon">🧊</span>
+              <span className="header-icon">❄️</span>
+            </div>
+            <h2>COOL DOWN</h2>
+            <p className="section-tagline">Frozen players rarely appear</p>
+          </div>
+          <div className="section-rules ice-rules">
+            <div className="rule-item">
+              <span className="rule-badge ice">1/10</span>
+              <span>Probability modifier applied</span>
+            </div>
+            <div className="rule-item">
+              <span className="rule-badge ice">~10x</span>
+              <span>Less likely to appear</span>
+            </div>
+          </div>
+          <div className="jersey-list">
             {marketMoverData.coolDownList.length > 0 ? (
               marketMoverData.coolDownList.map((player, idx) => (
-                <div key={idx} className="list-item cool-down">
-                  <span className="rank">#{idx + 1}</span>
-                  <span className="name">{player.name}</span>
-                  <span className="votes">{player.votes} votes</span>
-                </div>
+                <JerseyCard key={idx} player={player} rank={idx + 1} type="ice" />
               ))
             ) : (
-              <div className="empty-list">No COOL DOWN players yet</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Voting Section with Search */}
-      {marketMoverData.votingActive && (
-        <div className="voting-section">
-          <h2>🗳️ Vote for Players</h2>
-          
-          {/* Search Bar */}
-          <div className="search-container">
-            <input
-              type="text"
-              className="player-search"
-              placeholder="🔍 Search for any NFL player..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={userTickets < 1}
-            />
-            {searchQuery && (
-              <button 
-                className="clear-search"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedPlayer(null);
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Search Results */}
-          {searchQuery && (
-            <div className="search-results">
-              {filteredPlayers.length > 0 ? (
-                <div className="player-list-scroll">
-                  {filteredPlayers.map(player => {
-                    const isSelected = selectedPlayer?.id === player.id;
-                    
-                    return (
-                      <div 
-                        key={player.id}
-                        className={`player-search-item ${isSelected ? 'selected' : ''}`}
-                        onClick={() => setSelectedPlayer(player)}
-                      >
-                        <div className="player-info">
-                          <span className="player-name">{player.name}</span>
-                          <span className="player-details">{player.position} - {player.team}</span>
-                        </div>
-                        <div className="player-vote-info">
-                          {isSelected && (
-                            <button 
-                              className="vote-button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleVote(player);
-                              }}
-                              disabled={voting || userTickets < 1}
-                            >
-                              {voting ? '...' : 'Vote (1 🎟️)'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="no-results">
-                  No players found matching "{searchQuery}"
-                </div>
-              )}
-            </div>
-          )}
-
-          {userTickets < 1 && (
-            <div className="no-tickets-message">
-              You need tickets to vote! Complete drafts to earn tickets.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Leaderboard - Only shows top 10, only top 3 show vote counts */}
-      <div className="leaderboard-section">
-        <h2>🏆 Current Vote Leaders</h2>
-        <div className="leaderboard-card">
-          <div className="leaderboard-list">
-            {marketMoverData.leaderboard.length > 0 ? (
-              marketMoverData.leaderboard.slice(0, 10).map((leader, index) => (
-                <div key={index} className={`leader-row ${index < 3 ? 'top-three' : ''}`}>
-                  <span className={`rank rank-${index + 1}`}>#{index + 1}</span>
-                  <span className="player-name">{leader.name}</span>
-                  <span className="player-pos">{leader.position} - {leader.team}</span>
-                  {index < 3 ? (
-                    <span className="vote-count">{leader.votes} votes</span>
-                  ) : (
-                    <span className="vote-count vote-hidden">??? votes</span>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="no-votes">
-                <p>No votes cast yet. Be the first to vote!</p>
+              <div className="empty-roster ice">
+                <div className="empty-icon">🥶</div>
+                <p>No Cool Down players yet</p>
+                <span>Vote to freeze players!</span>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Action Cards */}
-      <div className="actions-section">
-        <h2>Available Actions</h2>
-        <div className="action-cards">
-          <div 
-            className={`action-card ownership-card ${userTickets < 1 ? 'disabled' : ''}`}
-            onClick={() => userTickets >= 1 && setShowOwnershipModal(true)}
-          >
-            <div className="card-icon">📊</div>
-            <h3>Check Ownership</h3>
-            <p>See what percentage of lineups contain a specific player</p>
-            <div className="card-cost">
-              {userTickets >= 1 ? 'Cost: 1 🎟️' : 'Need 1 🎟️'}
+      {/* Vote Section */}
+      {marketMoverData.votingActive && (
+        <div className="vote-section">
+          <h2>🗳️ Cast Your Vote</h2>
+          <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
+          
+          <div className="vote-search-container">
+            <div className="search-input-wrapper">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                className="vote-search-input"
+                placeholder="Search players..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={userTickets < 1}
+              />
+              {searchQuery && (
+                <button 
+                  className="clear-search-btn"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedPlayer(null);
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
+
+            {searchQuery && (
+              <div className="search-results-dropdown">
+                {filteredPlayers.length > 0 ? (
+                  filteredPlayers.slice(0, 8).map(player => (
+                    <div 
+                      key={player.id}
+                      className={`search-result-item ${selectedPlayer?.id === player.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedPlayer(player)}
+                    >
+                      <div className="result-info">
+                        <span className="result-name">{player.name}</span>
+                        <span className="result-meta">{player.position} • {player.team}</span>
+                      </div>
+                      {selectedPlayer?.id === player.id && (
+                        <button 
+                          className="vote-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVote(player);
+                          }}
+                          disabled={voting || userTickets < 1}
+                        >
+                          {voting ? '...' : 'Vote 🎟️'}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-results">No players found</div>
+                )}
+              </div>
+            )}
           </div>
 
-          <div 
-            className="action-card shop-card"
-            onClick={() => window.location.href = '/lobby'}
-          >
-            <div className="card-icon">🎮</div>
-            <h3>Join MarketMaker</h3>
-            <p>Enter MarketMaker contests to see FIRE SALE players in action</p>
+          {userTickets < 1 && (
+            <div className="no-tickets-warning">
+              ⚠️ You need tickets to vote! Complete drafts to earn more.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      <div className="leaderboard-section">
+        <h2>🏆 Current Vote Leaders</h2>
+        <div className="leaderboard-grid">
+          {marketMoverData.leaderboard.length > 0 ? (
+            marketMoverData.leaderboard.slice(0, 10).map((leader, index) => (
+              <div key={index} className={`leaderboard-row ${index < 3 ? 'top-three' : ''}`}>
+                <span className={`lb-rank rank-${index + 1}`}>
+                  {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                </span>
+                <span className="lb-name">{leader.name}</span>
+                <span className="lb-pos">{leader.position}</span>
+                {index < 3 ? (
+                  <span className="lb-votes">{leader.votes}</span>
+                ) : (
+                  <span className="lb-votes hidden">???</span>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="empty-leaderboard">
+              <p>No votes yet. Be the first!</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ownership Check Card */}
+      <div className="ownership-section">
+        <div 
+          className={`ownership-card ${userTickets < 1 ? 'disabled' : ''}`}
+          onClick={() => userTickets >= 1 && setShowOwnershipModal(true)}
+        >
+          <div className="ownership-icon">📊</div>
+          <div className="ownership-content">
+            <h3>Check Ownership %</h3>
+            <p>See how many lineups contain a specific player</p>
+          </div>
+          <div className="ownership-cost">
+            {userTickets >= 1 ? '1 🎟️' : 'Need tickets'}
           </div>
         </div>
       </div>
@@ -523,7 +552,6 @@ const MarketMoverPage = () => {
         <div className="modal-overlay" onClick={closeOwnershipModal}>
           <div className="modal-content ownership-modal" onClick={e => e.stopPropagation()}>
             {ownershipResult ? (
-              // Show Result View
               <>
                 <h2>📊 Ownership Result</h2>
                 <div className="ownership-result">
@@ -544,29 +572,21 @@ const MarketMoverPage = () => {
                   </p>
                 </div>
                 <div className="modal-actions">
-                  <button 
-                    onClick={() => setOwnershipResult(null)}
-                    className="secondary-btn"
-                  >
-                    Check Another Player
+                  <button onClick={() => setOwnershipResult(null)} className="secondary-btn">
+                    Check Another
                   </button>
-                  <button 
-                    onClick={closeOwnershipModal}
-                    className="primary-btn"
-                  >
+                  <button onClick={closeOwnershipModal} className="primary-btn">
                     Done
                   </button>
                 </div>
               </>
             ) : (
-              // Show Search View
               <>
                 <h2>Check Player Ownership</h2>
                 <p className="modal-description">
                   Select a contest and player to see ownership percentage
                 </p>
                 
-                {/* Contest Select */}
                 <div className="form-group">
                   <label>Contest</label>
                   <select 
@@ -583,7 +603,6 @@ const MarketMoverPage = () => {
                   </select>
                 </div>
                 
-                {/* Player Autocomplete */}
                 <div className="form-group">
                   <label>Player</label>
                   <div className="autocomplete-container">
@@ -594,7 +613,6 @@ const MarketMoverPage = () => {
                       onChange={(e) => {
                         setOwnershipSearchQuery(e.target.value);
                         setShowOwnershipDropdown(true);
-                        // Clear the selected player if user is typing something different
                         if (e.target.value !== ownershipQuery.playerName) {
                           setOwnershipQuery({ ...ownershipQuery, playerName: '' });
                         }
@@ -606,7 +624,6 @@ const MarketMoverPage = () => {
                       <span className="selected-checkmark">✓</span>
                     )}
                     
-                    {/* Dropdown Results */}
                     {showOwnershipDropdown && ownershipSearchQuery && (
                       <div className="autocomplete-dropdown">
                         {filteredOwnershipPlayers.length > 0 ? (
@@ -622,7 +639,7 @@ const MarketMoverPage = () => {
                           ))
                         ) : (
                           <div className="autocomplete-empty">
-                            No players found matching "{ownershipSearchQuery}"
+                            No players found
                           </div>
                         )}
                       </div>
@@ -641,12 +658,9 @@ const MarketMoverPage = () => {
                     disabled={!ownershipQuery.contestId || !ownershipQuery.playerName || checkingOwnership}
                     className="primary-btn"
                   >
-                    {checkingOwnership ? 'Checking...' : 'Check Ownership (1 🎟️)'}
+                    {checkingOwnership ? 'Checking...' : 'Check (1 🎟️)'}
                   </button>
-                  <button 
-                    onClick={closeOwnershipModal}
-                    className="secondary-btn"
-                  >
+                  <button onClick={closeOwnershipModal} className="secondary-btn">
                     Cancel
                   </button>
                 </div>
