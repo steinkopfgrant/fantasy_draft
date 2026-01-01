@@ -17,7 +17,7 @@ module.exports = (sequelize) => {
       allowNull: false
     },
     status: {
-      type: DataTypes.ENUM('open', 'closed', 'live', 'completed'),
+      type: DataTypes.ENUM('open', 'closed', 'live', 'completed', 'settled'),
       defaultValue: 'open'
     },
     entry_fee: {
