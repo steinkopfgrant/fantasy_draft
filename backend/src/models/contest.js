@@ -42,11 +42,11 @@ module.exports = (sequelize) => {
     },
     player_board: {
       type: DataTypes.JSONB,
-      allowNull: false
+      allowNull: true
     },
     start_time: {
       type: DataTypes.DATE,
-      allowNull: false
+      allowNull: true
     },
     end_time: {
       type: DataTypes.DATE,
