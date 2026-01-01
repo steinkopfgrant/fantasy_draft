@@ -371,12 +371,12 @@ const MarketMoverPage = () => {
           </div>
           <div className="section-rules fire-rules">
             <div className="rule-item">
-              <span className="rule-badge gold">1st</span>
-              <span>100% appears on every board</span>
+              <span className="rule-badge gold">✓</span>
+              <span>At least 1 Fire Sale player per board</span>
             </div>
             <div className="rule-item">
-              <span className="rule-badge silver">2nd+</span>
-              <span>50% chance each additional</span>
+              <span className="rule-badge silver">~1.5</span>
+              <span>Average Fire Sale players per board</span>
             </div>
           </div>
           <div className="jersey-list">
@@ -403,7 +403,7 @@ const MarketMoverPage = () => {
               <span className="header-icon">❄️</span>
             </div>
             <h2>COOL DOWN</h2>
-            <p className="section-tagline">Frozen players rarely appear</p>
+            <p className="section-tagline">After 6 hours on sale, players need to cool down</p>
           </div>
           <div className="section-rules ice-rules">
             <div className="rule-item">
@@ -424,7 +424,6 @@ const MarketMoverPage = () => {
               <div className="empty-roster ice">
                 <div className="empty-icon">🥶</div>
                 <p>No Cool Down players yet</p>
-                <span>Vote to freeze players!</span>
               </div>
             )}
           </div>

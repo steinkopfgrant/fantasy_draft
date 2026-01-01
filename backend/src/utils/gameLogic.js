@@ -342,25 +342,81 @@ const PLAYER_POOLS = {
   }
 };
 
-const generatePlayerBoard = (contestType) => {
+const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) => {
   const board = [];
   const prices = [5, 4, 3, 2, 1];
   const positions = ['QB', 'RB', 'WR', 'TE'];
+  
+  // Create sets for quick lookup
+  const fireSaleNames = new Set(fireSaleList.map(p => p.name?.toLowerCase()));
+  const coolDownNames = new Set(coolDownList.map(p => p.name?.toLowerCase()));
+  
+  console.log('🔥 Fire Sale players:', Array.from(fireSaleNames));
+  console.log('❄️ Cool Down players:', Array.from(coolDownNames));
+  
+  // Helper: Select player with Fire Sale boost and Cool Down penalty
+  const selectWeightedPlayer = (pool, position, price) => {
+    if (!pool || pool.length === 0) return null;
+    
+    // Build weighted pool
+    const weightedPool = [];
+    pool.forEach(player => {
+      const playerNameLower = player.name?.toLowerCase();
+      let weight = 1;
+      
+      // Fire Sale: 3x boost
+      if (fireSaleNames.has(playerNameLower)) {
+        weight = 3;
+      }
+      // Cool Down: 1/10 probability
+      else if (coolDownNames.has(playerNameLower)) {
+        weight = 0.1;
+      }
+      
+      // Add player to weighted pool (multiply entries by weight * 10 to handle decimals)
+      const entries = Math.round(weight * 10);
+      for (let i = 0; i < entries; i++) {
+        weightedPool.push(player);
+      }
+    });
+    
+    if (weightedPool.length === 0) {
+      // Fallback to random if weighted pool is empty
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    
+    const selected = weightedPool[Math.floor(Math.random() * weightedPool.length)];
+    return selected;
+  };
+  
+  // Track which players we've already placed to avoid duplicates
+  const usedPlayers = new Set();
   
   // Generate rows 0-4 (prices 5-1) with position-specific players
   prices.forEach((price, rowIndex) => {
     const row = [];
     positions.forEach(position => {
       const pool = PLAYER_POOLS[position][price] || [];
-      if (pool.length > 0) {
-        const randomPlayer = pool[Math.floor(Math.random() * pool.length)];
-        row.push({
-          ...randomPlayer,
-          position: position,
-          price: price,
-          drafted: false,
-          draftedBy: null
-        });
+      // Filter out already used players
+      const availablePool = pool.filter(p => !usedPlayers.has(p.name));
+      
+      if (availablePool.length > 0) {
+        const selectedPlayer = selectWeightedPlayer(availablePool, position, price);
+        if (selectedPlayer) {
+          usedPlayers.add(selectedPlayer.name);
+          const isFireSale = fireSaleNames.has(selectedPlayer.name?.toLowerCase());
+          const isCoolDown = coolDownNames.has(selectedPlayer.name?.toLowerCase());
+          
+          row.push({
+            ...selectedPlayer,
+            position: position,
+            price: price,
+            drafted: false,
+            draftedBy: null,
+            isFireSale: isFireSale,
+            isCoolDown: isCoolDown
+          });
+        }
       }
     });
     
@@ -368,72 +424,95 @@ const generatePlayerBoard = (contestType) => {
     // CRITICAL: For row 0 ($5 row), only allow RB and WR (no TE)
     const flexPositions = (rowIndex === 0) ? ['RB', 'WR'] : ['RB', 'WR', 'TE'];
     const flexPos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
-    const flexPool = PLAYER_POOLS[flexPos][price] || [];
+    const flexPool = (PLAYER_POOLS[flexPos][price] || []).filter(p => !usedPlayers.has(p.name));
+    
     if (flexPool.length > 0) {
-      const flexPlayer = flexPool[Math.floor(Math.random() * flexPool.length)];
-      row.push({
-        ...flexPlayer,
-        position: 'FLEX',
-        originalPosition: flexPos,
-        price: price,
-        drafted: false,
-        draftedBy: null
-      });
+      const flexPlayer = selectWeightedPlayer(flexPool, flexPos, price);
+      if (flexPlayer) {
+        usedPlayers.add(flexPlayer.name);
+        const isFireSale = fireSaleNames.has(flexPlayer.name?.toLowerCase());
+        const isCoolDown = coolDownNames.has(flexPlayer.name?.toLowerCase());
+        
+        row.push({
+          ...flexPlayer,
+          position: 'FLEX',
+          originalPosition: flexPos,
+          price: price,
+          drafted: false,
+          draftedBy: null,
+          isFireSale: isFireSale,
+          isCoolDown: isCoolDown
+        });
+      }
     }
     
     board.push(row);
   });
 
-  // Add row 5 (bottom row - FLEX row) with mixed prices
+  // Add row 5 (bottom row - Wildcards) with mixed prices
   const flexRow = [];
   
   // First position (bottom-left) is always a QB
   const qbPrice = prices[Math.floor(Math.random() * prices.length)];
-  const qbPool = PLAYER_POOLS['QB'][qbPrice] || [];
+  const qbPool = (PLAYER_POOLS['QB'][qbPrice] || []).filter(p => !usedPlayers.has(p.name));
   if (qbPool.length > 0) {
-    const qbPlayer = qbPool[Math.floor(Math.random() * qbPool.length)];
-    flexRow.push({
-      ...qbPlayer,
-      position: 'FLEX',
-      originalPosition: 'QB',
-      price: qbPrice,
-      drafted: false,
-      draftedBy: null
-    });
-  }
-  
-  // Positions 2-4 in FLEX row are RB/WR/TE
-  for (let i = 1; i < 4; i++) {
-    const flexPositions = ['RB', 'WR', 'TE'];
-    const pos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
-    const price = prices[Math.floor(Math.random() * prices.length)];
-    const pool = PLAYER_POOLS[pos][price] || [];
-    if (pool.length > 0) {
-      const player = pool[Math.floor(Math.random() * pool.length)];
+    const qbPlayer = selectWeightedPlayer(qbPool, 'QB', qbPrice);
+    if (qbPlayer) {
+      usedPlayers.add(qbPlayer.name);
+      const isFireSale = fireSaleNames.has(qbPlayer.name?.toLowerCase());
+      const isCoolDown = coolDownNames.has(qbPlayer.name?.toLowerCase());
+      
       flexRow.push({
-        ...player,
+        ...qbPlayer,
         position: 'FLEX',
-        originalPosition: pos,
-        price: price,
+        originalPosition: 'QB',
+        price: qbPrice,
         drafted: false,
-        draftedBy: null
+        draftedBy: null,
+        isFireSale: isFireSale,
+        isCoolDown: isCoolDown
       });
     }
   }
   
-  // CRITICAL: Leave bottom-right (position 5) as NULL initially
-  // It will be filled by ensureStackedWRInBottomRight
+  // Positions 2-4 in Wildcards row are RB/WR/TE
+  for (let i = 1; i < 4; i++) {
+    const flexPositions = ['RB', 'WR', 'TE'];
+    const pos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
+    const price = prices[Math.floor(Math.random() * prices.length)];
+    const pool = (PLAYER_POOLS[pos][price] || []).filter(p => !usedPlayers.has(p.name));
+    
+    if (pool.length > 0) {
+      const player = selectWeightedPlayer(pool, pos, price);
+      if (player) {
+        usedPlayers.add(player.name);
+        const isFireSale = fireSaleNames.has(player.name?.toLowerCase());
+        const isCoolDown = coolDownNames.has(player.name?.toLowerCase());
+        
+        flexRow.push({
+          ...player,
+          position: 'FLEX',
+          originalPosition: pos,
+          price: price,
+          drafted: false,
+          draftedBy: null,
+          isFireSale: isFireSale,
+          isCoolDown: isCoolDown
+        });
+      }
+    }
+  }
+  
+  // Leave bottom-right (position 5) as NULL - filled by ensureStackedWRInBottomRight
   flexRow.push(null);
   
   board.push(flexRow);
 
   // Ensure at least one RB in flex spots
   const flexSpots = [];
-  // Column 4 (FLEX column) in rows 0-4
   for (let row = 0; row < 5; row++) {
     if (board[row][4]) flexSpots.push({ row, col: 4 });
   }
-  // Row 5 positions 1-3
   for (let col = 1; col < 4; col++) {
     if (board[5][col]) flexSpots.push({ row: 5, col });
   }
@@ -445,17 +524,98 @@ const generatePlayerBoard = (contestType) => {
   if (!hasRBInFlex && flexSpots.length > 0) {
     const spotToReplace = flexSpots[Math.floor(Math.random() * flexSpots.length)];
     const price = board[spotToReplace.row][spotToReplace.col].price;
-    const rbPool = PLAYER_POOLS['RB'][price] || [];
+    const rbPool = (PLAYER_POOLS['RB'][price] || []).filter(p => !usedPlayers.has(p.name));
+    
     if (rbPool.length > 0) {
-      const rbPlayer = rbPool[Math.floor(Math.random() * rbPool.length)];
-      board[spotToReplace.row][spotToReplace.col] = {
-        ...rbPlayer,
-        position: 'FLEX',
-        originalPosition: 'RB',
-        price: price,
-        drafted: false,
-        draftedBy: null
-      };
+      const rbPlayer = selectWeightedPlayer(rbPool, 'RB', price);
+      if (rbPlayer) {
+        usedPlayers.add(rbPlayer.name);
+        const isFireSale = fireSaleNames.has(rbPlayer.name?.toLowerCase());
+        const isCoolDown = coolDownNames.has(rbPlayer.name?.toLowerCase());
+        
+        board[spotToReplace.row][spotToReplace.col] = {
+          ...rbPlayer,
+          position: 'FLEX',
+          originalPosition: 'RB',
+          price: price,
+          drafted: false,
+          draftedBy: null,
+          isFireSale: isFireSale,
+          isCoolDown: isCoolDown
+        };
+      }
+    }
+  }
+
+  // FIRE SALE GUARANTEE: Ensure at least 1 Fire Sale player on board
+  if (fireSaleList.length > 0) {
+    let fireSaleCount = 0;
+    board.forEach(row => {
+      row.forEach(player => {
+        if (player && player.isFireSale) fireSaleCount++;
+      });
+    });
+    
+    console.log(`🔥 Fire Sale players on board: ${fireSaleCount}`);
+    
+    // If no Fire Sale players, force one onto the board
+    if (fireSaleCount === 0) {
+      console.log('⚠️ No Fire Sale players on board - forcing one...');
+      
+      // Pick a random Fire Sale player
+      const randomFireSale = fireSaleList[Math.floor(Math.random() * fireSaleList.length)];
+      const fsPosition = randomFireSale.position || 'WR';
+      const fsPrice = randomFireSale.price || 3;
+      
+      // Find a spot to replace (prefer matching position)
+      let replaced = false;
+      
+      // Try to find matching position in the price row
+      const priceRow = 5 - fsPrice; // $5 = row 0, $4 = row 1, etc.
+      if (priceRow >= 0 && priceRow < 5) {
+        const positionCols = { QB: 0, RB: 1, WR: 2, TE: 3, FLEX: 4 };
+        const col = positionCols[fsPosition];
+        
+        if (col !== undefined && board[priceRow][col] && !board[priceRow][col].isFireSale) {
+          board[priceRow][col] = {
+            name: randomFireSale.name,
+            team: randomFireSale.team,
+            position: fsPosition,
+            price: fsPrice,
+            drafted: false,
+            draftedBy: null,
+            isFireSale: true,
+            isCoolDown: false,
+            forcedFireSale: true
+          };
+          replaced = true;
+          console.log(`✅ Forced ${randomFireSale.name} into row ${priceRow}, col ${col}`);
+        }
+      }
+      
+      // Fallback: replace a random non-Fire Sale player
+      if (!replaced) {
+        for (let r = 0; r < board.length && !replaced; r++) {
+          for (let c = 0; c < board[r].length && !replaced; c++) {
+            if (board[r][c] && !board[r][c].isFireSale && board[r][c].position !== 'FLEX') {
+              board[r][c] = {
+                name: randomFireSale.name,
+                team: randomFireSale.team,
+                position: board[r][c].position,
+                originalPosition: fsPosition,
+                price: board[r][c].price,
+                drafted: false,
+                draftedBy: null,
+                isFireSale: true,
+                isCoolDown: false,
+                forcedFireSale: true
+              };
+              replaced = true;
+              console.log(`✅ Forced ${randomFireSale.name} into row ${r}, col ${c} (fallback)`);
+            }
+          }
+        }
+      }
     }
   }
 

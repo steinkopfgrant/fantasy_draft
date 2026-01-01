@@ -451,9 +451,13 @@ class ContestService {
           const existingBoard = await this.redis.get(boardKey);
           
           if (!existingBoard) {
-            let newBoard = generatePlayerBoard();
+            // Fetch Fire Sale and Cool Down lists for board generation
             const marketMoverService = require('./marketMoverService');
-            newBoard = await marketMoverService.applyMarketMakerModifiers(newBoard);
+            const mmStatus = await marketMoverService.getVotingStatus();
+            
+            // Generate board with Fire Sale/Cool Down modifiers built in
+            let newBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
+            
             await this.redis.set(boardKey, JSON.stringify(newBoard), 'EX', 86400);
             console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
           }
@@ -1152,12 +1156,10 @@ class ContestService {
           if (boardData) {
             playerBoard = JSON.parse(boardData);
           } else {
-            // Generate new board with Market Mover modifiers
-            playerBoard = generatePlayerBoard();
-            
-            // Apply FIRE SALE and COOL DOWN modifiers
+            // Generate board with Fire Sale/Cool Down modifiers built in
             const marketMoverService = require('./marketMoverService');
-            playerBoard = await marketMoverService.applyMarketMakerModifiers(playerBoard);
+            const mmStatus = await marketMoverService.getVotingStatus();
+            playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
             
             await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
             console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
@@ -1214,11 +1216,10 @@ class ContestService {
             if (boardData) {
               playerBoard = JSON.parse(boardData);
             } else {
-              playerBoard = generatePlayerBoard();
-              
-              // Apply Market Mover modifiers
+              // Generate board with Fire Sale/Cool Down modifiers built in
               const marketMoverService = require('./marketMoverService');
-              playerBoard = await marketMoverService.applyMarketMakerModifiers(playerBoard);
+              const mmStatus = await marketMoverService.getVotingStatus();
+              playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
               
               await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
             }
@@ -1643,9 +1644,6 @@ class ContestService {
   }
 
   // FIXED: completeDraftForRoom with ticket awarding
-  // REPLACE the completeDraftForRoom function in contestService.js (around line 1630)
-// This fixes the bug where lineups weren't being created for all users
-
   async completeDraftForRoom(roomId) {
     const draft = this.activeDrafts.get(roomId);
     if (!draft) return;
