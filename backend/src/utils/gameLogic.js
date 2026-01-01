@@ -348,7 +348,7 @@ const generatePlayerBoard = (contestType) => {
   const positions = ['QB', 'RB', 'WR', 'TE'];
   
   // Generate rows 0-4 (prices 5-1) with position-specific players
-  prices.forEach(price => {
+  prices.forEach((price, rowIndex) => {
     const row = [];
     positions.forEach(position => {
       const pool = PLAYER_POOLS[position][price] || [];
@@ -365,7 +365,8 @@ const generatePlayerBoard = (contestType) => {
     });
     
     // Add FLEX position (5th column) for rows 0-4
-    const flexPositions = ['RB', 'WR', 'TE'];
+    // CRITICAL: For row 0 ($5 row), only allow RB and WR (no TE)
+    const flexPositions = (rowIndex === 0) ? ['RB', 'WR'] : ['RB', 'WR', 'TE'];
     const flexPos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
     const flexPool = PLAYER_POOLS[flexPos][price] || [];
     if (flexPool.length > 0) {

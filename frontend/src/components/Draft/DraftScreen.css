@@ -122,20 +122,32 @@
 
 .price-row {
   display: grid;
-  grid-template-columns: 80px repeat(5, 1fr);
+  grid-template-columns: 100px repeat(5, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
-  align-items: center;
+  align-items: stretch;
 }
 
 .price-label {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: bold;
   color: #00d4ff;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
 }
 
-/* Player Cards - WITH FIX FOR DUPLICATE PICKS */
+/* Wildcards label styling */
+.price-label.wildcards {
+  font-size: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Player Cards - FIXED SIZES */
 .player-card {
   background-color: #2a2f3e;
   border: 2px solid #3a3f4e;
@@ -145,6 +157,14 @@
   cursor: pointer;
   transition: all 0.3s;
   position: relative;
+  /* FIXED SIZE - All cards same dimensions */
+  min-height: 120px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .player-card:hover:not(.drafted):not(.disabled) {
@@ -168,7 +188,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-20deg);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: bold;
   color: red;
   opacity: 0.7;
@@ -240,16 +260,22 @@
   box-shadow: 0 2px 10px rgba(68, 255, 68, 0.4);
 }
 
-/* Player card content */
+/* Player card content - constrained to fit */
 .player-name {
   font-weight: bold;
   margin-bottom: 0.25rem;
   color: #ffffff;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .player-team {
   color: #8892b0;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
 }
 
 /* Position badges */
@@ -259,16 +285,16 @@
   right: -8px;
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
   color: white;
 }
 
 .position-badge.QB { background-color: #ff4444; }
-.position-badge.RB { background-color: #44ff44; }
+.position-badge.RB { background-color: #44ff44; color: #0a0e1b; }
 .position-badge.WR { background-color: #4444ff; }
 .position-badge.TE { background-color: #ff44ff; }
-.position-badge.FLEX { background-color: #ffaa44; }
+.position-badge.FLEX { background-color: #ffaa44; color: #0a0e1b; }
 .position-badge.K { background-color: #888888; }
 .position-badge.DEF { background-color: #666666; }
 
@@ -277,14 +303,14 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 11px;
   color: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   z-index: 10;
@@ -316,7 +342,7 @@
 }
 
 .piece-inner {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
@@ -330,9 +356,19 @@
   color: white;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+/* Player matchup styling */
+.player-matchup {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  font-size: 9px;
+  color: #6b7280;
+  font-weight: 500;
 }
 
 /* My Team Section */
@@ -872,16 +908,6 @@
   margin-top: 2rem;
 }
 
-/* Player matchup styling */
-.player-matchup {
-  position: absolute;
-  bottom: 4px;
-  left: 6px;
-  font-size: 10px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
 .back-button:hover,
 .return-button:hover {
   background-color: #00a8cc;
@@ -893,6 +919,20 @@
 @media (max-width: 1200px) {
   .roster {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  
+  .player-card {
+    min-height: 100px;
+    height: 100px;
+    padding: 0.75rem;
+  }
+  
+  .player-name {
+    font-size: 0.8rem;
+  }
+  
+  .player-team {
+    font-size: 0.7rem;
   }
 }
 
@@ -911,8 +951,23 @@
     gap: 0.5rem;
   }
   
+  .price-label {
+    font-size: 1rem;
+    min-height: 90px;
+  }
+  
   .player-card {
+    min-height: 90px;
+    height: 90px;
     padding: 0.5rem;
+  }
+  
+  .player-name {
+    font-size: 0.75rem;
+  }
+  
+  .player-team {
+    font-size: 0.65rem;
   }
   
   .roster {

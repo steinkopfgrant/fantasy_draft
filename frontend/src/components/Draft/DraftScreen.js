@@ -1652,7 +1652,9 @@ const DraftScreen = ({ showToast }) => {
         {playerBoard && playerBoard.length > 0 ? (
           playerBoard.map((row, rowIndex) => (
             <div key={rowIndex} className="price-row">
-              <div className="price-label">${5 - rowIndex}</div>
+              <div className={`price-label ${rowIndex === 5 ? 'wildcards' : ''}`}>
+                {rowIndex === 5 ? 'Wildcards' : `$${5 - rowIndex}`}
+              </div>
               {row.map((player, colIndex) => {
                 const isAutoSuggestion = autoPickSuggestion && 
                   autoPickSuggestion.row === rowIndex && 
