@@ -113,7 +113,7 @@ const Header = () => {
     <header className="header">
       <div className="header-container">
         <Link to="/" className="logo">
-          Fantasy Fire Sale
+          BidBlitz
         </Link>
         
         <nav className="nav">
