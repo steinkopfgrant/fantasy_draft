@@ -3,7 +3,158 @@
 /* Main Container */
 .draft-container {
   padding: 2rem;
+  position: relative;
+  transition: all 0.3s ease;
 }
+
+/* ============================================
+   LOW TIME WARNING - PULSING NEON RED BORDER
+   ============================================ */
+
+/* Main container warning state */
+.draft-container.low-time-warning {
+  animation: container-pulse 0.5s ease-in-out infinite;
+}
+
+.draft-container.low-time-warning::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9998;
+  border: 4px solid transparent;
+  animation: screen-border-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes container-pulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.02);
+  }
+}
+
+@keyframes screen-border-pulse {
+  0%, 100% {
+    box-shadow: 
+      inset 0 0 30px rgba(255, 68, 68, 0.3),
+      inset 0 0 60px rgba(255, 68, 68, 0.15),
+      inset 0 0 100px rgba(255, 68, 68, 0.05);
+  }
+  50% {
+    box-shadow: 
+      inset 0 0 50px rgba(255, 68, 68, 0.5),
+      inset 0 0 100px rgba(255, 68, 68, 0.25),
+      inset 0 0 150px rgba(255, 68, 68, 0.1);
+  }
+}
+
+/* Player board warning state */
+.player-board.low-time-warning {
+  border: 3px solid #ff4444;
+  animation: board-pulse 0.5s ease-in-out infinite;
+  position: relative;
+}
+
+.player-board.low-time-warning::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 14px;
+  background: linear-gradient(
+    45deg,
+    #ff4444,
+    #ff6b6b,
+    #ff4444,
+    #cc0000,
+    #ff4444
+  );
+  background-size: 400% 400%;
+  z-index: -1;
+  animation: gradient-shift 1s ease infinite;
+  opacity: 0.7;
+}
+
+@keyframes board-pulse {
+  0%, 100% {
+    border-color: #ff4444;
+    box-shadow: 
+      0 0 20px rgba(255, 68, 68, 0.5),
+      0 0 40px rgba(255, 68, 68, 0.3),
+      inset 0 0 15px rgba(255, 68, 68, 0.1);
+  }
+  50% {
+    border-color: #ff6b6b;
+    box-shadow: 
+      0 0 40px rgba(255, 68, 68, 0.8),
+      0 0 80px rgba(255, 68, 68, 0.5),
+      0 0 120px rgba(255, 68, 68, 0.3),
+      inset 0 0 25px rgba(255, 68, 68, 0.15);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Timer value low time styling */
+.time-value.low-time {
+  color: #ff4444 !important;
+  text-shadow: 
+    0 0 10px rgba(255, 68, 68, 0.8),
+    0 0 20px rgba(255, 68, 68, 0.6),
+    0 0 30px rgba(255, 68, 68, 0.4);
+  animation: timer-text-pulse 0.3s ease-in-out infinite;
+}
+
+@keyframes timer-text-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+/* Turn indicator urgency */
+.low-time-warning .turn-indicator {
+  background: linear-gradient(135deg, #ff4444 0%, #ff6b6b 50%, #ff4444 100%);
+  background-size: 200% 200%;
+  animation: urgent-pulse 0.5s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.6);
+}
+
+@keyframes urgent-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+    transform: scale(1);
+  }
+  50% {
+    background-position: 100% 50%;
+    transform: scale(1.05);
+  }
+}
+
+/* ============================================
+   END LOW TIME WARNING STYLES
+   ============================================ */
 
 /* Draft Header */
 .draft-header {
@@ -42,7 +193,7 @@
 }
 
 .timer.my-turn.warning {
-  color: #ffaa44;
+  color: #ff4444;
   animation: timer-pulse 0.5s infinite;
 }
 
@@ -118,6 +269,9 @@
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
+  position: relative;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
 }
 
 .price-row {

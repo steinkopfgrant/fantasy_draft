@@ -1602,9 +1602,12 @@ const DraftScreen = ({ showToast }) => {
   // Apply emergency budget fix to myTeam before rendering
   const safeMyTeam = myTeam ? validateAndFixBudget(myTeam) : null;
 
+  // LOW TIME WARNING: Determine if we should show the pulsing red border
+  const showLowTimeWarning = actualIsMyTurn && status === 'active' && timeRemaining <= 10 && timeRemaining > 0;
+
   // Render active draft
   return (
-    <div className="draft-container">
+    <div className={`draft-container ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
       {/* LIVE DRAFT FEED - Replaces old DebugDraftOrder */}
       <LiveDraftFeed 
         teams={teams}
@@ -1617,7 +1620,7 @@ const DraftScreen = ({ showToast }) => {
       <div className="draft-header">
         <div className="timer-section">
           <div className={`timer ${actualIsMyTurn ? 'my-turn' : ''} ${timeRemaining <= 10 ? 'warning' : ''}`}>
-            Time: <span className="time-value">{timeRemaining || 30}s</span>
+            Time: <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{timeRemaining || 30}s</span>
           </div>
           {actualIsMyTurn && <div className="turn-indicator">Your Turn!</div>}
         </div>
@@ -1648,7 +1651,7 @@ const DraftScreen = ({ showToast }) => {
       </div>
 
       {/* PLAYER BOARD */}
-      <div className="player-board">
+      <div className={`player-board ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
         {playerBoard && playerBoard.length > 0 ? (
           playerBoard.map((row, rowIndex) => (
             <div key={rowIndex} className="price-row">
