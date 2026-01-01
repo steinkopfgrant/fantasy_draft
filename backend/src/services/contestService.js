@@ -41,6 +41,7 @@ class ContestService {
     // Track emitted events to prevent duplicates
     this.recentEvents = new Map();
     this.eventCleanupInterval = null;
+    this.stalledDraftInterval = null;
   }
 
   setSocketIO(io) {
@@ -60,6 +61,15 @@ class ContestService {
         }
       }
     }, 1000);
+    
+    // Start stalled draft checker - runs every 15 seconds
+    if (this.stalledDraftInterval) {
+      clearInterval(this.stalledDraftInterval);
+    }
+    this.stalledDraftInterval = setInterval(() => {
+      this.checkAllStalledDrafts();
+    }, 15000);
+    console.log('🔄 Started stalled draft checker (every 15s)');
   }
 
   setIo(io) {
@@ -1473,6 +1483,14 @@ class ContestService {
     const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
     const currentPlayer = draftState.teams[currentPlayerIndex];
 
+    // Store turn start timestamp in Redis for stall detection
+    const turnKey = `turn:${roomId}`;
+    await this.redis.set(turnKey, JSON.stringify({
+      turnStartedAt: Date.now(),
+      currentTurn: draftState.currentTurn,
+      currentUserId: currentPlayer.userId
+    }), 'EX', 3600); // 1 hour expiry
+
     if (this.io) {
       this.io.to(`room_${roomId}`).emit('draft-turn', {
         roomId,
@@ -1494,11 +1512,166 @@ class ContestService {
       this.io.to(`room_${roomId}`).emit('draft-state', draftState);
     }
 
+    // Clear any existing timer for this room/user combo
+    const existingTimerKey = `${roomId}_${currentPlayer.userId}`;
+    if (this.draftTimers.has(existingTimerKey)) {
+      clearTimeout(this.draftTimers.get(existingTimerKey));
+    }
+
     const timerId = setTimeout(() => {
       this.handleAutoPick(roomId, currentPlayer.userId);
     }, 30000);
 
-    this.draftTimers.set(`${roomId}_${currentPlayer.userId}`, timerId);
+    this.draftTimers.set(existingTimerKey, timerId);
+    console.log(`⏱️ Started 30s timer for ${currentPlayer.username} in room ${roomId}`);
+  }
+
+  // Check if a draft is stalled and restart timer if needed
+  async checkAndRestartStalledDraft(roomId) {
+    try {
+      const draftState = await draftService.getDraft(roomId);
+      if (!draftState || draftState.status === 'completed') {
+        return { stalled: false, reason: 'no_active_draft' };
+      }
+
+      const totalPicks = draftState.teams.length * 5;
+      if (draftState.currentTurn >= totalPicks) {
+        // Draft should be completed - do it now
+        console.log(`🔄 Draft ${roomId} should be completed, finalizing...`);
+        await this.completeDraftForRoom(roomId);
+        return { stalled: false, reason: 'completed' };
+      }
+
+      // Check if there's an active timer
+      const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
+      const currentPlayer = draftState.teams[currentPlayerIndex];
+      const timerKey = `${roomId}_${currentPlayer.userId}`;
+      
+      if (this.draftTimers.has(timerKey)) {
+        return { stalled: false, reason: 'timer_active' };
+      }
+
+      // No active timer - check how long the turn has been going
+      const turnKey = `turn:${roomId}`;
+      const turnData = await this.redis.get(turnKey);
+      
+      if (turnData) {
+        const { turnStartedAt, currentTurn } = JSON.parse(turnData);
+        const elapsed = Date.now() - turnStartedAt;
+        
+        // If same turn and more than 30s elapsed, auto-pick immediately
+        if (currentTurn === draftState.currentTurn && elapsed > 30000) {
+          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s - auto-picking now`);
+          
+          // Ensure draft is in activeDrafts
+          if (!this.activeDrafts.has(roomId)) {
+            const entry = await db.ContestEntry.findOne({
+              where: { draft_room_id: roomId, status: 'drafting' }
+            });
+            if (entry) {
+              this.activeDrafts.set(roomId, {
+                roomId,
+                contestId: entry.contest_id,
+                startTime: new Date(turnStartedAt),
+                participants: draftState.teams
+              });
+            }
+          }
+          
+          // Trigger auto-pick
+          await this.handleAutoPick(roomId, currentPlayer.userId);
+          return { stalled: true, action: 'auto_picked' };
+        }
+        
+        // Turn started but less than 30s - restart timer for remaining time
+        if (currentTurn === draftState.currentTurn) {
+          const remaining = Math.max(1000, 30000 - elapsed);
+          console.log(`🔄 Restarting timer for ${roomId} with ${Math.round(remaining/1000)}s remaining`);
+          
+          // Ensure draft is in activeDrafts
+          if (!this.activeDrafts.has(roomId)) {
+            const entry = await db.ContestEntry.findOne({
+              where: { draft_room_id: roomId, status: 'drafting' }
+            });
+            if (entry) {
+              this.activeDrafts.set(roomId, {
+                roomId,
+                contestId: entry.contest_id,
+                startTime: new Date(turnStartedAt),
+                participants: draftState.teams
+              });
+            }
+          }
+          
+          const timerId = setTimeout(() => {
+            this.handleAutoPick(roomId, currentPlayer.userId);
+          }, remaining);
+          
+          this.draftTimers.set(timerKey, timerId);
+          return { stalled: true, action: 'timer_restarted', remaining };
+        }
+      }
+      
+      // No turn data - start fresh turn
+      console.log(`🔄 No turn data for ${roomId} - starting fresh pick`);
+      
+      // Ensure draft is in activeDrafts
+      if (!this.activeDrafts.has(roomId)) {
+        const entry = await db.ContestEntry.findOne({
+          where: { draft_room_id: roomId, status: 'drafting' }
+        });
+        if (entry) {
+          this.activeDrafts.set(roomId, {
+            roomId,
+            contestId: entry.contest_id,
+            startTime: new Date(),
+            participants: draftState.teams
+          });
+        }
+      }
+      
+      await this.startNextPick(roomId);
+      return { stalled: true, action: 'restarted' };
+      
+    } catch (error) {
+      console.error(`Error checking stalled draft ${roomId}:`, error);
+      return { stalled: false, error: error.message };
+    }
+  }
+
+  // Background checker for all stalled drafts
+  async checkAllStalledDrafts() {
+    try {
+      // Find all entries with 'drafting' status
+      const draftingEntries = await db.ContestEntry.findAll({
+        where: { status: 'drafting' },
+        attributes: ['draft_room_id'],
+        group: ['draft_room_id'],
+        raw: true
+      });
+      
+      if (draftingEntries.length === 0) return;
+      
+      const uniqueRooms = [...new Set(draftingEntries.map(e => e.draft_room_id))];
+      
+      for (const roomId of uniqueRooms) {
+        // Check if this room has an active timer
+        let hasActiveTimer = false;
+        for (const [key] of this.draftTimers) {
+          if (key.startsWith(`${roomId}_`)) {
+            hasActiveTimer = true;
+            break;
+          }
+        }
+        
+        if (!hasActiveTimer) {
+          console.log(`🔍 Checking potentially stalled draft: ${roomId}`);
+          await this.checkAndRestartStalledDraft(roomId);
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkAllStalledDrafts:', error);
+    }
   }
 
   async handlePlayerPick(roomId, userId, playerData, positionData) {
@@ -2031,6 +2204,15 @@ class ContestService {
       if (this.eventCleanupInterval) {
         clearInterval(this.eventCleanupInterval);
       }
+      if (this.stalledDraftInterval) {
+        clearInterval(this.stalledDraftInterval);
+      }
+      // Clear all draft timers
+      for (const [key, timerId] of this.draftTimers) {
+        clearTimeout(timerId);
+      }
+      this.draftTimers.clear();
+      
       await this.redis.quit();
       console.log('ContestService cleanup completed');
     } catch (error) {

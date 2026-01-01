@@ -189,6 +189,21 @@ class SocketHandler {
           contestId: entry.contest_id,
           contestName: entry.Contest?.name
         });
+        
+        // Automatically join the draft room
+        const socketRoomId = `room_${entry.draft_room_id}`;
+        await socket.join(socketRoomId);
+        console.log(`🔌 Auto-joined ${user.username} to ${socketRoomId} on auth`);
+        
+        // Check if draft is stalled and restart if needed
+        try {
+          const stallCheck = await contestService.checkAndRestartStalledDraft(entry.draft_room_id);
+          if (stallCheck.stalled) {
+            console.log(`🔄 Stalled draft detected on auth for ${entry.draft_room_id}: ${JSON.stringify(stallCheck)}`);
+          }
+        } catch (stallError) {
+          console.error('Error checking stalled draft on auth:', stallError);
+        }
       }
 
     } catch (error) {
@@ -337,6 +352,18 @@ class SocketHandler {
         const socketRoomId = `room_${roomId}`;
         await socket.join(socketRoomId);
         console.log(`🔌 User ${userId} rejoined ${socketRoomId} on connect`);
+        
+        // Check if draft is stalled and restart if needed
+        if (entry.status === 'drafting') {
+          try {
+            const stallCheck = await contestService.checkAndRestartStalledDraft(roomId);
+            if (stallCheck.stalled) {
+              console.log(`🔄 Stalled draft detected on check-active-drafts: ${JSON.stringify(stallCheck)}`);
+            }
+          } catch (stallError) {
+            console.error('Error checking stalled draft:', stallError);
+          }
+        }
         
         // Emit current room status
         const roomStatus = await contestService.getRoomStatus(roomId);
@@ -557,7 +584,7 @@ class SocketHandler {
     }
   }
 
-  // FIXED: Added fallback for _room_1 suffix when roomId doesn't include it
+  // FIXED: Added stall detection when getting draft state
   async handleGetDraftState(socket, data) {
     let { roomId } = data;
     const userId = socket.userId;
@@ -592,6 +619,21 @@ class SocketHandler {
             roomId = fallbackRoomId;
             console.log(`✅ Found draft under user's actual room ID`);
           }
+        }
+      }
+      
+      // Check if draft is stalled and restart timer if needed
+      if (draft && draft.status !== 'completed') {
+        try {
+          const stallCheck = await contestService.checkAndRestartStalledDraft(roomId);
+          if (stallCheck.stalled) {
+            console.log(`🔄 Stalled draft detected on get-draft-state for ${roomId}: ${JSON.stringify(stallCheck)}`);
+            
+            // Re-fetch draft state after stall recovery
+            draft = await draftService.getDraft(roomId);
+          }
+        } catch (stallError) {
+          console.error('Error checking stalled draft:', stallError);
         }
       }
       
@@ -697,7 +739,7 @@ class SocketHandler {
     console.log('Socket disconnected:', socket.id);
   }
 
-  // FIXED: Added fallback for _room_1 suffix
+  // FIXED: Added stall detection in sendDraftState too
   async sendDraftState(socket, roomId) {
     try {
       console.log(`📨 sendDraftState called for room ${roomId}`);
@@ -713,6 +755,20 @@ class SocketHandler {
         if (draft) {
           roomId = fallbackRoomId;
           console.log(`✅ sendDraftState found draft under fallback room ID`);
+        }
+      }
+      
+      // Check if draft is stalled
+      if (draft && draft.status !== 'completed') {
+        try {
+          const stallCheck = await contestService.checkAndRestartStalledDraft(roomId);
+          if (stallCheck.stalled) {
+            console.log(`🔄 Stalled draft detected in sendDraftState: ${JSON.stringify(stallCheck)}`);
+            // Re-fetch draft after recovery
+            draft = await draftService.getDraft(roomId);
+          }
+        } catch (stallError) {
+          console.error('Error checking stalled draft in sendDraftState:', stallError);
         }
       }
       
