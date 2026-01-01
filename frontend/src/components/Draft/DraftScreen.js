@@ -32,6 +32,10 @@ import { selectAuthUser } from '../../store/slices/authSlice';
 import socketService from '../../services/socket';
 import './DraftScreen.css';
 
+// Module-level tracking to survive React remounts
+let moduleInitializedRoomId = null;
+let moduleLastInitTime = 0;
+
 const DraftScreen = ({ showToast }) => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -587,9 +591,12 @@ const DraftScreen = ({ showToast }) => {
     return rosterCount || '';
   };
 
-  // Initialize draft on mount
+  // Initialize draft on mount - with remount protection
   useEffect(() => {
-    console.log('=== DRAFT SCREEN MOUNTED ===');
+    console.log('=== DRAFT SCREEN MOUNTED ===', { roomId, status, hasJoined: hasJoinedRef.current });
+    
+    // Reset mountedRef on each mount
+    mountedRef.current = true;
     
     if (!user || !roomId) {
       console.error('Missing user or roomId', { user, roomId });
@@ -598,11 +605,56 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
 
+    // CRITICAL: Module-level check to prevent rapid re-initialization
+    const now = Date.now();
+    const recentlyInitialized = moduleInitializedRoomId === roomId && (now - moduleLastInitTime) < 5000;
+    
+    if (recentlyInitialized) {
+      console.log('⏭️ Recently initialized this room, skipping (module-level protection)');
+      // Just request fresh state
+      if (socketConnected) {
+        socketService.emit('get-draft-state', { roomId });
+      }
+      return;
+    }
+
+    // CRITICAL: Check if we already have valid draft state for this room
+    // This prevents re-initialization on React remounts
+    const currentDraftState = store.getState().draft;
+    const hasExistingDraftState = currentDraftState && 
+      currentDraftState.status && 
+      currentDraftState.status !== 'idle' &&
+      currentDraftState.status !== 'error' &&
+      currentDraftState.playerBoard &&
+      currentDraftState.playerBoard.length > 0;
+    
+    if (hasExistingDraftState) {
+      console.log('✅ Draft state already exists, skipping re-initialization', {
+        status: currentDraftState.status,
+        hasBoardData: currentDraftState.playerBoard?.length > 0,
+        teams: currentDraftState.teams?.length
+      });
+      
+      // Update module tracking
+      moduleInitializedRoomId = roomId;
+      moduleLastInitTime = now;
+      
+      // Just request fresh state from server without full re-init
+      if (socketConnected) {
+        socketService.emit('get-draft-state', { roomId });
+      }
+      return;
+    }
+
     if (initializationAttemptedRef.current) {
+      console.log('⏭️ Initialization already attempted, skipping');
       return;
     }
     
     initializationAttemptedRef.current = true;
+    moduleInitializedRoomId = roomId;
+    moduleLastInitTime = now;
+    console.log('🚀 Starting draft initialization...');
 
     dispatch(initializeDraft({ roomId, userId: currentUserId }))
       .unwrap()
@@ -611,9 +663,11 @@ const DraftScreen = ({ showToast }) => {
         console.log('Init result:', result);
         hasJoinedRef.current = false;
         
-        if (socketConnected) {
+        if (socketConnected && mountedRef.current) {
           setTimeout(() => {
-            socketService.emit('get-draft-state', { roomId });
+            if (mountedRef.current) {
+              socketService.emit('get-draft-state', { roomId });
+            }
           }, 100);
         }
       })
@@ -621,6 +675,9 @@ const DraftScreen = ({ showToast }) => {
         console.error('❌ Failed to initialize draft:', error);
         const errorMessage = error?.message || error?.error || 'Unknown error';
         toast(`Failed to initialize draft: ${errorMessage}`, 'error');
+        
+        // Reset module tracking on error
+        moduleInitializedRoomId = null;
         
         if (mountedRef.current) {
           navigate('/lobby');
@@ -632,6 +689,7 @@ const DraftScreen = ({ showToast }) => {
       mountedRef.current = false;
       hasJoinedRef.current = false;
       socketHandlersRef.current = false;
+      initializationAttemptedRef.current = false; // Reset for potential remount
       
       if (autoPickTimeoutRef.current) {
         clearTimeout(autoPickTimeoutRef.current);
@@ -641,13 +699,10 @@ const DraftScreen = ({ showToast }) => {
         clearTimeout(pickTimeoutRef.current);
       }
       
-      if (roomId && entryId) {
-        dispatch(leaveDraftRoom({ roomId }));
-      }
-      
-      dispatch(resetDraft());
+      // DON'T reset draft or leave room on unmount - this causes issues with remounts
+      // Only do this when actually navigating away (handled by route change)
     };
-  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId, entryId]);
+  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId]);
 
   // Handle socket connection and join room when ready
   useEffect(() => {
@@ -686,7 +741,13 @@ const DraftScreen = ({ showToast }) => {
 
   // FIXED: Enhanced Socket event handlers with better roster preservation
   useEffect(() => {
-    if (!socketConnected || !roomId || socketHandlersRef.current) return;
+    if (!socketConnected || !roomId) return;
+    
+    // Allow re-setup of handlers if they were cleaned up
+    if (socketHandlersRef.current) {
+      console.log('⏭️ Socket handlers already set up');
+      return;
+    }
 
     console.log('🎮 Setting up draft socket event handlers');
     socketHandlersRef.current = true;
@@ -1290,8 +1351,12 @@ const DraftScreen = ({ showToast }) => {
 
   // Handle return to lobby
   const handleReturnToLobby = useCallback(() => {
+    // Reset module-level tracking when intentionally leaving
+    moduleInitializedRoomId = null;
+    moduleLastInitTime = 0;
+    dispatch(resetDraft());
     navigate('/lobby');
-  }, [navigate]);
+  }, [navigate, dispatch]);
 
   // Handle team navigation in results view
   const handlePrevTeam = useCallback(() => {
