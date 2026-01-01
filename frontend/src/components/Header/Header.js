@@ -1,8 +1,7 @@
 // frontend/src/components/Header/Header.js
-// UPDATED: Replaced "Profile" with "Teams"
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { selectAuthUser, selectIsAuthenticated, logout } from '../../store/slices/authSlice';
 import { showToast } from '../../store/slices/uiSlice';
 import axios from 'axios';
@@ -11,6 +10,7 @@ import './Header.css';
 const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useSelector(selectAuthUser);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   
@@ -33,8 +33,6 @@ const Header = () => {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        console.log('Fetched user profile:', response.data);
-        
         if (response.data.user) {
           setUserData({
             balance: response.data.user.balance || 0,
@@ -43,7 +41,6 @@ const Header = () => {
         }
       } catch (error) {
         console.error('Error fetching user balance/tickets:', error);
-        // Try the balance endpoint as fallback
         try {
           const balanceResponse = await axios.get('/api/users/balance', {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -60,13 +57,8 @@ const Header = () => {
       }
     };
     
-    // Fetch immediately
     fetchUserData();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(fetchUserData, 30000);
-    
-    // Also refresh when window gains focus
     const handleFocus = () => fetchUserData();
     window.addEventListener('focus', handleFocus);
     
@@ -74,7 +66,7 @@ const Header = () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isAuthenticated, user?.id]); // Re-fetch when user changes
+  }, [isAuthenticated, user?.id]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -82,11 +74,6 @@ const Header = () => {
     navigate('/');
   };
 
-  const handleMarketMoverClick = () => {
-    navigate('/market-mover');
-  };
-
-  // Manual refresh function for testing
   const refreshBalance = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -109,6 +96,9 @@ const Header = () => {
     }
   };
 
+  // Check if current path matches
+  const isActive = (path) => location.pathname === path;
+
   return (
     <header className="header">
       <div className="header-container">
@@ -119,24 +109,43 @@ const Header = () => {
         <nav className="nav">
           {isAuthenticated ? (
             <>
-              <Link to="/dashboard">Dashboard</Link>
-              <Link to="/lobby">Lobby</Link>
-              <Link to="/teams">Teams</Link>
-              <button 
-                onClick={handleMarketMoverClick}
-                className="nav-link-button market-mover-btn"
+              <Link 
+                to="/dashboard" 
+                className={`nav-btn ${isActive('/dashboard') ? 'nav-btn-active' : ''}`}
               >
-                📈 Market Mover
-              </button>
+                Dashboard
+              </Link>
+              <Link 
+                to="/lobby" 
+                className={`nav-btn ${isActive('/lobby') ? 'nav-btn-active' : ''}`}
+              >
+                Lobby
+              </Link>
+              <Link 
+                to="/teams" 
+                className={`nav-btn ${isActive('/teams') ? 'nav-btn-active' : ''}`}
+              >
+                Teams
+              </Link>
+              <Link 
+                to="/market-mover" 
+                className={`nav-btn nav-btn-voting ${isActive('/market-mover') ? 'nav-btn-active' : ''}`}
+              >
+                📈 Voting
+              </Link>
               {(user?.role === 'admin' || user?.is_admin) && (
-                <Link to="/admin">Admin</Link>
+                <Link 
+                  to="/admin" 
+                  className={`nav-btn ${isActive('/admin') ? 'nav-btn-active' : ''}`}
+                >
+                  Admin
+                </Link>
               )}
               <div className="user-info">
                 <div className="user-stats">
                   <span 
                     className="balance" 
                     onClick={refreshBalance}
-                    style={{ cursor: 'pointer' }}
                     title="Click to refresh"
                   >
                     ${Number(userData.balance).toFixed(2)}
@@ -144,7 +153,6 @@ const Header = () => {
                   <div 
                     className="tickets-display"
                     onClick={refreshBalance}
-                    style={{ cursor: 'pointer' }}
                     title="Click to refresh"
                   >
                     <span className="tickets-icon">🎟️</span>
@@ -159,8 +167,8 @@ const Header = () => {
             </>
           ) : (
             <>
-              <Link to="/login">Login</Link>
-              <Link to="/register">Register</Link>
+              <Link to="/login" className="nav-btn">Login</Link>
+              <Link to="/register" className="nav-btn">Register</Link>
             </>
           )}
         </nav>

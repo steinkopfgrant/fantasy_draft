@@ -1,110 +1,215 @@
 /* frontend/src/components/Header/Header.css */
+
 .header {
-  background-color: #1a1a2e;
-  color: white;
-  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.header-left {
-  flex: 1;
-}
-
-.site-title {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #4a7c7e;
-}
-
-.header-nav {
-  display: flex;
   gap: 1rem;
-  flex: 2;
-  justify-content: center;
 }
 
-.nav-button {
-  background: none;
-  border: none;
-  color: #ccc;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s;
-  font-size: 1rem;
+/* Logo - BidBlitz gradient */
+.logo {
+  font-size: 1.75rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-decoration: none;
+  letter-spacing: -0.5px;
 }
 
-.nav-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
+.logo:hover {
+  opacity: 0.9;
 }
 
-.nav-button.active {
-  color: #4a7c7e;
-  background-color: rgba(74, 124, 126, 0.2);
-}
-
-.header-right {
-  flex: 1;
+/* Navigation */
+.nav {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
+/* Nav Button Style - BidBlitz gradient background */
+.nav-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.nav-btn:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.nav-btn-active {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  box-shadow: 0 2px 8px rgba(240, 147, 251, 0.4);
+}
+
+/* Voting button - slightly different accent */
+.nav-btn-voting {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.nav-btn-voting:hover {
+  background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%);
+  box-shadow: 0 4px 12px rgba(56, 239, 125, 0.4);
+}
+
+/* User Info Section */
 .user-info {
   display: flex;
   align-items: center;
   gap: 1rem;
+  margin-left: 0.5rem;
+  padding-left: 1rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.username {
-  font-weight: 500;
-}
-
-.balance-container {
+.user-stats {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .balance {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #4fc3f7;
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+  color: #4ade80;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(74, 222, 128, 0.3);
 }
 
-.tickets {
+.balance:hover {
+  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+  border-color: rgba(74, 222, 128, 0.6);
+}
+
+.tickets-display {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.9rem;
-  color: #ffd54f;
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
-.ticket-icon {
+.tickets-display:hover {
+  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.tickets-icon {
   font-size: 1rem;
 }
 
-.ticket-count {
-  font-weight: 500;
+.tickets-count {
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 
-.logout-button {
-  background-color: #dc3545;
+.username {
+  color: #e2e8f0;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Logout Button */
+.logout-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
-  border: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
 }
 
-.logout-button:hover {
-  background-color: #c82333;
+.logout-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Mobile Responsive */
+@media (max-width: 900px) {
+  .header-container {
+    flex-wrap: wrap;
+  }
+  
+  .nav {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  
+  .nav-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+  }
+  
+  .user-info {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .header {
+    padding: 0.5rem 1rem;
+  }
+  
+  .logo {
+    font-size: 1.4rem;
+  }
+  
+  .nav-btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  
+  .balance, .tickets-display {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+  }
+  
+  .username {
+    display: none;
+  }
 }
