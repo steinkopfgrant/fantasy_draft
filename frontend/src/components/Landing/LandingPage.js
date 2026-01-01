@@ -21,7 +21,7 @@ const LandingPage = () => {
     // Try multiple API endpoints
     const endpoints = [
       '/api/market-mover/status',
-      'http://localhost:5000/api/market-mover/status'
+      `${process.env.REACT_APP_API_URL}/api/market-mover/status`
     ];
     
     for (const endpoint of endpoints) {

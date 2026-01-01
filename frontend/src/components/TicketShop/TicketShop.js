@@ -22,7 +22,7 @@ const TicketShop = ({ user, onBack, updateBalance }) => {
     setPurchasing(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/tickets/purchase', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/tickets/purchase`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -17,7 +17,7 @@ const DraftReplay = ({ entryId, onClose }) => {
   const fetchDraftData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/drafts/${entryId}/replay`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/drafts/${entryId}/replay`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

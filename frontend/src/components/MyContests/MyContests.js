@@ -15,7 +15,7 @@ const MyContests = ({ user, onViewDraft, onRejoinDraft }) => {
   const fetchUserContests = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/contests/my-entries', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/contests/my-entries`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

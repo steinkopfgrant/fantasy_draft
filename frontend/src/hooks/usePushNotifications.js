@@ -47,7 +47,7 @@ export const usePushNotifications = (user) => {
       }
 
       // Get VAPID public key
-      const response = await fetch('http://localhost:5000/api/notifications/vapid-public-key');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/notifications/vapid-public-key');
       const { publicKey } = await response.json();
 
       if (!publicKey) {
@@ -66,7 +66,7 @@ export const usePushNotifications = (user) => {
 
       // Send subscription to backend
       const token = localStorage.getItem('token');
-      const saveResponse = await fetch('http://localhost:5000/api/notifications/subscribe', {
+      const saveResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/notifications/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ export const usePushNotifications = (user) => {
 
       // Remove subscription from backend
       const token = localStorage.getItem('token');
-      await fetch('http://localhost:5000/api/notifications/unsubscribe', {
+      await fetch(`${process.env.REACT_APP_API_URL}/api/notifications/unsubscribe', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -126,7 +126,7 @@ export const usePushNotifications = (user) => {
 
     try {
       const token = localStorage.getItem('token');
-      await fetch('http://localhost:5000/api/notifications/test', {
+      await fetch(`${process.env.REACT_APP_API_URL}/api/notifications/test', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
