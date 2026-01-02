@@ -989,18 +989,14 @@ const LobbyScreen = () => {
   return (
     <div className="lobby-container">
       <div className="lobby-header">
-        <h1>Contest Lobby</h1>
-        <p>Join exciting fantasy sports contests and compete for prizes!</p>
-        
-        {/* Top row: Rules button (left) and Active Drafts button (right) */}
+        {/* Single row: Rules button | Title | Active Drafts button */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          padding: '1rem 0',
+          alignItems: 'flex-end',
           marginBottom: '0.5rem'
         }}>
-          {/* Rules & Scoring Button - left side */}
+          {/* Rules & Scoring Button - left */}
           <button
             onClick={() => navigate('/rules')}
             style={{
@@ -1030,7 +1026,13 @@ const LobbyScreen = () => {
             📋 Rules & Scoring
           </button>
           
-          {/* Active Drafts Button - right side */}
+          {/* Title - center */}
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ margin: 0 }}>Contest Lobby</h1>
+            <p style={{ margin: '0.25rem 0 0 0', color: '#8892b0', fontSize: '0.95rem' }}>Join exciting fantasy sports contests and compete for prizes!</p>
+          </div>
+          
+          {/* Active Drafts Button - right */}
           {user && (
             activeDraft ? (
               <button 
