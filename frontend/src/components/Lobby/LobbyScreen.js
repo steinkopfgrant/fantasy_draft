@@ -1029,6 +1029,43 @@ const LobbyScreen = () => {
           </div>
         )}
         
+        {/* Rules & Scoring Button - in empty space above stats */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end', 
+          padding: '1rem 0',
+          marginBottom: '0.5rem'
+        }}>
+          <button
+            onClick={() => navigate('/rules')}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none',
+              color: 'white',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 10px rgba(102, 126, 234, 0.3)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(102, 126, 234, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 10px rgba(102, 126, 234, 0.3)';
+            }}
+          >
+            📋 Rules & Scoring
+          </button>
+        </div>
+        
         <div className="header-stats" style={{ display: 'flex', gap: '20px', margin: '10px 0', fontSize: '14px', color: '#a0aec0' }}>
           <span>Total: {contestStats.total}</span>
           <span>Open: {contestStats.open}</span>

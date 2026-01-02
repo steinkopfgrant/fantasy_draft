@@ -218,12 +218,12 @@ const Dashboard = ({ showToast }) => {
             </Link>
             
             <button 
-              onClick={handleMarketMoverClick}
+              onClick={() => navigate('/rules')}
               style={{ 
                 width: '100%',
                 padding: '1rem',
-                background: '#00d4ff',
-                color: '#0a0e1b',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 'bold',
@@ -231,7 +231,7 @@ const Dashboard = ({ showToast }) => {
                 transition: 'all 0.3s'
               }}
             >
-              📈 Market Mover
+              📋 Rules & Scoring
             </button>
             
             {/* ADMIN PANEL BUTTON - Only shows for specific user */}
