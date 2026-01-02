@@ -1466,6 +1466,7 @@ class ContestService {
     }
   }
 
+  // UPDATED: startNextPick with 3-second timer for $0 budget
   async startNextPick(roomId) {
     const draft = this.activeDrafts.get(roomId);
     if (!draft) return;
@@ -1483,12 +1484,29 @@ class ContestService {
     const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
     const currentPlayer = draftState.teams[currentPlayerIndex];
 
+    // Calculate remaining budget for current player
+    let remainingBudget = 15; // Max salary
+    if (currentPlayer.roster) {
+      const spent = Object.values(currentPlayer.roster)
+        .filter(p => p && p.price)
+        .reduce((sum, p) => sum + (p.price || 0), 0);
+      remainingBudget = 15 - spent;
+    }
+    
+    // Use 3-second timer if player has $0 budget, otherwise 30 seconds
+    const timeLimit = remainingBudget <= 0 ? 3 : 30;
+    
+    if (remainingBudget <= 0) {
+      console.log(`💸 ${currentPlayer.username} has $0 budget - using ${timeLimit}s quick timer`);
+    }
+
     // Store turn start timestamp in Redis for stall detection
     const turnKey = `turn:${roomId}`;
     await this.redis.set(turnKey, JSON.stringify({
       turnStartedAt: Date.now(),
       currentTurn: draftState.currentTurn,
-      currentUserId: currentPlayer.userId
+      currentUserId: currentPlayer.userId,
+      timeLimit: timeLimit
     }), 'EX', 3600); // 1 hour expiry
 
     if (this.io) {
@@ -1501,7 +1519,7 @@ class ContestService {
           username: currentPlayer.username,
           position: currentPlayerIndex
         },
-        timeLimit: 30,
+        timeLimit: timeLimit,
         teams: draftState.teams,
         playerBoard: draftState.playerBoard,
         picks: draftState.picks,
@@ -1520,13 +1538,13 @@ class ContestService {
 
     const timerId = setTimeout(() => {
       this.handleAutoPick(roomId, currentPlayer.userId);
-    }, 30000);
+    }, timeLimit * 1000);
 
     this.draftTimers.set(existingTimerKey, timerId);
-    console.log(`⏱️ Started 30s timer for ${currentPlayer.username} in room ${roomId}`);
+    console.log(`⏱️ Started ${timeLimit}s timer for ${currentPlayer.username} in room ${roomId} (budget: $${remainingBudget})`);
   }
 
-  // Check if a draft is stalled and restart timer if needed
+  // UPDATED: Check if a draft is stalled and restart timer if needed
   async checkAndRestartStalledDraft(roomId) {
     try {
       const draftState = await draftService.getDraft(roomId);
@@ -1556,12 +1574,24 @@ class ContestService {
       const turnData = await this.redis.get(turnKey);
       
       if (turnData) {
-        const { turnStartedAt, currentTurn } = JSON.parse(turnData);
+        const { turnStartedAt, currentTurn, timeLimit: storedTimeLimit } = JSON.parse(turnData);
         const elapsed = Date.now() - turnStartedAt;
         
-        // If same turn and more than 30s elapsed, auto-pick immediately
-        if (currentTurn === draftState.currentTurn && elapsed > 30000) {
-          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s - auto-picking now`);
+        // Use stored timeLimit if available, otherwise calculate it
+        let timeLimit = storedTimeLimit || 30;
+        if (!storedTimeLimit && currentPlayer.roster) {
+          const spent = Object.values(currentPlayer.roster)
+            .filter(p => p && p.price)
+            .reduce((sum, p) => sum + (p.price || 0), 0);
+          const remainingBudget = 15 - spent;
+          timeLimit = remainingBudget <= 0 ? 3 : 30;
+        }
+        
+        const timeLimitMs = timeLimit * 1000;
+        
+        // If same turn and more than timeLimit elapsed, auto-pick immediately
+        if (currentTurn === draftState.currentTurn && elapsed > timeLimitMs) {
+          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (limit: ${timeLimit}s) - auto-picking now`);
           
           // Ensure draft is in activeDrafts
           if (!this.activeDrafts.has(roomId)) {
@@ -1583,10 +1613,10 @@ class ContestService {
           return { stalled: true, action: 'auto_picked' };
         }
         
-        // Turn started but less than 30s - restart timer for remaining time
+        // Turn started but less than timeLimit - restart timer for remaining time
         if (currentTurn === draftState.currentTurn) {
-          const remaining = Math.max(1000, 30000 - elapsed);
-          console.log(`🔄 Restarting timer for ${roomId} with ${Math.round(remaining/1000)}s remaining`);
+          const remaining = Math.max(1000, timeLimitMs - elapsed);
+          console.log(`🔄 Restarting timer for ${roomId} with ${Math.round(remaining/1000)}s remaining (limit: ${timeLimit}s)`);
           
           // Ensure draft is in activeDrafts
           if (!this.activeDrafts.has(roomId)) {
