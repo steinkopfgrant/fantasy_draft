@@ -992,50 +992,15 @@ const LobbyScreen = () => {
         <h1>Contest Lobby</h1>
         <p>Join exciting fantasy sports contests and compete for prizes!</p>
         
-        {user && (
-          <div className="user-balance">
-            {activeDraft ? (
-              <button 
-                onClick={() => navigate(`/draft/${activeDraft.roomId}`, {
-                  state: { entryId: activeDraft.entryId, rejoin: true }
-                })}
-                className="rejoin-draft-btn active"
-              >
-                <span className="rejoin-icon">🔴</span>
-                Rejoin Draft
-              </button>
-            ) : (
-              <button 
-                className="rejoin-draft-btn inactive"
-                disabled
-              >
-                <span className="rejoin-icon">⚪</span>
-                No Active Drafts
-              </button>
-            )}
-          </div>
-        )}
-        
-        {serverError && (
-          <div style={{
-            padding: '10px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '8px',
-            marginBottom: '10px',
-            color: '#f87171'
-          }}>
-            ⚠️ Server connection issues detected. Some features may be unavailable.
-          </div>
-        )}
-        
-        {/* Rules & Scoring Button - in empty space above stats */}
+        {/* Top row: Rules button (left) and Active Drafts button (right) */}
         <div style={{ 
           display: 'flex', 
-          justifyContent: 'flex-end', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
           padding: '1rem 0',
           marginBottom: '0.5rem'
         }}>
+          {/* Rules & Scoring Button - left side */}
           <button
             onClick={() => navigate('/rules')}
             style={{
@@ -1046,7 +1011,7 @@ const LobbyScreen = () => {
               borderRadius: '8px',
               fontWeight: '600',
               cursor: 'pointer',
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
@@ -1064,7 +1029,75 @@ const LobbyScreen = () => {
           >
             📋 Rules & Scoring
           </button>
+          
+          {/* Active Drafts Button - right side */}
+          {user && (
+            activeDraft ? (
+              <button 
+                onClick={() => navigate(`/draft/${activeDraft.roomId}`, {
+                  state: { entryId: activeDraft.entryId, rejoin: true }
+                })}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(239, 68, 68, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 10px rgba(239, 68, 68, 0.3)';
+                }}
+              >
+                🔴 Rejoin Draft
+              </button>
+            ) : (
+              <button 
+                disabled
+                style={{
+                  background: 'rgba(55, 65, 81, 0.5)',
+                  border: '1px solid rgba(75, 85, 99, 0.5)',
+                  color: '#9ca3af',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: 'not-allowed',
+                  fontSize: '0.95rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                ⚪ No Active Drafts
+              </button>
+            )
+          )}
         </div>
+        
+        {serverError && (
+          <div style={{
+            padding: '10px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '8px',
+            marginBottom: '10px',
+            color: '#f87171'
+          }}>
+            ⚠️ Server connection issues detected. Some features may be unavailable.
+          </div>
+        )}
         
         <div className="header-stats" style={{ display: 'flex', gap: '20px', margin: '10px 0', fontSize: '14px', color: '#a0aec0' }}>
           <span>Total: {contestStats.total}</span>
