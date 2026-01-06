@@ -50,9 +50,30 @@ try {
   });
 }
 
+// Import or create injuryRoutes
+let injuryRoutes;
+try {
+  injuryRoutes = require('./routes/injuryRoutes');
+} catch (error) {
+  console.log('⚠️ Injury routes not found, creating placeholder');
+  injuryRoutes = express.Router();
+  injuryRoutes.get('/injuries', (req, res) => {
+    res.json({ success: false, error: 'Injury routes not configured' });
+  });
+}
+
 // Import services
 const contestService = require('./services/contestService');
 const SocketHandler = require('./socketHandlers');
+
+// Import injury swap service
+let injurySwapService;
+try {
+  injurySwapService = require('./services/injurySwapService');
+} catch (error) {
+  console.log('⚠️ Injury swap service not found');
+  injurySwapService = null;
+}
 
 // ============================================
 // SETTLEMENT SERVICES
@@ -198,9 +219,6 @@ app.get('/health', (req, res) => {
 app.get('/api/health', async (req, res) => {
   try {
     await db.sequelize.authenticate();
-    console.log("🔄 Syncing database tables...");
-    await db.sequelize.sync({ alter: true });
-    console.log("✅ Database tables synced!");
     const dbStatus = true;
     
     let redisStatus = false;
@@ -219,7 +237,8 @@ app.get('/api/health', async (req, res) => {
         redis: redisStatus,
         socketio: !!io,
         socketConnections: socketHandler.getOnlineUsersCount(),
-        settlement: !!app.get('settlementService')
+        settlement: !!app.get('settlementService'),
+        injurySwap: !!injurySwapService
       }
     });
   } catch (error) {
@@ -240,6 +259,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/market-mover', marketMoverRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/admin/sim', simRoutes);
+app.use('/api/admin', injuryRoutes);  // Injury management routes
 
 // Placeholder routes for other missing functionality
 app.use('/api/tickets', (req, res) => {
@@ -317,6 +337,16 @@ app.get('/api', (req, res) => {
         marketMover: 'POST /api/admin/sim/market-mover',
         closeMM: 'POST /api/admin/sim/close-mm',
         addBalance: 'POST /api/admin/sim/add-balance'
+      },
+      adminInjury: {
+        getInjuries: 'GET /api/admin/injuries',
+        markOut: 'POST /api/admin/injuries/out',
+        markActive: 'POST /api/admin/injuries/active',
+        bulkOut: 'POST /api/admin/injuries/bulk-out',
+        clearInjuries: 'DELETE /api/admin/injuries',
+        runSwap: 'POST /api/admin/injuries/run-swap/:contestId',
+        swapHistory: 'GET /api/admin/injuries/history/:entryId',
+        scheduledSwaps: 'GET /api/admin/injuries/scheduled'
       },
       debug: {
         createTestUsers: 'POST /api/debug/create-test-users',
@@ -419,6 +449,23 @@ async function startServer() {
       console.log('⚠️ Settlement services not available:', error.message);
     }
 
+    // ============================================
+    // INITIALIZE INJURY SWAP SERVICE
+    // ============================================
+    try {
+      if (injurySwapService && contestService.redis) {
+        injurySwapService.setRedis(contestService.redis);
+        await injurySwapService.rescheduleAllSwaps();
+        
+        // Store service on app for global access
+        app.set('injurySwapService', injurySwapService);
+        
+        console.log('✅ Injury swap service initialized');
+      }
+    } catch (error) {
+      console.log('⚠️ Injury swap service not available:', error.message);
+    }
+
     // Ensure initial data exists
     try {
       const { ensureInitialData } = require('./utils/dataInitializer');
@@ -461,6 +508,7 @@ async function startServer() {
       console.log('   - Redis: Connected');
       console.log('   - Contest Service: Initialized');
       console.log('   - Settlement Service: Initialized');
+      console.log('   - Injury Swap Service: ' + (injurySwapService ? 'Initialized' : 'Not Available'));
       console.log('   - Debug Routes: Enabled');
       console.log('   - Sim Routes: Enabled');
       console.log('📡 API Documentation: GET /api');

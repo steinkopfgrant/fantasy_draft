@@ -7,6 +7,15 @@ const { Contest, ContestEntry, User, DraftPick, Transaction } = db;
 const { v4: uuidv4 } = require('uuid');
 const contestService = require('../services/contestService');
 
+// Import injury swap service (optional - won't break if not present)
+let injurySwapService;
+try {
+  injurySwapService = require('../services/injurySwapService');
+} catch (error) {
+  console.log('⚠️ Injury swap service not available in contestRoutes');
+  injurySwapService = null;
+}
+
 // Log middleware for debugging
 router.use((req, res, next) => {
   console.log(`Contest Route: ${req.method} ${req.path}`);
@@ -561,6 +570,11 @@ router.post('/debug/create-test-contest', async (req, res) => {
       updated_at: new Date()
     });
     
+    // Schedule injury swap if service available and start_time exists
+    if (injurySwapService && contest.start_time) {
+      injurySwapService.scheduleSwapForContest(contest.id, contest.start_time);
+    }
+    
     res.json({
       success: true,
       contest: {
@@ -571,6 +585,110 @@ router.post('/debug/create-test-contest', async (req, res) => {
     });
   } catch (error) {
     console.error('Create test contest error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ADMIN CONTEST CREATION ====================
+
+// Create a new contest (admin route)
+router.post('/admin/create', authMiddleware, async (req, res) => {
+  try {
+    const { 
+      name, 
+      type, 
+      entry_fee, 
+      prize_pool, 
+      max_entries, 
+      start_time,
+      sport = 'NFL'
+    } = req.body;
+    
+    // TODO: Add admin check here
+    // const user = await User.findByPk(req.user.id);
+    // if (!user?.is_admin) return res.status(403).json({ error: 'Admin only' });
+    
+    const { generatePlayerBoard } = require('../utils/gameLogic');
+    
+    const contest = await Contest.create({
+      id: uuidv4(),
+      name,
+      type,
+      status: 'open',
+      sport,
+      entry_fee: entry_fee || 0,
+      prize_pool: prize_pool || 0,
+      max_entries: max_entries || 100,
+      current_entries: 0,
+      scoring_type: 'standard',
+      player_board: generatePlayerBoard(type),
+      start_time: start_time ? new Date(start_time) : null,
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    
+    // Schedule injury swap for cash and market_mover contests
+    if (injurySwapService && ['cash', 'market_mover'].includes(type) && contest.start_time) {
+      injurySwapService.scheduleSwapForContest(contest.id, contest.start_time);
+      console.log(`📅 Scheduled injury swap for contest ${contest.id}`);
+    }
+    
+    res.json({
+      success: true,
+      contest: {
+        id: contest.id,
+        name: contest.name,
+        type: contest.type,
+        start_time: contest.start_time,
+        injurySwapScheduled: !!contest.start_time
+      }
+    });
+    
+  } catch (error) {
+    console.error('Create contest error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update contest start time (and reschedule injury swap)
+router.put('/admin/:contestId/start-time', authMiddleware, async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const { start_time } = req.body;
+    
+    const contest = await Contest.findByPk(contestId);
+    if (!contest) {
+      return res.status(404).json({ error: 'Contest not found' });
+    }
+    
+    // Cancel existing scheduled swap
+    if (injurySwapService) {
+      injurySwapService.cancelScheduledSwap(contestId);
+    }
+    
+    // Update start time
+    await contest.update({ 
+      start_time: start_time ? new Date(start_time) : null,
+      updated_at: new Date()
+    });
+    
+    // Reschedule injury swap if applicable
+    if (injurySwapService && ['cash', 'market_mover'].includes(contest.type) && start_time) {
+      injurySwapService.scheduleSwapForContest(contestId, new Date(start_time));
+      console.log(`📅 Rescheduled injury swap for contest ${contestId}`);
+    }
+    
+    res.json({
+      success: true,
+      contest: {
+        id: contest.id,
+        start_time: contest.start_time,
+        injurySwapScheduled: !!start_time
+      }
+    });
+    
+  } catch (error) {
+    console.error('Update start time error:', error);
     res.status(500).json({ error: error.message });
   }
 });
