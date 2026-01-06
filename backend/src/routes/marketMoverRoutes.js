@@ -88,9 +88,6 @@ router.get('/active-contests', auth, marketMoverController.getActiveContests);
 
 // Admin routes
 router.post('/admin/set-bid-up', auth, validateBidUpAdmin, marketMoverController.setBidUpPlayer);
+router.post('/admin/reset-voting', auth, marketMoverController.resetVoting);
 
 module.exports = router;
-
-// NOTE: The frontend needs these text updates for correct mechanics:
-// FIRE SALE: "100% one appears, 50% each additional" (not just "100% Appearance")
-// COOL DOWN: "1/10 probability modifier" (not "10% Appearance")

@@ -334,6 +334,24 @@ const marketMoverController = {
         error: 'Failed to set bid up player'
       });
     }
+  },
+
+  // Admin reset voting - clears Fire Sale and Cool Down lists
+  async resetVoting(req, res) {
+    try {
+      const result = await marketMoverService.resetVoting();
+      res.json({ 
+        success: true, 
+        message: 'Voting reset complete - Fire Sale and Cool Down lists cleared', 
+        data: result 
+      });
+    } catch (error) {
+      console.error('Error resetting voting:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
   }
 };
 
