@@ -1468,8 +1468,27 @@ class ContestService {
 
   // UPDATED: startNextPick with 3-second timer for $0 budget
   async startNextPick(roomId) {
-    const draft = this.activeDrafts.get(roomId);
-    if (!draft) return;
+    let draft = this.activeDrafts.get(roomId);
+    
+    // If draft not in memory, reconstruct from database
+    if (!draft) {
+      console.log(`⚠️ startNextPick: Draft ${roomId} not in activeDrafts, reconstructing...`);
+      const entry = await db.ContestEntry.findOne({
+        where: { draft_room_id: roomId, status: 'drafting' },
+        include: [{ model: db.Contest, attributes: ['id', 'type'] }]
+      });
+      if (!entry) {
+        console.log(`❌ startNextPick: No drafting entries found for room ${roomId}`);
+        return;
+      }
+      draft = {
+        roomId,
+        contestId: entry.contest_id,
+        contestType: entry.Contest?.type
+      };
+      this.activeDrafts.set(roomId, draft);
+      console.log(`✅ startNextPick: Reconstructed draft for room ${roomId}`);
+    }
 
     const draftState = await draftService.getDraft(roomId);
     if (!draftState) return;
