@@ -1,8 +1,10 @@
 // backend/src/services/ticketService.js
+// FIXED: Uses raw SQL queries to avoid enum_ticket_transactions_type issues
 const db = require('../models');
-const { User, TicketTransaction } = db;
+const { User } = db;
 
 class TicketService {
+  
   // Get user's current ticket balance
   async getBalance(userId) {
     try {
@@ -11,6 +13,77 @@ class TicketService {
     } catch (error) {
       console.error('Error getting ticket balance:', error);
       return 0;
+    }
+  }
+
+  // Award tickets for completing a draft - COMPLETELY REWRITTEN
+  async awardDraftCompletion(userId, entryId) {
+    try {
+      console.log(`🎟️ awardDraftCompletion called for user ${userId}, entry ${entryId}`);
+      
+      // Check if already awarded using raw SQL to avoid enum issues
+      // Search by reason text instead of type
+      const [existingRows] = await db.sequelize.query(
+        `SELECT id FROM ticket_transactions 
+         WHERE user_id = :userId 
+         AND reference_id = :entryId
+         LIMIT 1`,
+        {
+          replacements: { userId, entryId },
+          type: db.sequelize.QueryTypes.SELECT
+        }
+      );
+
+      if (existingRows) {
+        console.log(`⚠️ User ${userId} already received ticket for entry ${entryId}`);
+        return {
+          success: false,
+          error: 'Draft completion bonus already claimed'
+        };
+      }
+
+      // Get user and update balance
+      const user = await User.findByPk(userId);
+      if (!user) {
+        console.error(`❌ User ${userId} not found`);
+        return { success: false, error: 'User not found' };
+      }
+
+      const currentBalance = parseInt(user.tickets) || 0;
+      const bonusAmount = 1;
+      const newBalance = currentBalance + bonusAmount;
+
+      // Update user's ticket balance
+      await user.update({ tickets: newBalance });
+
+      // Record transaction using raw SQL with 'purchase' type (which exists in enum)
+      await db.sequelize.query(
+        `INSERT INTO ticket_transactions (id, user_id, type, amount, balance_after, reference_id, reason, created_at)
+         VALUES (gen_random_uuid(), :userId, 'purchase', :amount, :balanceAfter, :referenceId, :reason, NOW())`,
+        {
+          replacements: {
+            userId,
+            amount: bonusAmount,
+            balanceAfter: newBalance,
+            referenceId: entryId,
+            reason: 'Draft completion bonus'
+          }
+        }
+      );
+
+      console.log(`✅ User ${userId} earned ${bonusAmount} ticket. New balance: ${newBalance}`);
+
+      return {
+        success: true,
+        newBalance: newBalance,
+        earned: bonusAmount
+      };
+    } catch (error) {
+      console.error('❌ Error awarding draft completion bonus:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
@@ -38,15 +111,23 @@ class TicketService {
       // Update user's ticket balance
       await user.update({ tickets: newBalance }, { transaction });
 
-      // Record the transaction
-      await TicketTransaction.create({
-        user_id: userId,
-        type: this.getTransactionType(description),
-        amount: -amount,
-        balance_after: newBalance,
-        reason: description,
-        reference_id: referenceId
-      }, { transaction });
+      // Record the transaction using raw SQL
+      const transactionType = this.getSafeTransactionType(description);
+      await db.sequelize.query(
+        `INSERT INTO ticket_transactions (id, user_id, type, amount, balance_after, reference_id, reason, created_at)
+         VALUES (gen_random_uuid(), :userId, :type, :amount, :balanceAfter, :referenceId, :reason, NOW())`,
+        {
+          replacements: {
+            userId,
+            type: transactionType,
+            amount: -amount,
+            balanceAfter: newBalance,
+            referenceId: referenceId,
+            reason: description
+          },
+          transaction
+        }
+      );
 
       await transaction.commit();
 
@@ -87,15 +168,23 @@ class TicketService {
       // Update user's ticket balance
       await user.update({ tickets: newBalance }, { transaction });
 
-      // Record the transaction
-      await TicketTransaction.create({
-        user_id: userId,
-        type: this.getTransactionType(description),
-        amount: amount,
-        balance_after: newBalance,
-        reason: description,
-        reference_id: referenceId
-      }, { transaction });
+      // Record the transaction using raw SQL
+      const transactionType = this.getSafeTransactionType(description);
+      await db.sequelize.query(
+        `INSERT INTO ticket_transactions (id, user_id, type, amount, balance_after, reference_id, reason, created_at)
+         VALUES (gen_random_uuid(), :userId, :type, :amount, :balanceAfter, :referenceId, :reason, NOW())`,
+        {
+          replacements: {
+            userId,
+            type: transactionType,
+            amount: amount,
+            balanceAfter: newBalance,
+            referenceId: referenceId,
+            reason: description
+          },
+          transaction
+        }
+      );
 
       await transaction.commit();
 
@@ -116,10 +205,13 @@ class TicketService {
     }
   }
 
-  // Determine transaction type based on description
-  getTransactionType(description) {
+  // Get a safe transaction type that exists in the enum
+  // Falls back to 'purchase' which should always exist
+  getSafeTransactionType(description) {
+    if (!description) return 'purchase';
     const desc = description.toLowerCase();
     
+    // Map descriptions to known enum values
     if (desc.includes('vote') || desc.includes('voting')) {
       return 'used_vote';
     }
@@ -129,20 +221,15 @@ class TicketService {
     if (desc.includes('weekly')) {
       return 'earned_weekly';
     }
-    if (desc.includes('draft')) {
-      return 'earned_draft_completion';
-    }
     if (desc.includes('achievement')) {
       return 'earned_achievement';
-    }
-    if (desc.includes('purchase')) {
-      return 'purchase';
     }
     if (desc.includes('admin')) {
       return 'admin_adjustment';
     }
     
-    return 'admin_adjustment'; // Default
+    // Default to 'purchase' which should always exist
+    return 'purchase';
   }
 
   // Award weekly login bonus
@@ -162,11 +249,10 @@ class TicketService {
         };
       }
 
-      const bonusAmount = 5; // 5 tickets per week
+      const bonusAmount = 5;
       const result = await this.awardTickets(userId, bonusAmount, 'Weekly login bonus');
       
       if (result.success) {
-        // Update last weekly bonus time
         await user.update({ last_weekly_bonus: new Date() });
       }
 
@@ -187,14 +273,14 @@ class TicketService {
       if (!user) return false;
 
       if (!user.last_weekly_bonus) {
-        return true; // First time
+        return true;
       }
 
       const now = new Date();
       const lastBonus = new Date(user.last_weekly_bonus);
       const daysSinceLastBonus = (now - lastBonus) / (1000 * 60 * 60 * 24);
       
-      return daysSinceLastBonus >= 7; // 7 days
+      return daysSinceLastBonus >= 7;
     } catch (error) {
       console.error('Error checking weekly bonus eligibility:', error);
       return false;
@@ -210,57 +296,18 @@ class TicketService {
     return nextBonus;
   }
 
-  // Award tickets for completing a draft
-  async awardDraftCompletion(userId, contestId) {
-    try {
-      // Check if user already got tickets for this contest
-      const existingTransaction = await TicketTransaction.findOne({
-        where: {
-          user_id: userId,
-          type: 'earned_draft_completion',
-          reference_id: contestId
-        }
-      });
-
-      if (existingTransaction) {
-        console.log(`User ${userId} already received draft completion bonus for contest ${contestId}`);
-        return {
-          success: false,
-          error: 'Draft completion bonus already claimed'
-        };
-      }
-
-      const bonusAmount = 1; // 1 ticket per draft completion
-      return await this.awardTickets(
-        userId, 
-        bonusAmount, 
-        'Draft completion bonus', 
-        contestId
-      );
-    } catch (error) {
-      console.error('Error awarding draft completion bonus:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
   // Purchase tickets with real money
   async purchaseTickets(userId, quantity, totalCost) {
     try {
       const userService = require('./userService');
       
-      // Check user's balance
       const user = await userService.getUserById(userId);
       if (user.balance < totalCost) {
         throw new Error('Insufficient funds');
       }
 
-      // Deduct money from user's account
       await userService.updateBalance(userId, -totalCost, `Purchased ${quantity} tickets`);
 
-      // Award tickets
       const result = await this.awardTickets(
         userId, 
         quantity, 
@@ -285,18 +332,24 @@ class TicketService {
   // Get transaction history for a user
   async getTransactionHistory(userId, limit = 50) {
     try {
-      const transactions = await TicketTransaction.findAll({
-        where: { user_id: userId },
-        order: [['created_at', 'DESC']],
-        limit: limit
-      });
+      const transactions = await db.sequelize.query(
+        `SELECT id, type, amount, balance_after, reference_id, reason, created_at
+         FROM ticket_transactions
+         WHERE user_id = :userId
+         ORDER BY created_at DESC
+         LIMIT :limit`,
+        {
+          replacements: { userId, limit },
+          type: db.sequelize.QueryTypes.SELECT
+        }
+      );
 
       return transactions.map(t => ({
         id: t.id,
         type: t.type,
         amount: t.amount,
         balanceAfter: t.balance_after,
-        description: t.description,
+        description: t.reason,
         date: t.created_at,
         referenceId: t.reference_id
       }));
@@ -328,25 +381,29 @@ class TicketService {
   // Get user's total earned and spent tickets
   async getUserTicketStats(userId) {
     try {
-      const transactions = await TicketTransaction.findAll({
-        where: { user_id: userId },
-        attributes: [
-          [db.sequelize.fn('SUM', db.sequelize.literal('CASE WHEN amount > 0 THEN amount ELSE 0 END')), 'total_earned'],
-          [db.sequelize.fn('SUM', db.sequelize.literal('CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END')), 'total_spent'],
-          [db.sequelize.fn('COUNT', db.sequelize.literal('CASE WHEN type = \'used_vote\' THEN 1 END')), 'votes_cast'],
-          [db.sequelize.fn('COUNT', db.sequelize.literal('CASE WHEN type = \'used_ownership_check\' THEN 1 END')), 'ownership_checks']
-        ]
-      });
+      const stats = await db.sequelize.query(
+        `SELECT 
+           COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_earned,
+           COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) as total_spent,
+           COUNT(CASE WHEN type = 'used_vote' THEN 1 END) as votes_cast,
+           COUNT(CASE WHEN type = 'used_ownership_check' THEN 1 END) as ownership_checks
+         FROM ticket_transactions
+         WHERE user_id = :userId`,
+        {
+          replacements: { userId },
+          type: db.sequelize.QueryTypes.SELECT
+        }
+      );
 
-      const stats = transactions[0];
       const currentBalance = await this.getBalance(userId);
+      const result = stats[0] || {};
 
       return {
         currentBalance: currentBalance,
-        totalEarned: parseInt(stats.getDataValue('total_earned')) || 0,
-        totalSpent: parseInt(stats.getDataValue('total_spent')) || 0,
-        votesCast: parseInt(stats.getDataValue('votes_cast')) || 0,
-        ownershipChecks: parseInt(stats.getDataValue('ownership_checks')) || 0
+        totalEarned: parseInt(result.total_earned) || 0,
+        totalSpent: parseInt(result.total_spent) || 0,
+        votesCast: parseInt(result.votes_cast) || 0,
+        ownershipChecks: parseInt(result.ownership_checks) || 0
       };
     } catch (error) {
       console.error('Error getting user ticket stats:', error);
