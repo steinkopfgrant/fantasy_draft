@@ -1703,20 +1703,21 @@ class ContestService {
     }
   }
 
-  // Background checker for all stalled drafts
+  // Background checker for all stalled drafts - runs every 15 seconds
   async checkAllStalledDrafts() {
     try {
       // Find all entries with 'drafting' status
       const draftingEntries = await db.ContestEntry.findAll({
         where: { status: 'drafting' },
-        attributes: ['draft_room_id'],
-        group: ['draft_room_id'],
+        attributes: ['draft_room_id', 'created_at'],
+        group: ['draft_room_id', 'created_at'],
         raw: true
       });
       
       if (draftingEntries.length === 0) return;
       
       const uniqueRooms = [...new Set(draftingEntries.map(e => e.draft_room_id))];
+      console.log(`🔍 checkAllStalledDrafts: Found ${uniqueRooms.length} rooms with drafting entries`);
       
       for (const roomId of uniqueRooms) {
         // Check if this room has an active timer
@@ -1730,7 +1731,18 @@ class ContestService {
         
         if (!hasActiveTimer) {
           console.log(`🔍 Checking potentially stalled draft: ${roomId}`);
-          await this.checkAndRestartStalledDraft(roomId);
+          
+          // Check if draft state exists in Redis
+          const draftState = await draftService.getDraft(roomId);
+          
+          if (!draftState) {
+            // No Redis state - force complete the draft
+            console.log(`⚠️ No Redis state for ${roomId} - forcing completion`);
+            await this.completeDraftForRoom(roomId);
+          } else {
+            // Has Redis state - use normal stall check
+            await this.checkAndRestartStalledDraft(roomId);
+          }
         }
       }
     } catch (error) {
@@ -1822,66 +1834,84 @@ class ContestService {
     await this.startNextPick(roomId);
   }
 
-  // FIXED: handleAutoPick now saves picks to database
+  // FIXED: handleAutoPick with error handling to ensure draft completes
   async handleAutoPick(roomId, userId) {
     console.log(`Auto-picking for user ${userId} in room ${roomId}`);
-    const updatedDraft = await draftService.autoPick(roomId, userId);
     
-    if (updatedDraft && this.io) {
-      const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
+    try {
+      const updatedDraft = await draftService.autoPick(roomId, userId);
       
-      if (lastPick && !lastPick.skipped) {
-        const socketRoom = `room_${roomId}`;
+      if (updatedDraft && this.io) {
+        const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
         
-        // SAVE THE PICK TO DATABASE
-        const entry = await db.ContestEntry.findOne({
-          where: {
-            draft_room_id: roomId,
-            user_id: userId,
-            status: 'drafting'
-          }
-        });
+        if (lastPick && !lastPick.skipped) {
+          const socketRoom = `room_${roomId}`;
+          
+          // SAVE THE PICK TO DATABASE
+          const entry = await db.ContestEntry.findOne({
+            where: {
+              draft_room_id: roomId,
+              user_id: userId,
+              status: 'drafting'
+            }
+          });
 
-        if (entry) {
-          await this.saveDraftPick(entry.id, {
+          if (entry) {
+            await this.saveDraftPick(entry.id, {
+              player: lastPick.player,
+              rosterSlot: lastPick.rosterSlot,
+              pickNumber: updatedDraft.picks.length,
+              isAutoPick: true
+            });
+            console.log(`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
+          }
+          
+          this.io.to(socketRoom).emit('player-picked', {
+            roomId,
+            userId,
             player: lastPick.player,
-            rosterSlot: lastPick.rosterSlot,
+            position: lastPick.rosterSlot,
+            row: lastPick.row,
+            col: lastPick.col,
             pickNumber: updatedDraft.picks.length,
+            playerBoard: updatedDraft.playerBoard,
+            teams: updatedDraft.teams,
+            currentTurn: updatedDraft.currentTurn,
+            currentPick: updatedDraft.currentTurn + 1,
+            picks: updatedDraft.picks,
             isAutoPick: true
           });
-          console.log(`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
+          
+          this.io.to(socketRoom).emit('draft-state', {
+            ...updatedDraft,
+            playerBoard: updatedDraft.playerBoard
+          });
+          
+          console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
         }
-        
-        this.io.to(socketRoom).emit('player-picked', {
-          roomId,
-          userId,
-          player: lastPick.player,
-          position: lastPick.rosterSlot,
-          row: lastPick.row,
-          col: lastPick.col,
-          pickNumber: updatedDraft.picks.length,
-          playerBoard: updatedDraft.playerBoard,
-          teams: updatedDraft.teams,
-          currentTurn: updatedDraft.currentTurn,
-          currentPick: updatedDraft.currentTurn + 1,
-          picks: updatedDraft.picks,
-          isAutoPick: true
-        });
-        
-        this.io.to(socketRoom).emit('draft-state', {
-          ...updatedDraft,
-          playerBoard: updatedDraft.playerBoard
-        });
-        
-        console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
       }
+    } catch (error) {
+      console.error(`❌ Error in handleAutoPick for room ${roomId}:`, error.message);
     }
     
-    await this.startNextPick(roomId);
+    // ALWAYS try to continue or complete the draft, even if autopick failed
+    try {
+      await this.startNextPick(roomId);
+    } catch (error) {
+      console.error(`❌ Error in startNextPick after autopick for room ${roomId}:`, error.message);
+      // Last resort: try to force complete the draft
+      try {
+        await this.completeDraftForRoom(roomId);
+      } catch (completeError) {
+        console.error(`❌ Failed to force complete draft ${roomId}:`, completeError.message);
+      }
+    }
   }
 
   // FIXED: completeDraftForRoom - reconstructs from DB if not in activeDrafts
   async completeDraftForRoom(roomId) {
+    console.log(`\n🔔🔔🔔 completeDraftForRoom CALLED for room ${roomId} 🔔🔔🔔`);
+    
     let draft = this.activeDrafts.get(roomId);
     
     // If draft not in memory, reconstruct from database
@@ -1971,20 +2001,21 @@ class ContestService {
 
         console.log(`\n💾 Saving ${entry.User?.username} (${userId}):`);
         console.log(`   Players: ${playerCount}`);
-        console.log(`   Positions: ${Object.keys(cleanRoster).join(', ')}`);
+        console.log(`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
 
-        if (playerCount === 0) {
-          console.log(`   ⚠️ No players in roster - skipping lineup creation`);
-          failCount++;
-          continue;
-        }
-
-        // Update entry with roster
+        // ALWAYS update entry status to completed, even with empty roster
         await entry.update({
           status: 'completed',
           completed_at: new Date(),
           roster: cleanRoster
         });
+
+        if (playerCount === 0) {
+          console.log(`   ⚠️ No players in roster - entry marked completed but no lineup created`);
+          // Still count as success since entry was updated
+          successCount++;
+          continue;
+        }
 
         // Check for existing lineup
         const existingLineup = await db.Lineup.findOne({
