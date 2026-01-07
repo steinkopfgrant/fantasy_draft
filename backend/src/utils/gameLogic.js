@@ -100,11 +100,11 @@ const PLAYER_POOLS = {
       {name: 'Nico Collins', team: 'HOU'}
     ],
     4: [
-      {name: 'Davante Adams', team: 'NYJ'},
+      {name: 'Davante Adams', team: 'LAR'},
       {name: 'AJ Brown', team: 'PHI'},
       {name: 'DeVonta Smith', team: 'PHI'},
       {name: 'Stefon Diggs', team: 'HOU'},
-      {name: 'DK Metcalf', team: 'SEA'},
+      {name: 'DK Metcalf', team: 'PIT'},
       {name: 'Rome Odunze', team: 'CHI'},
       {name: 'Christian Watson', team: 'GB'}
     ],
@@ -133,7 +133,7 @@ const PLAYER_POOLS = {
       {name: 'Xavier Legette', team: 'CAR'},
       {name: 'Jordan Whittington', team: 'LAR'},
       {name: 'Keon Coleman', team: 'BUF'},
-      {name: 'Brandin Cooks', team: 'DAL'},
+      {name: 'Brandin Cooks', team: 'BUF'},
       {name: 'Joshua Palmer', team: 'BUF'},
       {name: 'Kyle Williams', team: 'NE'},
       {name: 'Calvin Austin III', team: 'PIT'},
@@ -146,7 +146,7 @@ const PLAYER_POOLS = {
       {name: 'George Kittle', team: 'SF'}
     ],
     4: [
-      {name: 'Colston Loveland', team: 'DET'},
+      {name: 'Colston Loveland', team: 'CHI'},
       {name: 'Brenton Strange', team: 'JAX'},
       {name: 'Dallas Goedert', team: 'PHI'}
     ],
@@ -166,7 +166,7 @@ const PLAYER_POOLS = {
       {name: 'Tommy Tremble', team: 'CAR'},
       {name: 'Luke Musgrave', team: 'GB'},
       {name: 'Cole Kmet', team: 'CHI'},
-      {name: 'Jonnu Smith', team: 'MIA'}
+      {name: 'Jonnu Smith', team: 'PIT'}
     ]
   }
 };
