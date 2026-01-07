@@ -1846,10 +1846,29 @@ class ContestService {
     await this.startNextPick(roomId);
   }
 
-  // FIXED: completeDraftForRoom with ticket awarding
+  // FIXED: completeDraftForRoom - reconstructs from DB if not in activeDrafts
   async completeDraftForRoom(roomId) {
-    const draft = this.activeDrafts.get(roomId);
-    if (!draft) return;
+    let draft = this.activeDrafts.get(roomId);
+    
+    // If draft not in memory, reconstruct from database
+    if (!draft) {
+      console.log(`⚠️ Draft ${roomId} not in activeDrafts, reconstructing from database...`);
+      const entry = await db.ContestEntry.findOne({
+        where: { draft_room_id: roomId, status: 'drafting' },
+        include: [{ model: db.Contest, attributes: ['id', 'type'] }]
+      });
+      if (!entry) {
+        console.log(`❌ No drafting entries found for room ${roomId}, cannot complete`);
+        return;
+      }
+      draft = {
+        roomId,
+        contestId: entry.contest_id,
+        contestType: entry.Contest?.type
+      };
+      // Add to activeDrafts so cleanup works
+      this.activeDrafts.set(roomId, draft);
+    }
 
     console.log(`\n============================================================`);
     console.log(`COMPLETING DRAFT FOR ROOM ${roomId}`);
