@@ -91,8 +91,7 @@ const RulesPage = () => {
               <CollapsibleSection title="Contest Types" id="contest-types">
                 <div className="contest-type">
                   <h4>💰 Cash Games</h4>
-                  <p>Head-to-head drafts against 4 other players. Entry fees range from $1 to $100. 
-                  Top 2 finishers win prizes.</p>
+                  <p>Head-to-head drafts against 4 other players. Winner take all!</p>
                 </div>
                 <div className="contest-type">
                   <h4>🔥 Market Mover</h4>
@@ -249,7 +248,7 @@ const RulesPage = () => {
             <section>
               <h1>Cash Games</h1>
               <p className="intro-text">
-                Standard head-to-head draft contests with fixed prize pools.
+                Head-to-head draft contests. Winner takes all!
               </p>
 
               <CollapsibleSection title="Entry & Format" id="cash-format">
@@ -258,7 +257,8 @@ const RulesPage = () => {
                   <li><strong>Draft Type:</strong> Snake draft (1-2-3-4-5, 5-4-3-2-1, ...)</li>
                   <li><strong>Time per Pick:</strong> 30 seconds</li>
                   <li><strong>Budget:</strong> $15 per team</li>
-                  <li><strong>Entry Fees:</strong> $1, $5, $10, $25, $50, $100</li>
+                  <li><strong>Entry Fee:</strong> $5</li>
+                  <li><strong>Payout:</strong> Winner take all</li>
                 </ul>
               </CollapsibleSection>
 
@@ -266,31 +266,29 @@ const RulesPage = () => {
                 <table className="prize-table">
                   <thead>
                     <tr>
-                      <th>Place</th>
-                      <th>Payout</th>
+                      <th>Entry</th>
+                      <th>Prize Pool</th>
+                      <th>Winner Payout</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td>🥇 1st Place</td>
-                      <td>60% of prize pool</td>
-                    </tr>
-                    <tr>
-                      <td>🥈 2nd Place</td>
-                      <td>24% of prize pool</td>
+                      <td>$5</td>
+                      <td>$25</td>
+                      <td>$24</td>
                     </tr>
                   </tbody>
                 </table>
-                <p className="note">Platform fee: 4% rake on full contests, 20% on underfilled contests</p>
+                <p className="note">Platform fee: 4% rake</p>
               </CollapsibleSection>
 
               <CollapsibleSection title="Tiebreakers" id="cash-tiebreakers">
+                <p>If two or more players have the same score:</p>
                 <ol>
-                  <li>Higher total points scored</li>
-                  <li>More points from QB position</li>
-                  <li>Lower total salary spent</li>
-                  <li>Earlier draft position</li>
+                  <li><strong>Lower total salary spent wins</strong> - A $14 lineup beats a $15 lineup with the same score</li>
+                  <li><strong>If same score AND same salary</strong> - Players split the prize pool equally</li>
                 </ol>
+                <p className="note">Example: If two players tie with 120 pts and both spent $15, they each receive half the prize.</p>
               </CollapsibleSection>
             </section>
           )}
@@ -446,38 +444,20 @@ const RulesPage = () => {
                     <tr>
                       <th>Entry</th>
                       <th>Prize Pool</th>
-                      <th>1st Place</th>
-                      <th>2nd Place</th>
+                      <th>Winner Payout</th>
+                      <th>Platform Fee</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td>$1</td>
-                      <td>$4.80</td>
-                      <td>$2.88</td>
-                      <td>$1.15</td>
-                    </tr>
-                    <tr>
                       <td>$5</td>
-                      <td>$24</td>
-                      <td>$14.40</td>
-                      <td>$5.76</td>
-                    </tr>
-                    <tr>
-                      <td>$10</td>
-                      <td>$48</td>
-                      <td>$28.80</td>
-                      <td>$11.52</td>
-                    </tr>
-                    <tr>
                       <td>$25</td>
-                      <td>$120</td>
-                      <td>$72</td>
-                      <td>$28.80</td>
+                      <td>$24</td>
+                      <td>$1 (4%)</td>
                     </tr>
                   </tbody>
                 </table>
-                <p className="note">4% platform fee on full 5-player contests</p>
+                <p className="note">Winner take all. Contests only run with full 5-player lobbies.</p>
               </CollapsibleSection>
 
               <CollapsibleSection title="Market Mover Payouts" id="mm-payouts">
