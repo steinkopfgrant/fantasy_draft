@@ -1491,7 +1491,22 @@ class ContestService {
     }
 
     const draftState = await draftService.getDraft(roomId);
-    if (!draftState) return;
+    
+    // If no draft state in Redis, the draft may have been lost - try to complete it
+    if (!draftState) {
+      console.log(`⚠️ startNextPick: No draft state in Redis for ${roomId}, checking if draft should complete...`);
+      
+      // Check if there are drafting entries - if so, complete the draft
+      const draftingEntries = await db.ContestEntry.count({
+        where: { draft_room_id: roomId, status: 'drafting' }
+      });
+      
+      if (draftingEntries > 0) {
+        console.log(`🔄 Found ${draftingEntries} drafting entries, forcing draft completion...`);
+        await this.completeDraftForRoom(roomId);
+      }
+      return;
+    }
 
     const totalPicks = draftState.teams.length * 5;
     
