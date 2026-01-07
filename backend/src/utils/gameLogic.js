@@ -56,41 +56,42 @@ const PLAYER_POOLS = {
     ],
     1: [
       {name: 'Bryce Young', team: 'CAR'},
-      {name: 'Russell Wilson', team: 'PIT'}
+      {name: 'Aaron Rodgers', team: 'NYJ'}
     ]
   },
   RB: {
     5: [
-      {name: 'Saquon Barkley', team: 'PHI'},
+      {name: 'Kyren Williams', team: 'LAR'},
       {name: 'James Cook', team: 'BUF'},
       {name: 'Christian McCaffrey', team: 'SF'}
     ],
     4: [
       {name: 'Travis Etienne', team: 'JAX'},
-      {name: 'Kyren Williams', team: 'LAR'},
-      {name: 'Josh Jacobs', team: 'GB'},
-      {name: 'Joe Mixon', team: 'HOU'}
+      {name: 'Saquon Barkley', team: 'PHI'},
+      {name: 'TreVeyon Henderson', team: 'PHI'},
+      {name: 'Omarion Hampton', team: 'CAR'}
     ],
     3: [
-      {name: "D'Andre Swift", team: 'CHI'},
+      {name: "De'Andre Swift", team: 'CHI'},
+      {name: 'Josh Jacobs', team: 'GB'},
       {name: 'Rhamondre Stevenson', team: 'NE'},
-      {name: 'Najee Harris', team: 'PIT'},
+      {name: 'Kenny Gainwell', team: 'PHI'},
       {name: 'Woody Marks', team: 'SF'}
     ],
     2: [
+      {name: 'Rico Dowdle', team: 'DAL'},
       {name: 'Blake Corum', team: 'LAR'},
-      {name: 'Roschon Johnson', team: 'CHI'},
-      {name: 'Jaylen Warren', team: 'PIT'},
-      {name: 'Kenny Gainwell', team: 'PHI'}
+      {name: 'Kyle Monangai', team: 'NE'},
+      {name: 'Jaylen Warren', team: 'PIT'}
     ],
     1: [
       {name: 'Chuba Hubbard', team: 'CAR'},
       {name: 'Emmanuel Wilson', team: 'GB'},
-      {name: 'Tank Bigsby', team: 'JAX'},
+      {name: 'Bhayshul Tuten', team: 'JAX'},
       {name: 'Ray Davis', team: 'BUF'},
       {name: 'Ty Johnson', team: 'BUF'},
-      {name: 'Antonio Gibson', team: 'NE'},
-      {name: 'Cordarrelle Patterson', team: 'PIT'}
+      {name: 'Tank Bigsby', team: 'JAX'},
+      {name: 'Nick Chubb', team: 'CLE'}
     ]
   },
   WR: {
@@ -99,18 +100,19 @@ const PLAYER_POOLS = {
       {name: 'Nico Collins', team: 'HOU'}
     ],
     4: [
+      {name: 'Davante Adams', team: 'NYJ'},
       {name: 'AJ Brown', team: 'PHI'},
       {name: 'DeVonta Smith', team: 'PHI'},
       {name: 'Stefon Diggs', team: 'HOU'},
-      {name: 'Christian Watson', team: 'GB'},
-      {name: 'Rome Odunze', team: 'CHI'}
+      {name: 'DK Metcalf', team: 'SEA'}
     ],
     3: [
+      {name: 'Tetairoa McMillan', team: 'ARI'},
+      {name: 'Jakobi Meyers', team: 'LV'},
       {name: 'Brian Thomas Jr.', team: 'JAX'},
+      {name: 'Parker Washington', team: 'JAX'},
       {name: 'Ladd McConkey', team: 'LAC'},
-      {name: 'Quentin Johnston', team: 'LAC'},
-      {name: 'DJ Moore', team: 'CHI'},
-      {name: 'Luther Burden III', team: 'CHI'}
+      {name: 'Quentin Johnston', team: 'LAC'}
     ],
     2: [
       {name: 'Jalen Coker', team: 'CAR'},
@@ -119,17 +121,17 @@ const PLAYER_POOLS = {
       {name: 'Ricky Pearsall', team: 'SF'},
       {name: 'Kayshon Boutte', team: 'NE'},
       {name: 'Keenan Allen', team: 'CHI'},
-      {name: 'Romeo Doubs', team: 'GB'},
-      {name: 'Jayden Reed', team: 'GB'}
+      {name: 'Jayden Higgins', team: 'PIT'}
     ],
     1: [
       {name: 'Xavier Legette', team: 'CAR'},
       {name: 'Jordan Whittington', team: 'LAR'},
       {name: 'Keon Coleman', team: 'BUF'},
+      {name: 'Brandin Cooks', team: 'DAL'},
       {name: 'Joshua Palmer', team: 'LAC'},
+      {name: 'Kyle Williams', team: 'LAC'},
       {name: 'Calvin Austin III', team: 'PIT'},
-      {name: 'Jaylin Noel', team: 'HOU'},
-      {name: 'Dontayvion Wicks', team: 'GB'}
+      {name: 'Jaylin Noel', team: 'HOU'}
     ]
   },
   TE: {
@@ -137,6 +139,7 @@ const PLAYER_POOLS = {
       {name: 'George Kittle', team: 'SF'}
     ],
     4: [
+      {name: 'Colston Loveland', team: 'DET'},
       {name: 'Brenton Strange', team: 'JAX'},
       {name: 'Dallas Goedert', team: 'PHI'}
     ],
@@ -148,6 +151,7 @@ const PLAYER_POOLS = {
       {name: 'Colby Parkinson', team: 'LAR'},
       {name: 'Tyler Higbee', team: 'LAR'},
       {name: 'Dawson Knox', team: 'BUF'},
+      {name: 'Oronde Gadsden', team: 'JAX'},
       {name: 'Pat Freiermuth', team: 'PIT'},
       {name: 'Dalton Schultz', team: 'HOU'}
     ],
@@ -155,7 +159,7 @@ const PLAYER_POOLS = {
       {name: 'Tommy Tremble', team: 'CAR'},
       {name: 'Luke Musgrave', team: 'GB'},
       {name: 'Cole Kmet', team: 'CHI'},
-      {name: 'Gerald Everett', team: 'CHI'}
+      {name: 'Jonnu Smith', team: 'MIA'}
     ]
   }
 };
@@ -321,29 +325,8 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     }
   }
   
-  // Bottom-right (position 5) - WR for stack potential
-  const wrPrices = [5, 4, 3, 2, 1];
-  const wrPrice = wrPrices[Math.floor(Math.random() * wrPrices.length)];
-  const wrPool = (PLAYER_POOLS['WR'][wrPrice] || []).filter(p => !usedPlayers.has(p.name));
-  if (wrPool.length > 0) {
-    const wrPlayer = selectWeightedPlayer(wrPool, 'WR', wrPrice);
-    if (wrPlayer) {
-      usedPlayers.add(wrPlayer.name);
-      const isFireSale = fireSaleNames.has(wrPlayer.name?.toLowerCase());
-      const isCoolDown = coolDownNames.has(wrPlayer.name?.toLowerCase());
-      
-      flexRow.push({
-        ...wrPlayer,
-        position: 'FLEX',
-        originalPosition: 'WR',
-        price: wrPrice,
-        drafted: false,
-        draftedBy: null,
-        isFireSale: isFireSale,
-        isCoolDown: isCoolDown
-      });
-    }
-  }
+  // Leave bottom-right (position 5) as NULL - filled by ensureStackedWRInBottomRight
+  flexRow.push(null);
   
   board.push(flexRow);
 
