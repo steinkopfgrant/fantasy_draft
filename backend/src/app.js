@@ -19,6 +19,7 @@ const contestRoutes = require('./routes/contestRoutes');
 const draftRoutes = require('./routes/draftRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const debugRoutes = require('./routes/debugRoutes');
+const poolsRoutes = require('./routes/pools');
 
 // Import or create marketMoverRoutes
 let marketMoverRoutes;
@@ -259,7 +260,8 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/market-mover', marketMoverRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/admin/sim', simRoutes);
-app.use('/api/admin', injuryRoutes);  // Injury management routes
+app.use('/api/admin', injuryRoutes);
+app.use('/api/pools', poolsRoutes);
 
 // Placeholder routes for other missing functionality
 app.use('/api/tickets', (req, res) => {
@@ -313,6 +315,9 @@ app.get('/api', (req, res) => {
       teams: {
         myTeams: 'GET /api/teams/my-teams',
         lineup: 'GET /api/teams/lineup/:lineupId'
+      },
+      pools: {
+        list: 'GET /api/pools'
       },
       marketMover: {
         status: 'GET /api/market-mover/status',
