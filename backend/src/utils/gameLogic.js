@@ -56,7 +56,7 @@ const PLAYER_POOLS = {
     ],
     1: [
       {name: 'Bryce Young', team: 'CAR'},
-      {name: 'Aaron Rodgers', team: 'NYJ'}
+      {name: 'Aaron Rodgers', team: 'PIT'}
     ]
   },
   RB: {
@@ -68,20 +68,20 @@ const PLAYER_POOLS = {
     4: [
       {name: 'Travis Etienne', team: 'JAX'},
       {name: 'Saquon Barkley', team: 'PHI'},
-      {name: 'TreVeyon Henderson', team: 'PHI'},
-      {name: 'Omarion Hampton', team: 'CAR'}
+      {name: 'TreVeyon Henderson', team: 'NE'},
+      {name: 'Omarion Hampton', team: 'LAC'}
     ],
     3: [
       {name: "De'Andre Swift", team: 'CHI'},
       {name: 'Josh Jacobs', team: 'GB'},
       {name: 'Rhamondre Stevenson', team: 'NE'},
-      {name: 'Kenny Gainwell', team: 'PHI'},
-      {name: 'Woody Marks', team: 'SF'}
+      {name: 'Kenny Gainwell', team: 'PIT'},
+      {name: 'Woody Marks', team: 'HOU'}
     ],
     2: [
-      {name: 'Rico Dowdle', team: 'DAL'},
+      {name: 'Rico Dowdle', team: 'CAR'},
       {name: 'Blake Corum', team: 'LAR'},
-      {name: 'Kyle Monangai', team: 'NE'},
+      {name: 'Kyle Monangai', team: 'CHI'},
       {name: 'Jaylen Warren', team: 'PIT'}
     ],
     1: [
@@ -90,8 +90,8 @@ const PLAYER_POOLS = {
       {name: 'Bhayshul Tuten', team: 'JAX'},
       {name: 'Ray Davis', team: 'BUF'},
       {name: 'Ty Johnson', team: 'BUF'},
-      {name: 'Tank Bigsby', team: 'JAX'},
-      {name: 'Nick Chubb', team: 'CLE'}
+      {name: 'Tank Bigsby', team: 'PHI'},
+      {name: 'Nick Chubb', team: 'HOU'}
     ]
   },
   WR: {
@@ -104,15 +104,18 @@ const PLAYER_POOLS = {
       {name: 'AJ Brown', team: 'PHI'},
       {name: 'DeVonta Smith', team: 'PHI'},
       {name: 'Stefon Diggs', team: 'HOU'},
-      {name: 'DK Metcalf', team: 'SEA'}
+      {name: 'DK Metcalf', team: 'SEA'},
+      {name: 'Rome Odunze', team: 'CHI'},
+      {name: 'Christian Watson', team: 'GB'}
     ],
     3: [
-      {name: 'Tetairoa McMillan', team: 'ARI'},
-      {name: 'Jakobi Meyers', team: 'LV'},
+      {name: 'Tetairoa McMillan', team: 'CAR'},
+      {name: 'Jakobi Meyers', team: 'JAX'},
       {name: 'Brian Thomas Jr.', team: 'JAX'},
       {name: 'Parker Washington', team: 'JAX'},
       {name: 'Ladd McConkey', team: 'LAC'},
-      {name: 'Quentin Johnston', team: 'LAC'}
+      {name: 'Quentin Johnston', team: 'LAC'},
+      {name: 'Luther Burden III', team: 'CHI'}
     ],
     2: [
       {name: 'Jalen Coker', team: 'CAR'},
@@ -120,18 +123,22 @@ const PLAYER_POOLS = {
       {name: 'Jauan Jennings', team: 'SF'},
       {name: 'Ricky Pearsall', team: 'SF'},
       {name: 'Kayshon Boutte', team: 'NE'},
-      {name: 'Keenan Allen', team: 'CHI'},
-      {name: 'Jayden Higgins', team: 'PIT'}
+      {name: 'Keenan Allen', team: 'LAC'},
+      {name: 'Jayden Higgins', team: 'HOU'},
+      {name: 'DJ Moore', team: 'CHI'},
+      {name: 'Romeo Doubs', team: 'GB'},
+      {name: 'Jayden Reed', team: 'GB'}
     ],
     1: [
       {name: 'Xavier Legette', team: 'CAR'},
       {name: 'Jordan Whittington', team: 'LAR'},
       {name: 'Keon Coleman', team: 'BUF'},
       {name: 'Brandin Cooks', team: 'DAL'},
-      {name: 'Joshua Palmer', team: 'LAC'},
-      {name: 'Kyle Williams', team: 'LAC'},
+      {name: 'Joshua Palmer', team: 'BUF'},
+      {name: 'Kyle Williams', team: 'NE'},
       {name: 'Calvin Austin III', team: 'PIT'},
-      {name: 'Jaylin Noel', team: 'HOU'}
+      {name: 'Jaylin Noel', team: 'HOU'},
+      {name: 'Dontayvion Wicks', team: 'GB'}
     ]
   },
   TE: {
