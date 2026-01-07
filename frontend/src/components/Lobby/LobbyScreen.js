@@ -478,18 +478,33 @@ const LobbyScreen = () => {
     <div className="lobby-container">
       <div className="lobby-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-          <button
-            onClick={() => navigate('/rules')}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px',
-              fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem',
-              display: 'flex', alignItems: 'center', gap: '0.5rem'
-            }}
-          >
-            📋 Rules & Scoring
-          </button>
+          {/* LEFT SIDE - Pools & Rules buttons stacked */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button
+              onClick={() => navigate('/pools')}
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px',
+                fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem',
+                display: 'flex', alignItems: 'center', gap: '0.5rem'
+              }}
+            >
+              🎱 Player Pools
+            </button>
+            <button
+              onClick={() => navigate('/rules')}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px',
+                fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem',
+                display: 'flex', alignItems: 'center', gap: '0.5rem'
+              }}
+            >
+              📋 Rules & Scoring
+            </button>
+          </div>
           
+          {/* CENTER - Title */}
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ margin: 0 }}>Contest Lobby</h1>
             <p style={{ margin: '0.25rem 0 0 0', color: '#8892b0', fontSize: '0.95rem' }}>
@@ -497,6 +512,7 @@ const LobbyScreen = () => {
             </p>
           </div>
           
+          {/* RIGHT SIDE - Active Draft button */}
           {activeDraft ? (
             <button 
               onClick={() => navigate(`/draft/${activeDraft.roomId}`, { state: { entryId: activeDraft.entryId, rejoin: true } })}

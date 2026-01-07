@@ -234,6 +234,33 @@ const Dashboard = ({ showToast }) => {
               📋 Rules & Scoring
             </button>
             
+            {/* PLAYER POOLS BUTTON - Shows for everyone */}
+            <button 
+              onClick={() => navigate('/pools')}
+              style={{ 
+                width: '100%',
+                padding: '1rem',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.boxShadow = '0 4px 20px rgba(245, 158, 11, 0.5)';
+                e.target.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.boxShadow = '0 2px 10px rgba(245, 158, 11, 0.3)';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              🎱 Player Pools
+            </button>
+            
             {/* ADMIN PANEL BUTTON - Only shows for specific user */}
             {user?.username === 'aaaaaa' && (
               <button 

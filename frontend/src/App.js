@@ -23,6 +23,7 @@ import SettlementPanel from './components/Admin/SettlementPanel';
 import ToastContainer from './components/Toast/ToastContainer';
 import MarketMoverPage from './components/MarketMover/MarketMoverPage';
 import RulesPage from './components/Rules/RulesPage';
+import PoolsPage from './components/Pools/PoolsPage';
 
 // Helper to check if user is admin (handles both role and is_admin flag)
 const isUserAdmin = (user) => {
@@ -258,6 +259,13 @@ const AppContent = () => {
             <Route path="/rules" element={
               <ProtectedRoute>
                 <RulesPage />
+              </ProtectedRoute>
+            } />
+
+            {/* Pools page */}
+            <Route path="/pools" element={
+              <ProtectedRoute>
+                <PoolsPage />
               </ProtectedRoute>
             } />
             
