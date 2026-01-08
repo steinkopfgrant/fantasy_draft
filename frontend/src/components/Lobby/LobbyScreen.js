@@ -97,9 +97,10 @@ const LobbyScreen = () => {
   // CHECK FOR ACTIVE DRAFTS
   // ============================================
   useEffect(() => {
+    // ONLY match entries with 'drafting' status - NOT pending
     const draftingEntry = userEntriesArray.find(entry => {
       const roomId = entry.draft_room_id || entry.draftRoomId;
-      return roomId && !['completed', 'cancelled'].includes(entry.status);
+      return roomId && entry.status === 'drafting';
     });
     
     if (draftingEntry) {
