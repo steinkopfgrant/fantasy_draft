@@ -64,6 +64,13 @@ const LobbyScreen = () => {
   const hasFetchedRef = useRef(false);
   const socketHandlersSetRef = useRef(false);
   const roomPollingInterval = useRef(null);
+  // Track the current waiting room ID in a ref so socket handler always has fresh value
+  const waitingRoomIdRef = useRef(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    waitingRoomIdRef.current = waitingRoomData?.roomId || null;
+  }, [waitingRoomData]);
   
   // ============================================
   // SINGLE DATA FETCH ON MOUNT - NO HEALTH CHECK
@@ -312,30 +319,49 @@ const LobbyScreen = () => {
       });
     }));
     
+    // FIXED: draft-starting handler - navigation moved OUTSIDE setState callback
+    // Uses ref to get current waitingRoomId to avoid stale closure issues
     cleanups.push(socketService.on('draft-starting', (data) => {
-      setWaitingRoomData(current => {
-        if (current && data.roomId === current.roomId) {
-          if (roomPollingInterval.current) clearInterval(roomPollingInterval.current);
-          
-          navigate(`/draft/${data.roomId}`, {
-            state: {
-              draftData: {
-                roomId: data.roomId,
-                contestId: data.contestId,
-                contestType: data.contestType,
-                playerBoard: data.playerBoard,
-                participants: data.participants,
-                entryId: current.entryId,
-                userDraftPosition: data.participants?.findIndex(p => p.userId === user.id) ?? -1
-              }
-            }
-          });
-          
-          setIsInWaitingRoom(false);
-          return null;
+      console.log('📢 Received draft-starting event:', data.roomId);
+      console.log('📢 Current waiting room:', waitingRoomIdRef.current);
+      
+      // Check if this is the room we're waiting in
+      const isMyWaitingRoom = waitingRoomIdRef.current === data.roomId;
+      
+      if (isMyWaitingRoom) {
+        console.log(`✅ Draft starting for MY room: ${data.roomId}`);
+        
+        // Stop polling
+        if (roomPollingInterval.current) {
+          clearInterval(roomPollingInterval.current);
+          roomPollingInterval.current = null;
         }
-        return current;
-      });
+        
+        // Get entryId before clearing state
+        const entryId = waitingRoomData?.entryId;
+        
+        // Clear waiting room state
+        setIsInWaitingRoom(false);
+        setWaitingRoomData(null);
+        waitingRoomIdRef.current = null;
+        
+        // Navigate to draft - OUTSIDE of setState callback
+        navigate(`/draft/${data.roomId}`, {
+          state: {
+            draftData: {
+              roomId: data.roomId,
+              contestId: data.contestId,
+              contestType: data.contestType,
+              playerBoard: data.playerBoard,
+              participants: data.participants,
+              entryId: entryId,
+              userDraftPosition: data.participants?.findIndex(p => p.userId === user.id) ?? -1
+            }
+          }
+        });
+      } else {
+        console.log(`⏭️ Draft starting for different room: ${data.roomId}, my room is: ${waitingRoomIdRef.current}`);
+      }
     }));
     
     cleanups.push(socketService.on('fire-sale-update', () => dispatch(fetchContests())));
@@ -346,7 +372,7 @@ const LobbyScreen = () => {
       cleanups.forEach(fn => fn && fn());
       socketHandlersSetRef.current = false;
     };
-  }, [user?.id, dispatch, navigate]);
+  }, [user?.id, dispatch, navigate, waitingRoomData]);
   
   // ============================================
   // FILTERS & SORTING
