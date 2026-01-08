@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store } from './store/store';
 import { checkAuth, selectAuthUser, selectIsAuthenticated, selectAuthLoading } from './store/slices/authSlice';
@@ -107,6 +107,7 @@ const PublicRoute = ({ children }) => {
 // App Content Component (uses Redux hooks)
 const AppContent = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const loading = useSelector(selectAuthLoading);
   const user = useSelector(selectAuthUser);
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -154,19 +155,47 @@ const AppContent = () => {
             break;
         }
       });
+      
+      // Listen for rejoin-draft event (when user reconnects mid-draft)
+      const handleRejoinDraft = (data) => {
+        console.log('🔄 Received rejoin-draft event:', data);
+        const currentPath = window.location.pathname;
+        
+        // Only navigate if not already on the draft screen
+        if (!currentPath.includes('/draft/')) {
+          console.log(`🔄 Navigating to draft room: ${data.roomId}`);
+          navigate(`/draft/${data.roomId}`, { 
+            state: { 
+              rejoin: true,
+              contestId: data.contestId,
+              contestType: data.contestType
+            }
+          });
+        }
+      };
+      
+      socketService.on('rejoin-draft', handleRejoinDraft);
+      
+      // Cleanup listener on effect re-run
+      return () => {
+        socketService.off('rejoin-draft', handleRejoinDraft);
+      };
+      
     } else if (!isAuthenticated && socketService.isConnected()) {
       console.log('🔌 Disconnecting socket - user logged out');
       dispatch(disconnectSocket());
     }
-    
-    // Cleanup on unmount
+  }, [isAuthenticated, user, dispatch, navigate]);
+
+  // Cleanup socket on unmount
+  useEffect(() => {
     return () => {
       if (socketService.isConnected()) {
         console.log('🔌 App unmounting - disconnecting socket');
         socketService.disconnect();
       }
     };
-  }, [isAuthenticated, user, dispatch]);
+  }, []);
 
   // Simple toast function for AdminPanel
   const showToast = (message, type = 'info') => {
@@ -176,114 +205,112 @@ const AppContent = () => {
   console.log('🎯 RENDERING ROUTES - Current path:', window.location.pathname, 'Loading:', loading);
 
   return (
-    <Router>
-      <div className="App">
-        <Header />
-        
-        <main className="main-content">
-          {console.log('📋 ROUTES MOUNTING - User:', user?.username, 'Loading:', loading)}
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<LandingPage />} />
-            
-            <Route path="/login" element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            } />
-            
-            <Route path="/register" element={
-              <PublicRoute>
-                <Register />
-              </PublicRoute>
-            } />
-            
-            {/* Admin routes */}
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminPanel user={user} showToast={showToast} />
-                </ProtectedRoute>
-              } 
-            />
-            
-            <Route 
-              path="/admin/settlement" 
-              element={
-                <ProtectedRoute requireAdmin>
-                  <SettlementPanel />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Protected routes */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
+    <div className="App">
+      <Header />
+      
+      <main className="main-content">
+        {console.log('📋 ROUTES MOUNTING - User:', user?.username, 'Loading:', loading)}
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
+          
+          <Route path="/login" element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } />
+          
+          <Route path="/register" element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          } />
+          
+          {/* Admin routes */}
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminPanel user={user} showToast={showToast} />
               </ProtectedRoute>
-            } />
-            
-            <Route path="/lobby" element={
-              <ProtectedRoute>
-                <LobbyScreen />
+            } 
+          />
+          
+          <Route 
+            path="/admin/settlement" 
+            element={
+              <ProtectedRoute requireAdmin>
+                <SettlementPanel />
               </ProtectedRoute>
-            } />
-            
-            <Route path="/draft/:roomId" element={
-              <ProtectedRoute>
-                <DraftScreen />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfileScreen />
-              </ProtectedRoute>
-            } />
+            } 
+          />
+          
+          {/* Protected routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/lobby" element={
+            <ProtectedRoute>
+              <LobbyScreen />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/draft/:roomId" element={
+            <ProtectedRoute>
+              <DraftScreen />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <ProfileScreen />
+            </ProtectedRoute>
+          } />
 
-            <Route path="/teams" element={
-              <ProtectedRoute>
-                <TeamsPage />
-              </ProtectedRoute>
-            } />
+          <Route path="/teams" element={
+            <ProtectedRoute>
+              <TeamsPage />
+            </ProtectedRoute>
+          } />
 
-            {/* MarketMover route */}
-            <Route path="/market-mover" element={
-              <ProtectedRoute>
-                <MarketMoverPage />
-              </ProtectedRoute>
-            } />
+          {/* MarketMover route */}
+          <Route path="/market-mover" element={
+            <ProtectedRoute>
+              <MarketMoverPage />
+            </ProtectedRoute>
+          } />
 
-            {/* Rules page */}
-            <Route path="/rules" element={
-              <ProtectedRoute>
-                <RulesPage />
-              </ProtectedRoute>
-            } />
+          {/* Rules page */}
+          <Route path="/rules" element={
+            <ProtectedRoute>
+              <RulesPage />
+            </ProtectedRoute>
+          } />
 
-            {/* Pools page */}
-            <Route path="/pools" element={
-              <ProtectedRoute>
-                <PoolsPage />
-              </ProtectedRoute>
-            } />
-            
-            {/* 404 route */}
-            <Route path="*" element={
-              <div className="not-found">
-                <h1>404 - Page Not Found</h1>
-                <p>The page you're looking for doesn't exist.</p>
-                <a href="/">Go Home</a>
-              </div>
-            } />
-          </Routes>
-        </main>
-        
-        {/* Toast notifications */}
-        <ToastContainer />
-      </div>
-    </Router>
+          {/* Pools page */}
+          <Route path="/pools" element={
+            <ProtectedRoute>
+              <PoolsPage />
+            </ProtectedRoute>
+          } />
+          
+          {/* 404 route */}
+          <Route path="*" element={
+            <div className="not-found">
+              <h1>404 - Page Not Found</h1>
+              <p>The page you're looking for doesn't exist.</p>
+              <a href="/">Go Home</a>
+            </div>
+          } />
+        </Routes>
+      </main>
+      
+      {/* Toast notifications */}
+      <ToastContainer />
+    </div>
   );
 };
 
@@ -291,7 +318,9 @@ const AppContent = () => {
 function App() {
   return (
     <Provider store={store}>
-      <AppContent />
+      <Router>
+        <AppContent />
+      </Router>
     </Provider>
   );
 }
