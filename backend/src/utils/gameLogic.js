@@ -332,8 +332,70 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     }
   }
   
-  // Leave bottom-right (position 5) as NULL - filled by ensureStackedWRInBottomRight
-  flexRow.push(null);
+  // FIXED: Position 5 (bottom-right) - WR for stacking potential
+  // Previously this was null which caused the missing square
+  const wrPrice = prices[Math.floor(Math.random() * prices.length)];
+  const wrPool = (PLAYER_POOLS['WR'][wrPrice] || []).filter(p => !usedPlayers.has(p.name));
+  
+  if (wrPool.length > 0) {
+    const wrPlayer = selectWeightedPlayer(wrPool, 'WR', wrPrice);
+    if (wrPlayer) {
+      usedPlayers.add(wrPlayer.name);
+      const isFireSale = fireSaleNames.has(wrPlayer.name?.toLowerCase());
+      const isCoolDown = coolDownNames.has(wrPlayer.name?.toLowerCase());
+      
+      flexRow.push({
+        ...wrPlayer,
+        position: 'FLEX',
+        originalPosition: 'WR',
+        price: wrPrice,
+        drafted: false,
+        draftedBy: null,
+        isFireSale: isFireSale,
+        isCoolDown: isCoolDown
+      });
+    } else {
+      // Fallback - add any flex-eligible player
+      const fallbackPos = ['RB', 'TE'][Math.floor(Math.random() * 2)];
+      const fallbackPrice = prices[Math.floor(Math.random() * prices.length)];
+      const fallbackPool = (PLAYER_POOLS[fallbackPos][fallbackPrice] || []).filter(p => !usedPlayers.has(p.name));
+      
+      if (fallbackPool.length > 0) {
+        const fallbackPlayer = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+        usedPlayers.add(fallbackPlayer.name);
+        flexRow.push({
+          ...fallbackPlayer,
+          position: 'FLEX',
+          originalPosition: fallbackPos,
+          price: fallbackPrice,
+          drafted: false,
+          draftedBy: null,
+          isFireSale: false,
+          isCoolDown: false
+        });
+      }
+    }
+  } else {
+    // No WRs available, try RB or TE
+    const fallbackPos = ['RB', 'TE'][Math.floor(Math.random() * 2)];
+    const fallbackPrice = prices[Math.floor(Math.random() * prices.length)];
+    const fallbackPool = (PLAYER_POOLS[fallbackPos][fallbackPrice] || []).filter(p => !usedPlayers.has(p.name));
+    
+    if (fallbackPool.length > 0) {
+      const fallbackPlayer = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+      usedPlayers.add(fallbackPlayer.name);
+      flexRow.push({
+        ...fallbackPlayer,
+        position: 'FLEX',
+        originalPosition: fallbackPos,
+        price: fallbackPrice,
+        drafted: false,
+        draftedBy: null,
+        isFireSale: false,
+        isCoolDown: false
+      });
+    }
+  }
   
   board.push(flexRow);
 
@@ -342,8 +404,8 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
   for (let row = 0; row < 5; row++) {
     if (board[row][4]) flexSpots.push({ row, col: 4 });
   }
-  for (let col = 1; col < 4; col++) {
-    if (board[5][col]) flexSpots.push({ row: 5, col });
+  for (let col = 1; col < 5; col++) {
+    if (board[5] && board[5][col]) flexSpots.push({ row: 5, col });
   }
 
   const hasRBInFlex = flexSpots.some(spot => 
