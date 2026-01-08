@@ -1477,7 +1477,7 @@ class ContestService {
     }
   }
 
-  // UPDATED: startNextPick with 3-second timer for $0 budget
+  // FIXED: startNextPick with proper timer error handling and cleanup
   async startNextPick(roomId) {
     let draft = this.activeDrafts.get(roomId);
     
@@ -1528,6 +1528,17 @@ class ContestService {
 
     const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
     const currentPlayer = draftState.teams[currentPlayerIndex];
+    
+    // Validate currentPlayer exists
+    if (!currentPlayer || !currentPlayer.userId) {
+      console.error(`❌ startNextPick: Invalid currentPlayer at index ${currentPlayerIndex}`);
+      console.log(`  draftOrder: ${JSON.stringify(draftState.draftOrder)}`);
+      console.log(`  currentTurn: ${draftState.currentTurn}`);
+      console.log(`  teams: ${draftState.teams.map(t => t?.username || 'undefined').join(', ')}`);
+      // Try to skip to next turn or complete
+      await this.completeDraftForRoom(roomId);
+      return;
+    }
 
     // Calculate remaining budget for current player
     let remainingBudget = 15; // Max salary
@@ -1575,14 +1586,42 @@ class ContestService {
       this.io.to(`room_${roomId}`).emit('draft-state', draftState);
     }
 
-    // Clear any existing timer for this room/user combo
+    // Clear any existing timer for this room/user combo AND delete the entry
     const existingTimerKey = `${roomId}_${currentPlayer.userId}`;
     if (this.draftTimers.has(existingTimerKey)) {
       clearTimeout(this.draftTimers.get(existingTimerKey));
+      this.draftTimers.delete(existingTimerKey);
     }
 
-    const timerId = setTimeout(() => {
-      this.handleAutoPick(roomId, currentPlayer.userId);
+    // Capture values for closure to avoid any reference issues
+    const capturedRoomId = roomId;
+    const capturedUserId = currentPlayer.userId;
+    const capturedUsername = currentPlayer.username;
+    const capturedTimerKey = existingTimerKey;
+
+    const timerId = setTimeout(async () => {
+      console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId}`);
+      
+      // Remove timer entry immediately since it's firing
+      this.draftTimers.delete(capturedTimerKey);
+      
+      try {
+        await this.handleAutoPick(capturedRoomId, capturedUserId);
+      } catch (error) {
+        console.error(`❌ Timer callback error for ${capturedRoomId}:`, error);
+        // Still try to advance the draft even if autopick failed
+        try {
+          await this.startNextPick(capturedRoomId);
+        } catch (advanceError) {
+          console.error(`❌ Failed to advance draft after timer error:`, advanceError);
+          // Last resort - try to complete the draft
+          try {
+            await this.completeDraftForRoom(capturedRoomId);
+          } catch (completeError) {
+            console.error(`❌ Failed to complete draft:`, completeError);
+          }
+        }
+      }
     }, timeLimit * 1000);
 
     this.draftTimers.set(existingTimerKey, timerId);
@@ -1608,6 +1647,13 @@ class ContestService {
       // Check if there's an active timer
       const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
       const currentPlayer = draftState.teams[currentPlayerIndex];
+      
+      if (!currentPlayer || !currentPlayer.userId) {
+        console.log(`⚠️ Invalid currentPlayer in checkAndRestartStalledDraft for ${roomId}`);
+        await this.completeDraftForRoom(roomId);
+        return { stalled: true, action: 'completed_invalid_player' };
+      }
+      
       const timerKey = `${roomId}_${currentPlayer.userId}`;
       
       if (this.draftTimers.has(timerKey)) {
@@ -1678,8 +1724,20 @@ class ContestService {
             }
           }
           
-          const timerId = setTimeout(() => {
-            this.handleAutoPick(roomId, currentPlayer.userId);
+          // Capture values for closure
+          const capturedRoomId = roomId;
+          const capturedUserId = currentPlayer.userId;
+          const capturedTimerKey = timerKey;
+          
+          const timerId = setTimeout(async () => {
+            console.log(`⏰ Restarted timer FIRED for ${currentPlayer.username} in room ${capturedRoomId}`);
+            this.draftTimers.delete(capturedTimerKey);
+            try {
+              await this.handleAutoPick(capturedRoomId, capturedUserId);
+            } catch (error) {
+              console.error(`❌ Restarted timer callback error:`, error);
+              await this.startNextPick(capturedRoomId);
+            }
           }, remaining);
           
           this.draftTimers.set(timerKey, timerId);
@@ -1773,10 +1831,12 @@ class ContestService {
 
     console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
-    const timerId = this.draftTimers.get(`${roomId}_${userId}`);
+    // Clear AND delete timer for this user
+    const timerKey = `${roomId}_${userId}`;
+    const timerId = this.draftTimers.get(timerKey);
     if (timerId) {
       clearTimeout(timerId);
-      this.draftTimers.delete(`${roomId}_${userId}`);
+      this.draftTimers.delete(timerKey);
     }
 
     const updatedDraft = await draftService.makePick(roomId, userId, {
@@ -1848,6 +1908,13 @@ class ContestService {
   // FIXED: handleAutoPick with error handling to ensure draft completes
   async handleAutoPick(roomId, userId) {
     console.log(`Auto-picking for user ${userId} in room ${roomId}`);
+    
+    // Clear timer entry for this user (in case called directly, not from timer)
+    const timerKey = `${roomId}_${userId}`;
+    if (this.draftTimers.has(timerKey)) {
+      clearTimeout(this.draftTimers.get(timerKey));
+      this.draftTimers.delete(timerKey);
+    }
     
     try {
       const updatedDraft = await draftService.autoPick(roomId, userId);
@@ -2122,6 +2189,7 @@ class ContestService {
     // Cleanup
     this.activeDrafts.delete(roomId);
     
+    // Clear ALL timers for this room
     for (const [key, timerId] of this.draftTimers) {
       if (key.startsWith(`${roomId}_`)) {
         clearTimeout(timerId);
