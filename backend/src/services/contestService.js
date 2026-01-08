@@ -696,7 +696,18 @@ class ContestService {
         return count < 5;
       });
       
-      availableRooms.sort((a, b) => parseInt(b.entry_count) - parseInt(a.entry_count));
+      // Sort by: 1) fullest first, 2) lowest room number first (older rooms)
+      availableRooms.sort((a, b) => {
+        const countDiff = parseInt(b.entry_count) - parseInt(a.entry_count);
+        if (countDiff !== 0) return countDiff;
+        
+        // When equal entry counts, fill older rooms first
+        const aNum = parseInt(a.draft_room_id.match(/_room_(\d+)$/)?.[1] || '999999');
+        const bNum = parseInt(b.draft_room_id.match(/_room_(\d+)$/)?.[1] || '999999');
+        return aNum - bNum;
+      });
+      
+      console.log(`Available rooms sorted: ${availableRooms.map(r => `${r.draft_room_id}(${r.entry_count})`).join(', ')}`);
 
       for (const room of availableRooms) {
         const roomId = room.draft_room_id;
