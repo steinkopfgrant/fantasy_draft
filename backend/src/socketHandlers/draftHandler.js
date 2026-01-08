@@ -32,6 +32,76 @@ class DraftHandler {
     socket.on('get-draft-state', async (data) => {
       await this.sendDraftState(socket, data.roomId);
     });
+    
+    // NEW: Check if user needs to rejoin an active draft on connection
+    this.checkAndRejoinActiveDraft(socket, userId);
+  }
+
+  // NEW: Check if user has an active draft and push them back into it
+  async checkAndRejoinActiveDraft(socket, userId) {
+    try {
+      // Check if user has an active drafting entry
+      const activeEntry = await db.ContestEntry.findOne({
+        where: { 
+          user_id: userId, 
+          status: 'drafting' 
+        },
+        include: [{
+          model: db.Contest,
+          attributes: ['id', 'type', 'name']
+        }]
+      });
+      
+      if (!activeEntry) {
+        return false;
+      }
+      
+      const roomId = activeEntry.draft_room_id;
+      console.log(`🔄 User ${userId} has active draft in room ${roomId}, rejoining...`);
+      
+      // Join the draft socket room
+      socket.join(`draft_${roomId}`);
+      socket.roomId = roomId;
+      socket.userId = userId;
+      
+      // Get or initialize draft state
+      let draftState = this.draftStates.get(roomId);
+      
+      if (!draftState) {
+        // Try to reconstruct draft state from room status
+        console.log(`⚠️ Draft state not in memory for ${roomId}, reconstructing...`);
+        try {
+          draftState = await this.initializeDraftState(roomId);
+          draftState.status = 'active'; // Mark as active since we know it's drafting
+          this.draftStates.set(roomId, draftState);
+        } catch (err) {
+          console.error(`❌ Could not reconstruct draft state: ${err.message}`);
+          return false;
+        }
+      }
+      
+      // Send the complete draft state to the reconnected user
+      this.sendCompleteState(socket, roomId);
+      
+      // Emit special rejoin event so client knows to navigate to draft screen
+      socket.emit('rejoin-draft', {
+        roomId,
+        contestId: draftState.contestId,
+        contestType: activeEntry.Contest?.type,
+        contestName: activeEntry.Contest?.name,
+        status: draftState.status,
+        currentTurn: draftState.currentTurn,
+        timeRemaining: draftState.timeRemaining,
+        message: 'Reconnected to active draft'
+      });
+      
+      console.log(`✅ Pushed user ${userId} back into active draft ${roomId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Error checking active draft for user ${userId}:`, error.message);
+      return false;
+    }
   }
 
   async handleJoinDraft(socket, userId, { roomId }) {
