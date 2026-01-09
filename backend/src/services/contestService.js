@@ -725,6 +725,7 @@ class ContestService {
           });
 
           if (userInRoom) {
+            console.log(`  ⏭️ Skipping ${roomId}: user already in room (non-MM)`);
             continue; // User already in this room, skip for non-MarketMaker
           }
         }
@@ -745,14 +746,15 @@ class ContestService {
           // Only count non-cancelled/non-completed entries for "room full" check
           const activeEntries = currentEntries.filter(e => !['cancelled', 'completed'].includes(e.status));
           if (activeEntries.length >= 5) {
-            console.log(`Room ${roomId} filled up during assignment, trying next room...`);
+            console.log(`  ⏭️ Skipping ${roomId}: room filled up (${activeEntries.length}/5 active)`);
             continue;
           }
 
           // For MarketMaker, check if user is already in THIS specific room
-          const userInThisRoom = currentEntries.some(e => e.user_id === userId);
+          // FIXED: Only check ACTIVE entries - cancelled/completed entries shouldn't block rejoining
+          const userInThisRoom = activeEntries.some(e => e.user_id === userId);
           if (userInThisRoom && contest.type === 'market') {
-            console.log(`User already in room ${roomId}, finding different room for multi-entry`);
+            console.log(`  ⏭️ Skipping ${roomId}: user ${userId} already has active entry (MM multi-entry)`);
             continue;
           }
 
