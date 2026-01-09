@@ -20,13 +20,9 @@ const TeamsPage = () => {
   const [teamDetails, setTeamDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // FIXED: Add cache-busting to prevent 304 responses with stale data
   const fetchActiveTeams = useCallback(async () => {
     try {
-      const response = await axios.get('/api/teams/active', {
-        params: { _t: Date.now() },
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const response = await axios.get('/api/teams/active');
       if (response.data.success) {
         setActiveTeams(response.data.teams);
       }
@@ -35,13 +31,9 @@ const TeamsPage = () => {
     }
   }, []);
 
-  // FIXED: Add cache-busting to history fetch as well
   const fetchHistoryTeams = useCallback(async (page = 1) => {
     try {
-      const response = await axios.get(`/api/teams/history`, {
-        params: { page, limit: 20, _t: Date.now() },
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const response = await axios.get(`/api/teams/history?page=${page}&limit=20`);
       if (response.data.success) {
         setHistoryTeams(response.data.teams);
         setHistoryPagination(response.data.pagination);
@@ -55,9 +47,7 @@ const TeamsPage = () => {
   const fetchTeamDetails = useCallback(async (entryId) => {
     setLoadingDetails(true);
     try {
-      const response = await axios.get(`/api/teams/${entryId}/details`, {
-        params: { _t: Date.now() }
-      });
+      const response = await axios.get(`/api/teams/${entryId}/details`);
       if (response.data.success) {
         setTeamDetails(response.data);
       }
