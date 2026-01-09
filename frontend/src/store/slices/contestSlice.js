@@ -2,13 +2,17 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Async thunks
+// Async thunks - FIXED with cache-busting
 export const fetchContests = createAsyncThunk(
   'contest/fetchContests',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/contests');
-      return response.data; // API returns array directly, not response.data.contests
+      // Add cache-busting parameter to prevent 304 responses
+      const response = await axios.get('/api/contests', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.message);
     }
@@ -19,7 +23,11 @@ export const fetchUserEntries = createAsyncThunk(
   'contest/fetchUserEntries',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/contests/my-entries');
+      // Add cache-busting parameter to prevent 304 responses
+      const response = await axios.get('/api/contests/my-entries', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.message);
@@ -166,6 +174,14 @@ const contestSlice = createSlice({
     // Staleness
     markStale: (state) => {
       state.stale = true;
+    },
+    
+    // ADDED: Clear all data (useful for logout or data reset)
+    clearContestData: (state) => {
+      state.contests = [];
+      state.userEntries = [];
+      state.lastFetch = null;
+      state.stale = true;
     }
   },
   extraReducers: (builder) => {
@@ -250,7 +266,8 @@ export const {
   setFilter,
   setSortBy,
   clearError,
-  markStale
+  markStale,
+  clearContestData
 } = contestSlice.actions;
 
 // Selectors
