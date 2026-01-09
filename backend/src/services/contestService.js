@@ -665,103 +665,100 @@ class ContestService {
     }
   }
 
-  // FIXED: findOrCreateRoom with proper SQL
+  // FIXED: findOrCreateRoom - checks ALL rooms including empty ones
   async findOrCreateRoom(contestId, userId, transaction) {
     console.log(`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
     
-    // For MarketMaker, ALWAYS allow users to join different rooms
-    // This enables multi-entry functionality
     const contest = await db.Contest.findByPk(contestId, { transaction });
+    console.log(`Contest type: ${contest?.type}, status: ${contest?.status}`);
     
     for (let attempt = 0; attempt < 3; attempt++) {
-      // Get room counts without lock (can't use GROUP BY with FOR UPDATE)
-      const roomCounts = await db.ContestEntry.findAll({
-        attributes: [
-          'draft_room_id',
-          [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'entry_count']
-        ],
+      // FIXED: Get ALL distinct rooms for this contest (including those with only cancelled entries)
+      const allRooms = await db.ContestEntry.findAll({
+        attributes: [[db.sequelize.fn('DISTINCT', db.sequelize.col('draft_room_id')), 'draft_room_id']],
         where: {
           contest_id: contestId,
-          status: { [Op.notIn]: ['cancelled', 'completed'] }
+          draft_room_id: { [Op.like]: `${contestId}_room_%` }
         },
-        group: ['draft_room_id'],
         raw: true,
         transaction
       });
 
-      console.log(`Attempt ${attempt + 1}: Found ${roomCounts.length} rooms`);
+      console.log(`Attempt ${attempt + 1}: Found ${allRooms.length} total rooms for contest`);
 
-      const availableRooms = roomCounts.filter(room => {
-        const count = parseInt(room.entry_count);
-        return count < 5;
-      });
-      
-      // Sort by: 1) fullest first, 2) lowest room number first (older rooms)
-      availableRooms.sort((a, b) => {
-        const countDiff = parseInt(b.entry_count) - parseInt(a.entry_count);
-        if (countDiff !== 0) return countDiff;
-        
-        // When equal entry counts, fill older rooms first
-        const aNum = parseInt(a.draft_room_id.match(/_room_(\d+)$/)?.[1] || '999999');
-        const bNum = parseInt(b.draft_room_id.match(/_room_(\d+)$/)?.[1] || '999999');
-        return aNum - bNum;
-      });
-      
-      console.log(`Available rooms sorted: ${availableRooms.map(r => `${r.draft_room_id}(${r.entry_count})`).join(', ')}`);
-
-      for (const room of availableRooms) {
+      // For each room, get active entry count and check if user can join
+      const roomsWithCounts = [];
+      for (const room of allRooms) {
         const roomId = room.draft_room_id;
         
-        // For MarketMaker, don't check if user is already in room
-        // This allows multiple entries
-        if (contest.type !== 'market') {
-          const userInRoom = await db.ContestEntry.findOne({
-            where: {
-              draft_room_id: roomId,
-              user_id: userId,
-              status: { [Op.notIn]: ['cancelled', 'completed'] }
-            },
-            transaction
-          });
+        // Count ACTIVE entries only
+        const activeCount = await db.ContestEntry.count({
+          where: {
+            draft_room_id: roomId,
+            status: { [Op.notIn]: ['cancelled', 'completed'] }
+          },
+          transaction
+        });
 
-          if (userInRoom) {
-            console.log(`  ⏭️ Skipping ${roomId}: user already in room (non-MM)`);
-            continue; // User already in this room, skip for non-MarketMaker
-          }
+        // Check if user already has ACTIVE entry in this room
+        const userActiveInRoom = await db.ContestEntry.count({
+          where: {
+            draft_room_id: roomId,
+            user_id: userId,
+            status: { [Op.notIn]: ['cancelled', 'completed'] }
+          },
+          transaction
+        });
+
+        // Extract room number for sorting
+        const roomNumMatch = roomId.match(/_room_(\d+)$/);
+        const roomNum = roomNumMatch ? parseInt(roomNumMatch[1]) : 999999;
+
+        // Room is available if < 5 active entries AND user doesn't have active entry there
+        if (activeCount < 5 && userActiveInRoom === 0) {
+          roomsWithCounts.push({ roomId, activeCount, roomNum });
         }
+      }
 
+      // Sort by: 1) fullest first (most active entries), 2) lowest room number (oldest)
+      roomsWithCounts.sort((a, b) => {
+        const countDiff = b.activeCount - a.activeCount;
+        if (countDiff !== 0) return countDiff;
+        return a.roomNum - b.roomNum;
+      });
+      
+      console.log(`Available rooms: ${roomsWithCounts.map(r => `room_${r.roomNum}(${r.activeCount}/5)`).join(', ') || 'NONE'}`);
+
+      // Try to join an existing room
+      for (const room of roomsWithCounts) {
+        const roomId = room.roomId;
+        
         try {
-          // Lock specific room entries for position assignment
-          // Check ALL entries (including completed) since unique constraint applies to all
+          // Lock and verify room state
           const currentEntries = await db.ContestEntry.findAll({
-            where: {
-              draft_room_id: roomId
-            },
+            where: { draft_room_id: roomId },
             attributes: ['draft_position', 'user_id', 'status'],
             order: [['draft_position', 'ASC']],
             transaction,
             lock: true
           });
 
-          // Only count non-cancelled/non-completed entries for "room full" check
           const activeEntries = currentEntries.filter(e => !['cancelled', 'completed'].includes(e.status));
-          if (activeEntries.length >= 5) {
-            console.log(`  ⏭️ Skipping ${roomId}: room filled up (${activeEntries.length}/5 active)`);
-            continue;
-          }
-
-          // For MarketMaker, check if user is already in THIS specific room
-          // FIXED: Only check ACTIVE entries - cancelled/completed entries shouldn't block rejoining
-          const userInThisRoom = activeEntries.some(e => e.user_id === userId);
-          if (userInThisRoom && contest.type === 'market') {
-            console.log(`  ⏭️ Skipping ${roomId}: user ${userId} already has active entry (MM multi-entry)`);
-            continue;
-          }
-
-          const usedPositions = currentEntries
-            .map(e => e.draft_position)
-            .filter(p => p !== null);
           
+          if (activeEntries.length >= 5) {
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: filled up during lock (${activeEntries.length}/5)`);
+            continue;
+          }
+
+          // Double-check user isn't in room after lock
+          const userInThisRoom = activeEntries.some(e => e.user_id === userId);
+          if (userInThisRoom) {
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: user already has active entry`);
+            continue;
+          }
+
+          // Find available position (only from active entries)
+          const usedPositions = activeEntries.map(e => e.draft_position).filter(p => p !== null);
           let assignedPosition = null;
           for (let pos = 0; pos < 5; pos++) {
             if (!usedPositions.includes(pos)) {
@@ -771,18 +768,22 @@ class ContestService {
           }
 
           if (assignedPosition !== null) {
-            console.log(`✅ Assigning user to room ${roomId} at position ${assignedPosition}`);
+            console.log(`✅ Assigning user to room_${room.roomNum} at position ${assignedPosition} (${activeEntries.length + 1}/5 players)`);
             return { roomId, position: assignedPosition };
           }
         } catch (error) {
-          console.log(`Error checking room ${roomId}, continuing...`, error.message);
+          console.log(`  ⚠️ Error checking room_${room.roomNum}: ${error.message}`);
           continue;
         }
       }
+      
+      // If we get here on first attempt, no rooms available - create new one
+      if (attempt === 0) {
+        break; // Exit retry loop to create new room
+      }
     }
 
-   // Create new room if no available rooms found
-    // First, get the actual max room number from the database to stay in sync
+    // Create new room - get max room number from DB
     const existingRooms = await db.ContestEntry.findAll({
       attributes: ['draft_room_id'],
       where: {
@@ -794,26 +795,17 @@ class ContestService {
       transaction
     });
 
-    let maxDbRoomNumber = 0;
+    let maxRoomNumber = 0;
     for (const room of existingRooms) {
       const match = room.draft_room_id.match(/_room_(\d+)$/);
       if (match) {
-        maxDbRoomNumber = Math.max(maxDbRoomNumber, parseInt(match[1], 10));
+        maxRoomNumber = Math.max(maxRoomNumber, parseInt(match[1], 10));
       }
     }
 
-    // Sync Redis counter to at least match DB
-    const redisCounter = await this.redis.get(`room_counter:${contestId}`);
-    const currentRedisCount = parseInt(redisCounter || '0', 10);
-
-    if (currentRedisCount <= maxDbRoomNumber) {
-      await this.redis.set(`room_counter:${contestId}`, maxDbRoomNumber);
-    }
-
-    // Now increment to get the next room
-    const newRoomNumber = await this.redis.incr(`room_counter:${contestId}`);
+    const newRoomNumber = maxRoomNumber + 1;
     const newRoomId = `${contestId}_room_${newRoomNumber}`;
-    console.log(`Creating new room: ${newRoomId} (DB max was ${maxDbRoomNumber})`);
+    console.log(`📦 Creating new room_${newRoomNumber} (max existing was ${maxRoomNumber})`);
 
     return { roomId: newRoomId, position: 0 };
   }
@@ -861,6 +853,8 @@ class ContestService {
 
       // Update entry status
       await entry.update({ status: 'cancelled' }, { transaction });
+      
+      console.log(`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
 
       // Refund user
       const user = await db.User.findByPk(userId, { 
@@ -928,6 +922,61 @@ class ContestService {
       throw error;
     } finally {
       await this.releaseLock(lockKey);
+    }
+  }
+
+  // NEW: Find the lowest priority entry to withdraw (room with fewest players)
+  // This helps users withdraw from rooms least likely to fill
+  async getLowestPriorityEntry(contestId, userId) {
+    try {
+      // Get all user's pending entries for this contest
+      const userEntries = await db.ContestEntry.findAll({
+        where: {
+          contest_id: contestId,
+          user_id: userId,
+          status: 'pending'
+        }
+      });
+
+      if (userEntries.length === 0) {
+        return null;
+      }
+
+      if (userEntries.length === 1) {
+        return userEntries[0];
+      }
+
+      // For each entry, get the room's player count
+      const entriesWithCounts = await Promise.all(
+        userEntries.map(async (entry) => {
+          const roomCount = await db.ContestEntry.count({
+            where: {
+              draft_room_id: entry.draft_room_id,
+              status: { [Op.in]: ['pending', 'drafting'] }
+            }
+          });
+          return { entry, roomCount };
+        })
+      );
+
+      // Sort by room count ascending (fewest players = lowest priority)
+      // Then by room number descending (newer rooms = lower priority)
+      entriesWithCounts.sort((a, b) => {
+        if (a.roomCount !== b.roomCount) {
+          return a.roomCount - b.roomCount; // Fewer players first
+        }
+        // Extract room numbers for tie-breaking
+        const aNum = parseInt(a.entry.draft_room_id.match(/_room_(\d+)$/)?.[1] || '0');
+        const bNum = parseInt(b.entry.draft_room_id.match(/_room_(\d+)$/)?.[1] || '0');
+        return bNum - aNum; // Higher room number (newer) first
+      });
+
+      console.log(`🎯 Lowest priority entry for user ${userId}: room ${entriesWithCounts[0].entry.draft_room_id} (${entriesWithCounts[0].roomCount}/5 players)`);
+      
+      return entriesWithCounts[0].entry;
+    } catch (error) {
+      console.error('Error finding lowest priority entry:', error);
+      return null;
     }
   }
 
