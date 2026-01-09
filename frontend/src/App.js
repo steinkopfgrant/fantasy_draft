@@ -225,6 +225,9 @@ const AppContent = () => {
               <Register />
             </PublicRoute>
           } />
+
+          {/* Rules page - PUBLIC, accessible without login */}
+          <Route path="/rules" element={<RulesPage />} />
           
           {/* Admin routes */}
           <Route 
@@ -280,13 +283,6 @@ const AppContent = () => {
           <Route path="/market-mover" element={
             <ProtectedRoute>
               <MarketMoverPage />
-            </ProtectedRoute>
-          } />
-
-          {/* Rules page */}
-          <Route path="/rules" element={
-            <ProtectedRoute>
-              <RulesPage />
             </ProtectedRoute>
           } />
 
