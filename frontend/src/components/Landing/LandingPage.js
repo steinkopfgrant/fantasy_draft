@@ -267,7 +267,7 @@ const LandingPage = () => {
           justifyContent: 'center',
           flexWrap: 'wrap'
         }}>
-          <Link to="/register" style={{ textDecoration: 'none' }}>
+          <Link to="/rules" style={{ textDecoration: 'none' }}>
             <button style={{
               padding: '1rem 2.5rem',
               fontSize: '1.1rem',
@@ -280,7 +280,7 @@ const LandingPage = () => {
               transition: 'all 0.3s',
               boxShadow: '0 4px 15px rgba(0, 191, 255, 0.3)'
             }}>
-              Start Playing Free
+              Rules & Scoring
             </button>
           </Link>
           <Link to="/login" style={{ textDecoration: 'none' }}>
@@ -566,7 +566,7 @@ const LandingPage = () => {
             cursor: 'pointer',
             boxShadow: '0 6px 20px rgba(0, 191, 255, 0.4)'
           }}>
-            Get Started - It's Free!
+            Create Account
           </button>
         </Link>
       </div>
