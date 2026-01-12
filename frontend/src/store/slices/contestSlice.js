@@ -2,13 +2,15 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Async thunks
+// Async thunks with cache-busting
 export const fetchContests = createAsyncThunk(
   'contest/fetchContests',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/contests');
-      return response.data; // API returns array directly, not response.data.contests
+      const response = await axios.get('/api/contests', {
+        params: { _t: Date.now() }
+      });
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.message);
     }
@@ -19,7 +21,9 @@ export const fetchUserEntries = createAsyncThunk(
   'contest/fetchUserEntries',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get('/api/contests/my-entries');
+      const response = await axios.get('/api/contests/my-entries', {
+        params: { _t: Date.now() }
+      });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.message);
@@ -27,29 +31,18 @@ export const fetchUserEntries = createAsyncThunk(
   }
 );
 
-export const enterConteast = createAsyncThunk(
+export const enterContest = createAsyncThunk(
   'contest/enter',
-  async ({ contestId, contest }, { dispatch, rejectWithValue }) => {
+  async ({ contestId, contest }, { rejectWithValue }) => {
     try {
       const response = await axios.post(`/api/contests/enter/${contestId}`);
-      
-      // Optimistically update the contest
-      dispatch(updateContest({
-        id: contestId,
-        currentEntries: (contest.currentEntries || 0) + 1
-      }));
-      
       return {
         ...response.data,
         contestId,
-        contestType: contest.type
+        contestType: contest.type,
+        previousEntries: contest.currentEntries || 0
       };
     } catch (error) {
-      // Revert optimistic update
-      dispatch(updateContest({
-        id: contestId,
-        currentEntries: contest.currentEntries || 0
-      }));
       return rejectWithValue(error.response?.data?.error || error.message);
     }
   }
@@ -57,20 +50,10 @@ export const enterConteast = createAsyncThunk(
 
 export const withdrawFromContest = createAsyncThunk(
   'contest/withdraw',
-  async ({ entryId, contestId }, { dispatch, getState, rejectWithValue }) => {
+  async ({ entryId, contestId }, { rejectWithValue }) => {
     try {
       const response = await axios.post(`/api/contests/withdraw/${entryId}`);
-      
-      // Update contest entries count
-      const contest = selectContestById(getState(), contestId);
-      if (contest) {
-        dispatch(updateContest({
-          id: contestId,
-          currentEntries: Math.max(0, (contest.currentEntries || 0) - 1)
-        }));
-      }
-      
-      return { entryId, ...response.data };
+      return { entryId, contestId, ...response.data };
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || error.message);
     }
@@ -96,8 +79,8 @@ const contestSlice = createSlice({
     loading: {
       contests: false,
       entries: false,
-      entering: null, // contestId being entered
-      withdrawing: null // entryId being withdrawn
+      entering: null,
+      withdrawing: null
     },
     
     // Errors
@@ -113,7 +96,6 @@ const contestSlice = createSlice({
     stale: false
   },
   reducers: {
-    // Contest updates
     updateContest: (state, action) => {
       const index = state.contests.findIndex(c => c.id === action.payload.id);
       if (index !== -1) {
@@ -122,7 +104,6 @@ const contestSlice = createSlice({
     },
     
     addContest: (state, action) => {
-      // Check if contest already exists
       if (!state.contests.find(c => c.id === action.payload.id)) {
         state.contests.push(action.payload);
       }
@@ -140,7 +121,6 @@ const contestSlice = createSlice({
       }
     },
     
-    // Filters
     setFilter: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
     },
@@ -149,7 +129,6 @@ const contestSlice = createSlice({
       state.sortBy = action.payload;
     },
     
-    // Errors
     clearError: (state, action) => {
       if (action.payload) {
         state.errors[action.payload] = null;
@@ -163,8 +142,14 @@ const contestSlice = createSlice({
       }
     },
     
-    // Staleness
     markStale: (state) => {
+      state.stale = true;
+    },
+    
+    clearContestData: (state) => {
+      state.contests = [];
+      state.userEntries = [];
+      state.lastFetch = null;
       state.stale = true;
     }
   },
@@ -208,7 +193,13 @@ const contestSlice = createSlice({
       .addCase(enterContest.fulfilled, (state, action) => {
         state.loading.entering = null;
         
-        // Add user entry
+        // Update contest entry count
+        const contestIndex = state.contests.findIndex(c => c.id === action.payload.contestId);
+        if (contestIndex !== -1) {
+          state.contests[contestIndex].currentEntries = (action.payload.previousEntries || 0) + 1;
+        }
+        
+        // Add entry to userEntries
         const entry = {
           id: action.payload.entry?.id || action.payload.entryId,
           contestId: action.payload.contestId,
@@ -231,6 +222,14 @@ const contestSlice = createSlice({
       })
       .addCase(withdrawFromContest.fulfilled, (state, action) => {
         state.loading.withdrawing = null;
+        
+        // Update contest entry count
+        const contestIndex = state.contests.findIndex(c => c.id === action.payload.contestId);
+        if (contestIndex !== -1 && state.contests[contestIndex].currentEntries > 0) {
+          state.contests[contestIndex].currentEntries -= 1;
+        }
+        
+        // Remove entry from userEntries
         state.userEntries = state.userEntries.filter(
           e => e.id !== action.payload.entryId
         );
@@ -250,7 +249,8 @@ export const {
   setFilter,
   setSortBy,
   clearError,
-  markStale
+  markStale,
+  clearContestData
 } = contestSlice.actions;
 
 // Selectors
@@ -259,17 +259,14 @@ export const selectUserEntries = (state) => state.contest.userEntries;
 export const selectContestById = (state, contestId) => 
   state.contest.contests.find(c => c.id === contestId);
 
-// Memoized filtered contests selector
 export const selectFilteredContests = createSelector(
   [selectContests, selectUserEntries, (state) => state.contest.filters],
   (contests, userEntries, filters) => {
     return contests.filter(contest => {
-      // Type filter
       if (filters.type !== 'all' && contest.type !== filters.type) {
         return false;
       }
       
-      // Status filter
       const userEntry = userEntries.find(e => e.contestId === contest.id);
       
       if (filters.status === 'entered' && !userEntry) {
@@ -280,7 +277,6 @@ export const selectFilteredContests = createSelector(
         return false;
       }
       
-      // Search filter
       if (filters.search && !contest.name.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
@@ -293,6 +289,6 @@ export const selectFilteredContests = createSelector(
 export const selectContestLoading = (state) => state.contest.loading;
 export const selectContestErrors = (state) => state.contest.errors;
 export const selectIsStale = (state) => state.contest.stale || 
-  (Date.now() - state.contest.lastFetch > 60000); // Stale after 1 minute
+  (Date.now() - state.contest.lastFetch > 60000);
 
 export default contestSlice.reducer;
