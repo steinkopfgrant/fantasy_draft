@@ -432,7 +432,7 @@
   font-size: 0.8rem;
 }
 
-/* Position badges */
+/* Position badges - colorful bubble top right (pool/column indicator) */
 .position-badge {
   position: absolute;
   top: 4px;
@@ -452,6 +452,22 @@
 .position-badge.FLEX { background-color: #ffaa44; color: #0a0e1b; }
 .position-badge.K { background-color: #888888; }
 .position-badge.DEF { background-color: #666666; }
+
+/* Actual NFL position - small black box bottom right */
+.actual-position-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: white;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 5;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
 
 /* Game Piece Styles - Updated with gradients */
 .game-piece {

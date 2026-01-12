@@ -1758,6 +1758,9 @@ const DraftScreen = ({ showToast }) => {
                     </div>
                     <div className="player-name">{player.name}</div>
                     <div className="player-team">{player.team} - ${player.price}</div>
+                    <div className="actual-position-badge">
+                      {standardizeSlotName(player.originalPosition || player.position)}
+                    </div>
                     {player.matchup && (
                       <div className="player-matchup">{player.matchup}</div>
                     )} 
