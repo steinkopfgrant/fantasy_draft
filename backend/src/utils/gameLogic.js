@@ -281,7 +281,7 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
   // Add row 5 (bottom row - Wildcards) with mixed prices
   const flexRow = [];
   
-  // First position (bottom-left) is always a QB
+  // Position 0 (bottom-left) is always a QB
   const qbPrice = prices[Math.floor(Math.random() * prices.length)];
   const qbPool = (PLAYER_POOLS['QB'][qbPrice] || []).filter(p => !usedPlayers.has(p.name));
   if (qbPool.length > 0) {
@@ -304,7 +304,7 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     }
   }
   
-  // Positions 2-4 in Wildcards row are RB/WR/TE
+  // Positions 1-3 in Wildcards row are RB/WR/TE
   for (let i = 1; i < 4; i++) {
     const flexPositions = ['RB', 'WR', 'TE'];
     const pos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
@@ -332,69 +332,39 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     }
   }
   
-  // FIXED: Position 5 (bottom-right) - WR for stacking potential
-  // Previously this was null which caused the missing square
-  const wrPrice = prices[Math.floor(Math.random() * prices.length)];
-  const wrPool = (PLAYER_POOLS['WR'][wrPrice] || []).filter(p => !usedPlayers.has(p.name));
+  // FIXED: Position 4 (5th slot) - GUARANTEED to add a player
+  // Try ALL price tiers until we find an available player
+  let fifthPlayerAdded = false;
+  const positionsToTry = ['WR', 'RB', 'TE']; // Prefer WR for stacking
   
-  if (wrPool.length > 0) {
-    const wrPlayer = selectWeightedPlayer(wrPool, 'WR', wrPrice);
-    if (wrPlayer) {
-      usedPlayers.add(wrPlayer.name);
-      const isFireSale = fireSaleNames.has(wrPlayer.name?.toLowerCase());
-      const isCoolDown = coolDownNames.has(wrPlayer.name?.toLowerCase());
-      
-      flexRow.push({
-        ...wrPlayer,
-        position: 'FLEX',
-        originalPosition: 'WR',
-        price: wrPrice,
-        drafted: false,
-        draftedBy: null,
-        isFireSale: isFireSale,
-        isCoolDown: isCoolDown
-      });
-    } else {
-      // Fallback - add any flex-eligible player
-      const fallbackPos = ['RB', 'TE'][Math.floor(Math.random() * 2)];
-      const fallbackPrice = prices[Math.floor(Math.random() * prices.length)];
-      const fallbackPool = (PLAYER_POOLS[fallbackPos][fallbackPrice] || []).filter(p => !usedPlayers.has(p.name));
-      
-      if (fallbackPool.length > 0) {
-        const fallbackPlayer = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
-        usedPlayers.add(fallbackPlayer.name);
+  for (const pos of positionsToTry) {
+    if (fifthPlayerAdded) break;
+    for (const tryPrice of [3, 2, 4, 1, 5]) {
+      if (fifthPlayerAdded) break;
+      const pool = (PLAYER_POOLS[pos][tryPrice] || []).filter(p => !usedPlayers.has(p.name));
+      if (pool.length > 0) {
+        const player = pool[Math.floor(Math.random() * pool.length)];
+        usedPlayers.add(player.name);
+        const isFireSale = fireSaleNames.has(player.name?.toLowerCase());
+        const isCoolDown = coolDownNames.has(player.name?.toLowerCase());
+        
         flexRow.push({
-          ...fallbackPlayer,
+          ...player,
           position: 'FLEX',
-          originalPosition: fallbackPos,
-          price: fallbackPrice,
+          originalPosition: pos,
+          price: tryPrice,
           drafted: false,
           draftedBy: null,
-          isFireSale: false,
-          isCoolDown: false
+          isFireSale: isFireSale,
+          isCoolDown: isCoolDown
         });
+        fifthPlayerAdded = true;
       }
     }
-  } else {
-    // No WRs available, try RB or TE
-    const fallbackPos = ['RB', 'TE'][Math.floor(Math.random() * 2)];
-    const fallbackPrice = prices[Math.floor(Math.random() * prices.length)];
-    const fallbackPool = (PLAYER_POOLS[fallbackPos][fallbackPrice] || []).filter(p => !usedPlayers.has(p.name));
-    
-    if (fallbackPool.length > 0) {
-      const fallbackPlayer = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
-      usedPlayers.add(fallbackPlayer.name);
-      flexRow.push({
-        ...fallbackPlayer,
-        position: 'FLEX',
-        originalPosition: fallbackPos,
-        price: fallbackPrice,
-        drafted: false,
-        draftedBy: null,
-        isFireSale: false,
-        isCoolDown: false
-      });
-    }
+  }
+  
+  if (!fifthPlayerAdded) {
+    console.error('❌ CRITICAL: Could not find any player for 5th Wildcard slot!');
   }
   
   board.push(flexRow);
