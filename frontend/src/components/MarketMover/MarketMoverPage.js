@@ -288,12 +288,10 @@ const MarketMoverPage = () => {
         <div className="jersey-rank-badge">#{rank}</div>
         <div className="jersey-visual">
           <svg viewBox="0 0 100 100" className="jersey-svg">
-            {/* Jersey shape */}
             <path 
               d="M20,25 L35,20 L50,25 L65,20 L80,25 L85,40 L75,45 L75,85 L25,85 L25,45 L15,40 Z" 
               className={`jersey-path ${type}`}
             />
-            {/* Jersey number */}
             <text x="50" y="60" textAnchor="middle" className="jersey-number-text">
               {rank}
             </text>
@@ -433,6 +431,29 @@ const MarketMoverPage = () => {
       {/* Vote Section */}
       {marketMoverData.votingActive && (
         <div className="vote-section">
+          <svg className="vote-arrow" viewBox="0 0 140 100" width="140" height="100">
+            <defs>
+              <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#e63030"/>
+                <stop offset="100%" stopColor="#8b0000"/>
+              </linearGradient>
+            </defs>
+            <path 
+              d="M4,4 L100,4 L100,30 L125,30 L125,55 L100,55 L100,70 L85,90 L70,70 L70,55 L70,30 L4,30 Z"
+              fill="url(#arrowGrad)"
+              stroke="#5a0000"
+              strokeWidth="3"
+            />
+            <circle className="bulb b1" cx="15" cy="17" r="4"/>
+            <circle className="bulb b2" cx="30" cy="17" r="4"/>
+            <circle className="bulb b3" cx="45" cy="17" r="4"/>
+            <circle className="bulb b4" cx="60" cy="17" r="4"/>
+            <circle className="bulb b5" cx="75" cy="17" r="4"/>
+            <circle className="bulb b6" cx="90" cy="17" r="4"/>
+            <circle className="bulb b7" cx="112" cy="42" r="4"/>
+            <circle className="bulb b8" cx="85" cy="75" r="4"/>
+            <text x="52" y="22" fill="#fffacd" fontSize="11" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">VOTE NOW!</text>
+          </svg>
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
           
