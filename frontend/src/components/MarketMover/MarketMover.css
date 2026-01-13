@@ -404,127 +404,132 @@
 }
 
 /* ================================================
-   MARQUEE ARROW WITH BLINKING LIGHTS
-   Small floating arrow positioned top-right of vote section
+   VOTE SECTION WITH MARQUEE ARROW
    ================================================ */
 
-.marquee-arrow {
+.vote-section-wrapper {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+/* The floating marquee arrow */
+.vote-now-arrow {
   position: absolute;
-  top: -10px;
-  right: 20px;
+  top: -20px;
+  right: 30px;
   z-index: 10;
-  filter: drop-shadow(0 0 10px rgba(255, 200, 50, 0.5));
-  animation: arrow-bounce 1s ease-in-out infinite;
-}
-
-@keyframes arrow-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
-}
-
-.arrow-body {
-  background: linear-gradient(180deg, #8b0000 0%, #a52a2a 100%);
-  border: 2px solid #5c0000;
-  border-radius: 6px;
-  padding: 6px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  animation: arrow-float 1.5s ease-in-out infinite;
 }
 
-.arrow-text {
-  font-family: 'Arial Black', 'Impact', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 900;
-  color: #fffacd;
-  text-shadow: 1px 1px 0 #5c0000;
-  letter-spacing: 1px;
-  white-space: nowrap;
-  padding: 2px 6px;
+@keyframes arrow-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
 }
 
-.bulb-row {
-  display: flex;
-  gap: 4px;
+.arrow-sign {
+  background: linear-gradient(180deg, #b22222 0%, #8b0000 100%);
+  border: 3px solid #5c0000;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
-.bulb {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ffde59;
-  box-shadow: 0 0 4px #ffde59, 0 0 8px rgba(255, 222, 89, 0.6);
-}
-
-/* Staggered blinking animation */
-.bulb-0 { animation: bulb-blink 0.5s ease-in-out infinite; }
-.bulb-1 { animation: bulb-blink 0.5s ease-in-out infinite 0.17s; }
-.bulb-2 { animation: bulb-blink 0.5s ease-in-out infinite 0.34s; }
-
-@keyframes bulb-blink {
-  0%, 100% {
-    background: #ffde59;
-    box-shadow: 0 0 4px #ffde59, 0 0 10px rgba(255, 222, 89, 0.8);
-    transform: scale(1.1);
-  }
-  50% {
-    background: #6b5a3a;
-    box-shadow: none;
-    transform: scale(1);
-  }
-}
-
-/* Arrow point (triangle pointing down) */
-.arrow-point {
+.sign-bulbs {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  padding-top: 4px;
+  gap: 5px;
+  padding: 3px;
 }
 
-.arrow-point .bulb {
-  width: 5px;
-  height: 5px;
+.top-bulbs, .bottom-bulbs {
+  padding: 4px 6px;
 }
 
-/* Hover effect */
-.marquee-arrow:hover {
-  filter: drop-shadow(0 0 15px rgba(255, 200, 50, 0.7));
+.side-bulbs {
+  flex-direction: column;
+  padding: 0 4px;
 }
 
-.marquee-arrow:hover .arrow-text {
-  color: #fff;
+.sign-middle {
+  display: flex;
+  align-items: center;
 }
 
-/* Mobile - slightly smaller */
-@media (max-width: 500px) {
-  .marquee-arrow {
-    right: 10px;
-    top: -8px;
+.sign-text {
+  font-family: 'Arial Black', Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #fffacd;
+  text-shadow: 1px 1px 2px #000;
+  padding: 4px 10px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Light bulbs */
+.bulb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffde59;
+  box-shadow: 0 0 6px #ffde59, 0 0 10px rgba(255, 222, 89, 0.5);
+}
+
+.bulb.b0 { animation: blink 0.5s ease-in-out infinite; }
+.bulb.b1 { animation: blink 0.5s ease-in-out infinite 0.15s; }
+.bulb.b2 { animation: blink 0.5s ease-in-out infinite 0.3s; }
+
+@keyframes blink {
+  0%, 100% {
+    background: #ffde59;
+    box-shadow: 0 0 6px #ffde59, 0 0 12px rgba(255, 222, 89, 0.7);
   }
-  
-  .arrow-text {
-    font-size: 0.7rem;
+  50% {
+    background: #554422;
+    box-shadow: none;
   }
-  
+}
+
+/* Arrow pointer below the sign */
+.arrow-pointer {
+  display: flex;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.arrow-pointer .bulb {
+  width: 7px;
+  height: 7px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .vote-now-arrow {
+    right: 15px;
+    top: -15px;
+  }
+  .sign-text {
+    font-size: 0.8rem;
+    padding: 3px 8px;
+  }
   .bulb {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
 }
 
 /* ================================================
-   END MARQUEE ARROW STYLES
+   END MARQUEE ARROW
    ================================================ */
 
-/* Vote Section */
+/* Vote Section (unchanged) */
 .vote-section {
-  position: relative;
   background: #1a1f2e;
   border-radius: 16px;
   padding: 2rem;
-  margin-bottom: 2rem;
   border: 1px solid #2a2f3e;
 }
 
