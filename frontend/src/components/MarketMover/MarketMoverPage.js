@@ -435,15 +435,21 @@ const MarketMoverPage = () => {
         <div className="vote-section">
           {/* Floating marquee arrow - L shape */}
           <div className="vote-arrow">
-            <div className="arrow-box">
-              <span className="bulb"></span><span className="bulb"></span>
-              <div className="arrow-text">VOTE NOW!</div>
-              <span className="bulb"></span><span className="bulb"></span>
-            </div>
-            <div className="arrow-tip">
-              <span className="bulb"></span>
-              <span className="bulb"></span>
-              <span className="bulb"></span>
+            <div className="arrow-l-shape">
+              <div className="arrow-horizontal">
+                <span className="bulb"></span>
+                <span className="bulb"></span>
+                <span className="arrow-text">VOTE NOW!</span>
+                <span className="bulb"></span>
+                <span className="bulb"></span>
+              </div>
+              <div className="arrow-vertical">
+                <span className="bulb"></span>
+                <span className="bulb"></span>
+                <span className="bulb"></span>
+                <span className="bulb"></span>
+              </div>
+              <div className="arrow-point"></div>
             </div>
           </div>
           <h2>🗳️ Cast Your Vote</h2>
