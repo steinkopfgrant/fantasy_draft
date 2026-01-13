@@ -433,24 +433,36 @@ const MarketMoverPage = () => {
       {/* Vote Section */}
       {marketMoverData.votingActive && (
         <div className="vote-section">
-          {/* Floating marquee arrow - L shape */}
+          {/* Floating marquee arrow - SVG L-shape */}
           <div className="vote-arrow">
-            <div className="arrow-l-shape">
-              <div className="arrow-horizontal">
-                <span className="bulb"></span>
-                <span className="bulb"></span>
-                <span className="arrow-text">VOTE NOW!</span>
-                <span className="bulb"></span>
-                <span className="bulb"></span>
-              </div>
-              <div className="arrow-vertical">
-                <span className="bulb"></span>
-                <span className="bulb"></span>
-                <span className="bulb"></span>
-                <span className="bulb"></span>
-              </div>
-              <div className="arrow-point"></div>
-            </div>
+            <svg viewBox="0 0 160 120" className="arrow-svg">
+              {/* Main L-shape with arrow point */}
+              <path 
+                d="M8,4 L130,4 C134,4 138,8 138,12 L138,36 L152,36 L152,70 L138,70 L138,85 L110,115 L82,85 L82,70 L82,36 L8,36 C4,36 0,32 0,28 L0,12 C0,8 4,4 8,4 Z"
+                fill="url(#arrowGradient)"
+                stroke="#5a0000"
+                strokeWidth="3"
+              />
+              <defs>
+                <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#e63030"/>
+                  <stop offset="100%" stopColor="#8b0000"/>
+                </linearGradient>
+              </defs>
+              {/* Bulbs - top row */}
+              <circle className="bulb b1" cx="16" cy="20" r="5"/>
+              <circle className="bulb b2" cx="32" cy="20" r="5"/>
+              <circle className="bulb b3" cx="48" cy="20" r="5"/>
+              <circle className="bulb b4" cx="100" cy="20" r="5"/>
+              <circle className="bulb b5" cx="116" cy="20" r="5"/>
+              <circle className="bulb b6" cx="132" cy="20" r="5"/>
+              {/* Bulbs - down the stem */}
+              <circle className="bulb b7" cx="117" cy="48" r="5"/>
+              <circle className="bulb b8" cx="117" cy="64" r="5"/>
+              <circle className="bulb b9" cx="117" cy="80" r="5"/>
+              {/* Text */}
+              <text x="74" y="25" className="arrow-text-svg">VOTE NOW!</text>
+            </svg>
           </div>
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
