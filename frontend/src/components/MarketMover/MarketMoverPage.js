@@ -280,6 +280,48 @@ const MarketMoverPage = () => {
     setShowOwnershipDropdown(false);
   };
 
+  // Marquee Arrow Component with blinking lights
+  const MarqueeArrow = () => (
+    <div className="marquee-arrow-container">
+      <div className="marquee-arrow">
+        {/* Light bulbs around the arrow */}
+        <div className="bulb-row top">
+          {[...Array(12)].map((_, i) => (
+            <span key={i} className={`bulb bulb-${i % 3}`}></span>
+          ))}
+        </div>
+        <div className="arrow-body">
+          <div className="bulb-column left">
+            {[...Array(4)].map((_, i) => (
+              <span key={i} className={`bulb bulb-${(i + 1) % 3}`}></span>
+            ))}
+          </div>
+          <div className="arrow-text">VOTE NOW!</div>
+          <div className="bulb-column right">
+            {[...Array(4)].map((_, i) => (
+              <span key={i} className={`bulb bulb-${(i + 2) % 3}`}></span>
+            ))}
+          </div>
+        </div>
+        <div className="arrow-point">
+          <div className="point-bulbs left-diagonal">
+            {[...Array(5)].map((_, i) => (
+              <span key={i} className={`bulb bulb-${i % 3}`}></span>
+            ))}
+          </div>
+          <div className="point-bulbs right-diagonal">
+            {[...Array(5)].map((_, i) => (
+              <span key={i} className={`bulb bulb-${(i + 1) % 3}`}></span>
+            ))}
+          </div>
+          <div className="point-tip">
+            <span className="bulb bulb-0"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Jersey Card Component for Fire Sale / Cool Down
   const JerseyCard = ({ player, rank, type }) => {
     const isFireSale = type === 'fire';
@@ -435,6 +477,9 @@ const MarketMoverPage = () => {
         <div className="vote-section">
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
+          
+          {/* Marquee Arrow pointing to search */}
+          <MarqueeArrow />
           
           <div className="vote-search-container">
             <div className="search-input-wrapper">
