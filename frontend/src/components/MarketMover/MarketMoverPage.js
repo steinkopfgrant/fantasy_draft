@@ -433,14 +433,18 @@ const MarketMoverPage = () => {
       {/* Vote Section */}
       {marketMoverData.votingActive && (
         <div className="vote-section">
-          {/* Floating marquee arrow */}
+          {/* Floating marquee arrow - L shape */}
           <div className="vote-arrow">
             <div className="arrow-box">
-              <span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span>
+              <span className="bulb"></span><span className="bulb"></span>
               <div className="arrow-text">VOTE NOW!</div>
-              <span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span>
+              <span className="bulb"></span><span className="bulb"></span>
             </div>
-            <div className="arrow-tip">▼</div>
+            <div className="arrow-tip">
+              <span className="bulb"></span>
+              <span className="bulb"></span>
+              <span className="bulb"></span>
+            </div>
           </div>
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>

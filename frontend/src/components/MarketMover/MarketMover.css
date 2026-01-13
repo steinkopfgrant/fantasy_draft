@@ -1020,46 +1020,34 @@
 }
 
 /* ========================================
-   VOTE NOW ARROW - Floating marquee sign
+   VOTE NOW ARROW - L-shaped marquee sign
    ======================================== */
 
 .vote-arrow {
   position: absolute;
-  top: -25px;
-  right: 25px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  animation: arrow-bounce 1s ease-in-out infinite;
+  top: -10px;
+  right: 20px;
   z-index: 10;
 }
 
-@keyframes arrow-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
-}
-
 .arrow-box {
-  background: linear-gradient(180deg, #c41e3a 0%, #8b0000 100%);
-  border: 2px solid #600000;
-  border-radius: 6px;
-  padding: 6px 10px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-  max-width: 120px;
+  background: linear-gradient(180deg, #c41e3a 0%, #8b0000 100%);
+  border: 3px solid #600000;
+  border-radius: 6px 6px 0 6px;
+  padding: 8px 12px;
+  gap: 6px;
+  align-items: center;
 }
 
 .arrow-box .arrow-text {
-  width: 100%;
-  text-align: center;
   font-family: 'Arial Black', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 900;
   color: #fffacd;
   text-shadow: 1px 1px 0 #000;
-  margin: 2px 0;
+  white-space: nowrap;
+  margin: 0 4px;
 }
 
 .arrow-box .bulb {
@@ -1068,29 +1056,68 @@
   border-radius: 50%;
   background: #ffdd44;
   box-shadow: 0 0 6px #ffdd44;
-  animation: bulb-chase 0.4s ease-in-out infinite;
+  animation: bulb-chase 0.5s ease-in-out infinite;
 }
 
-.arrow-box .bulb:nth-child(2), .arrow-box .bulb:nth-child(7) { animation-delay: 0.08s; }
-.arrow-box .bulb:nth-child(3), .arrow-box .bulb:nth-child(8) { animation-delay: 0.16s; }
-.arrow-box .bulb:nth-child(4), .arrow-box .bulb:nth-child(9) { animation-delay: 0.24s; }
-.arrow-box .bulb:nth-child(5), .arrow-box .bulb:nth-child(10) { animation-delay: 0.32s; }
+.arrow-box .bulb:nth-child(2), .arrow-box .bulb:nth-child(7) { animation-delay: 0.1s; }
+.arrow-box .bulb:nth-child(3), .arrow-box .bulb:nth-child(8) { animation-delay: 0.2s; }
+.arrow-box .bulb:nth-child(4), .arrow-box .bulb:nth-child(9) { animation-delay: 0.3s; }
+.arrow-box .bulb:nth-child(5), .arrow-box .bulb:nth-child(10) { animation-delay: 0.4s; }
 
 @keyframes bulb-chase {
   0%, 100% { background: #ffdd44; box-shadow: 0 0 8px #ffdd44; }
-  50% { background: #553300; box-shadow: none; }
+  50% { background: #442200; box-shadow: none; }
 }
 
+/* L-shaped arrow pointer */
 .arrow-tip {
-  color: #8b0000;
-  font-size: 1.5rem;
-  line-height: 0.6;
-  text-shadow: 0 2px 2px rgba(0,0,0,0.3);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 24px;
+  height: 40px;
+  background: linear-gradient(180deg, #c41e3a 0%, #8b0000 100%);
+  border: 3px solid #600000;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px 0;
+}
+
+.arrow-tip .bulb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffdd44;
+  box-shadow: 0 0 6px #ffdd44;
+  animation: bulb-chase 0.5s ease-in-out infinite;
+}
+
+.arrow-tip .bulb:nth-child(1) { animation-delay: 0.5s; }
+.arrow-tip .bulb:nth-child(2) { animation-delay: 0.6s; }
+.arrow-tip .bulb:nth-child(3) { animation-delay: 0.7s; }
+
+/* Triangle at the bottom */
+.arrow-tip::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid #8b0000;
 }
 
 @media (max-width: 500px) {
-  .vote-arrow { right: 10px; top: -20px; }
-  .arrow-box { padding: 4px 8px; }
-  .arrow-box .arrow-text { font-size: 0.7rem; }
+  .vote-arrow { right: 10px; }
+  .arrow-box { padding: 6px 8px; }
+  .arrow-box .arrow-text { font-size: 0.75rem; }
   .arrow-box .bulb { width: 6px; height: 6px; }
+  .arrow-tip { width: 20px; height: 30px; }
 }
