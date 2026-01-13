@@ -1031,47 +1031,27 @@
   filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
 }
 
-.arrow-svg {
-  width: 160px;
-  height: 120px;
+.vote-arrow svg {
+  display: block;
 }
 
-.arrow-text-svg {
-  font-family: 'Arial Black', sans-serif;
-  font-size: 14px;
-  font-weight: 900;
-  fill: #fffacd;
-  text-anchor: middle;
-}
+/* SVG Bulb animations */
+.vote-arrow .bulb1 { animation: bulbglow 0.6s ease-in-out infinite 0s; }
+.vote-arrow .bulb2 { animation: bulbglow 0.6s ease-in-out infinite 0.07s; }
+.vote-arrow .bulb3 { animation: bulbglow 0.6s ease-in-out infinite 0.14s; }
+.vote-arrow .bulb4 { animation: bulbglow 0.6s ease-in-out infinite 0.21s; }
+.vote-arrow .bulb5 { animation: bulbglow 0.6s ease-in-out infinite 0.28s; }
+.vote-arrow .bulb6 { animation: bulbglow 0.6s ease-in-out infinite 0.35s; }
+.vote-arrow .bulb7 { animation: bulbglow 0.6s ease-in-out infinite 0.42s; }
+.vote-arrow .bulb8 { animation: bulbglow 0.6s ease-in-out infinite 0.49s; }
+.vote-arrow .bulb9 { animation: bulbglow 0.6s ease-in-out infinite 0.56s; }
 
-/* SVG Bulbs */
-.arrow-svg .bulb {
-  fill: #ffdd44;
-  filter: drop-shadow(0 0 4px #ffdd44);
-}
-
-.arrow-svg .bulb.b1 { animation: svg-bulb 0.6s ease-in-out infinite 0s; }
-.arrow-svg .bulb.b2 { animation: svg-bulb 0.6s ease-in-out infinite 0.08s; }
-.arrow-svg .bulb.b3 { animation: svg-bulb 0.6s ease-in-out infinite 0.16s; }
-.arrow-svg .bulb.b4 { animation: svg-bulb 0.6s ease-in-out infinite 0.24s; }
-.arrow-svg .bulb.b5 { animation: svg-bulb 0.6s ease-in-out infinite 0.32s; }
-.arrow-svg .bulb.b6 { animation: svg-bulb 0.6s ease-in-out infinite 0.40s; }
-.arrow-svg .bulb.b7 { animation: svg-bulb 0.6s ease-in-out infinite 0.48s; }
-.arrow-svg .bulb.b8 { animation: svg-bulb 0.6s ease-in-out infinite 0.56s; }
-.arrow-svg .bulb.b9 { animation: svg-bulb 0.6s ease-in-out infinite 0.64s; }
-
-@keyframes svg-bulb {
-  0%, 100% { 
-    fill: #ffdd44;
-    filter: drop-shadow(0 0 6px #ffdd44) drop-shadow(0 0 10px rgba(255,221,68,0.8));
-  }
-  50% { 
-    fill: #331100;
-    filter: none;
-  }
+@keyframes bulbglow {
+  0%, 100% { fill: #ffdd44; filter: drop-shadow(0 0 4px #ffdd44); }
+  50% { fill: #331100; filter: none; }
 }
 
 @media (max-width: 500px) {
   .vote-arrow { right: 5px; top: -15px; }
-  .arrow-svg { width: 130px; height: 100px; }
+  .vote-arrow svg { width: 110px; height: 80px; }
 }

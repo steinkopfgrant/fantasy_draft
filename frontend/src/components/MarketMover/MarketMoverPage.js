@@ -435,33 +435,29 @@ const MarketMoverPage = () => {
         <div className="vote-section">
           {/* Floating marquee arrow - SVG L-shape */}
           <div className="vote-arrow">
-            <svg viewBox="0 0 160 120" className="arrow-svg">
-              {/* Main L-shape with arrow point */}
+            <svg viewBox="0 0 140 100" width="140" height="100">
+              <defs>
+                <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" style={{stopColor:'#e63030'}}/>
+                  <stop offset="100%" style={{stopColor:'#8b0000'}}/>
+                </linearGradient>
+              </defs>
               <path 
-                d="M8,4 L130,4 C134,4 138,8 138,12 L138,36 L152,36 L152,70 L138,70 L138,85 L110,115 L82,85 L82,70 L82,36 L8,36 C4,36 0,32 0,28 L0,12 C0,8 4,4 8,4 Z"
-                fill="url(#arrowGradient)"
+                d="M4,4 L110,4 Q116,4 116,10 L116,30 L132,30 L132,60 L116,60 L116,72 L98,95 L80,72 L80,60 L80,30 L4,30 Q0,30 0,24 L0,10 Q0,4 4,4 Z"
+                fill="url(#arrowGrad)"
                 stroke="#5a0000"
                 strokeWidth="3"
               />
-              <defs>
-                <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#e63030"/>
-                  <stop offset="100%" stopColor="#8b0000"/>
-                </linearGradient>
-              </defs>
-              {/* Bulbs - top row */}
-              <circle className="bulb b1" cx="16" cy="20" r="5"/>
-              <circle className="bulb b2" cx="32" cy="20" r="5"/>
-              <circle className="bulb b3" cx="48" cy="20" r="5"/>
-              <circle className="bulb b4" cx="100" cy="20" r="5"/>
-              <circle className="bulb b5" cx="116" cy="20" r="5"/>
-              <circle className="bulb b6" cx="132" cy="20" r="5"/>
-              {/* Bulbs - down the stem */}
-              <circle className="bulb b7" cx="117" cy="48" r="5"/>
-              <circle className="bulb b8" cx="117" cy="64" r="5"/>
-              <circle className="bulb b9" cx="117" cy="80" r="5"/>
-              {/* Text */}
-              <text x="74" y="25" className="arrow-text-svg">VOTE NOW!</text>
+              <circle cx="14" cy="17" r="4" fill="#ffdd44" className="bulb1"/>
+              <circle cx="28" cy="17" r="4" fill="#ffdd44" className="bulb2"/>
+              <circle cx="42" cy="17" r="4" fill="#ffdd44" className="bulb3"/>
+              <circle cx="80" cy="17" r="4" fill="#ffdd44" className="bulb4"/>
+              <circle cx="94" cy="17" r="4" fill="#ffdd44" className="bulb5"/>
+              <circle cx="108" cy="17" r="4" fill="#ffdd44" className="bulb6"/>
+              <circle cx="106" cy="42" r="4" fill="#ffdd44" className="bulb7"/>
+              <circle cx="106" cy="56" r="4" fill="#ffdd44" className="bulb8"/>
+              <circle cx="106" cy="70" r="4" fill="#ffdd44" className="bulb9"/>
+              <text x="61" y="22" fill="#fffacd" fontSize="11" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">VOTE NOW!</text>
             </svg>
           </div>
           <h2>🗳️ Cast Your Vote</h2>
