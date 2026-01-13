@@ -405,7 +405,6 @@
 
 /* Vote Section */
 .vote-section {
-  position: relative;
   background: #1a1f2e;
   border-radius: 16px;
   padding: 2rem;
@@ -1017,41 +1016,4 @@
     flex-direction: column;
     text-align: center;
   }
-}
-
-/* ========================================
-   VOTE NOW ARROW - SVG L-shape marquee
-   ======================================== */
-
-.vote-arrow {
-  position: absolute;
-  top: -20px;
-  right: 10px;
-  z-index: 10;
-  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
-}
-
-.vote-arrow svg {
-  display: block;
-}
-
-/* SVG Bulb animations */
-.vote-arrow .bulb1 { animation: bulbglow 0.6s ease-in-out infinite 0s; }
-.vote-arrow .bulb2 { animation: bulbglow 0.6s ease-in-out infinite 0.07s; }
-.vote-arrow .bulb3 { animation: bulbglow 0.6s ease-in-out infinite 0.14s; }
-.vote-arrow .bulb4 { animation: bulbglow 0.6s ease-in-out infinite 0.21s; }
-.vote-arrow .bulb5 { animation: bulbglow 0.6s ease-in-out infinite 0.28s; }
-.vote-arrow .bulb6 { animation: bulbglow 0.6s ease-in-out infinite 0.35s; }
-.vote-arrow .bulb7 { animation: bulbglow 0.6s ease-in-out infinite 0.42s; }
-.vote-arrow .bulb8 { animation: bulbglow 0.6s ease-in-out infinite 0.49s; }
-.vote-arrow .bulb9 { animation: bulbglow 0.6s ease-in-out infinite 0.56s; }
-
-@keyframes bulbglow {
-  0%, 100% { fill: #ffdd44; filter: drop-shadow(0 0 4px #ffdd44); }
-  50% { fill: #331100; filter: none; }
-}
-
-@media (max-width: 500px) {
-  .vote-arrow { right: 5px; top: -15px; }
-  .vote-arrow svg { width: 110px; height: 80px; }
 }

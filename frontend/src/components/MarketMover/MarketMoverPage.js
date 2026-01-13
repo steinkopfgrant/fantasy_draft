@@ -433,33 +433,6 @@ const MarketMoverPage = () => {
       {/* Vote Section */}
       {marketMoverData.votingActive && (
         <div className="vote-section">
-          {/* Floating marquee arrow - SVG L-shape */}
-          <div className="vote-arrow">
-            <svg viewBox="0 0 140 100" width="140" height="100">
-              <defs>
-                <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style={{stopColor:'#e63030'}}/>
-                  <stop offset="100%" style={{stopColor:'#8b0000'}}/>
-                </linearGradient>
-              </defs>
-              <path 
-                d="M4,4 L110,4 Q116,4 116,10 L116,30 L132,30 L132,60 L116,60 L116,72 L98,95 L80,72 L80,60 L80,30 L4,30 Q0,30 0,24 L0,10 Q0,4 4,4 Z"
-                fill="url(#arrowGrad)"
-                stroke="#5a0000"
-                strokeWidth="3"
-              />
-              <circle cx="14" cy="17" r="4" fill="#ffdd44" className="bulb1"/>
-              <circle cx="28" cy="17" r="4" fill="#ffdd44" className="bulb2"/>
-              <circle cx="42" cy="17" r="4" fill="#ffdd44" className="bulb3"/>
-              <circle cx="80" cy="17" r="4" fill="#ffdd44" className="bulb4"/>
-              <circle cx="94" cy="17" r="4" fill="#ffdd44" className="bulb5"/>
-              <circle cx="108" cy="17" r="4" fill="#ffdd44" className="bulb6"/>
-              <circle cx="106" cy="42" r="4" fill="#ffdd44" className="bulb7"/>
-              <circle cx="106" cy="56" r="4" fill="#ffdd44" className="bulb8"/>
-              <circle cx="106" cy="70" r="4" fill="#ffdd44" className="bulb9"/>
-              <text x="61" y="22" fill="#fffacd" fontSize="11" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">VOTE NOW!</text>
-            </svg>
-          </div>
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
           
