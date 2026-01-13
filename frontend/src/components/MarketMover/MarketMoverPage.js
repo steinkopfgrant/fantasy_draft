@@ -432,115 +432,82 @@ const MarketMoverPage = () => {
 
       {/* Vote Section */}
       {marketMoverData.votingActive && (
-        <div className="vote-section-wrapper">
-          {/* Marquee Arrow - floating above the vote box */}
-          <div className="vote-now-arrow">
-            <div className="arrow-sign">
-              <div className="sign-bulbs top-bulbs">
-                <span className="bulb b0"></span>
-                <span className="bulb b1"></span>
-                <span className="bulb b2"></span>
-                <span className="bulb b0"></span>
-                <span className="bulb b1"></span>
-                <span className="bulb b2"></span>
-                <span className="bulb b0"></span>
-              </div>
-              <div className="sign-middle">
-                <div className="sign-bulbs side-bulbs">
-                  <span className="bulb b1"></span>
-                  <span className="bulb b2"></span>
-                </div>
-                <span className="sign-text">VOTE NOW!</span>
-                <div className="sign-bulbs side-bulbs">
-                  <span className="bulb b0"></span>
-                  <span className="bulb b1"></span>
-                </div>
-              </div>
-              <div className="sign-bulbs bottom-bulbs">
-                <span className="bulb b2"></span>
-                <span className="bulb b0"></span>
-                <span className="bulb b1"></span>
-                <span className="bulb b2"></span>
-                <span className="bulb b0"></span>
-                <span className="bulb b1"></span>
-                <span className="bulb b2"></span>
-              </div>
+        <div className="vote-section">
+          {/* Floating marquee arrow */}
+          <div className="vote-arrow">
+            <div className="arrow-box">
+              <span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span>
+              <div className="arrow-text">VOTE NOW!</div>
+              <span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span><span className="bulb"></span>
             </div>
-            <div className="arrow-pointer">
-              <span className="bulb b0"></span>
-              <span className="bulb b1"></span>
-              <span className="bulb b2"></span>
-            </div>
+            <div className="arrow-tip">▼</div>
           </div>
-
-          <div className="vote-section">
-            <h2>🗳️ Cast Your Vote</h2>
-            <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
-            
-            <div className="vote-search-container">
-              <div className="search-input-wrapper">
-                <span className="search-icon">🔍</span>
-                <input
-                  type="text"
-                  className="vote-search-input"
-                  placeholder="Search players..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  disabled={userTickets < 1}
-                />
-                {searchQuery && (
-                  <button 
-                    className="clear-search-btn"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedPlayer(null);
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
+          <h2>🗳️ Cast Your Vote</h2>
+          <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
+          
+          <div className="vote-search-container">
+            <div className="search-input-wrapper">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                className="vote-search-input"
+                placeholder="Search players..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={userTickets < 1}
+              />
               {searchQuery && (
-                <div className="search-results-dropdown">
-                  {filteredPlayers.length > 0 ? (
-                    filteredPlayers.slice(0, 8).map(player => (
-                      <div 
-                        key={player.id}
-                        className={`search-result-item ${selectedPlayer?.id === player.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedPlayer(player)}
-                      >
-                        <div className="result-info">
-                          <span className="result-name">{player.name}</span>
-                          <span className="result-meta">{player.position} • {player.team}</span>
-                        </div>
-                        {selectedPlayer?.id === player.id && (
-                          <button 
-                            className="vote-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleVote(player);
-                            }}
-                            disabled={voting || userTickets < 1}
-                          >
-                            {voting ? '...' : 'Vote 🎟️'}
-                          </button>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="no-results">No players found</div>
-                  )}
-                </div>
+                <button 
+                  className="clear-search-btn"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedPlayer(null);
+                  }}
+                >
+                  ✕
+                </button>
               )}
             </div>
 
-            {userTickets < 1 && (
-              <div className="no-tickets-warning">
-                ⚠️ You need tickets to vote! Complete drafts to earn more.
+            {searchQuery && (
+              <div className="search-results-dropdown">
+                {filteredPlayers.length > 0 ? (
+                  filteredPlayers.slice(0, 8).map(player => (
+                    <div 
+                      key={player.id}
+                      className={`search-result-item ${selectedPlayer?.id === player.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedPlayer(player)}
+                    >
+                      <div className="result-info">
+                        <span className="result-name">{player.name}</span>
+                        <span className="result-meta">{player.position} • {player.team}</span>
+                      </div>
+                      {selectedPlayer?.id === player.id && (
+                        <button 
+                          className="vote-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVote(player);
+                          }}
+                          disabled={voting || userTickets < 1}
+                        >
+                          {voting ? '...' : 'Vote 🎟️'}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-results">No players found</div>
+                )}
               </div>
             )}
           </div>
+
+          {userTickets < 1 && (
+            <div className="no-tickets-warning">
+              ⚠️ You need tickets to vote! Complete drafts to earn more.
+            </div>
+          )}
         </div>
       )}
 
