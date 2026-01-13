@@ -982,34 +982,34 @@
 }
 
 /* ========================================
-   VOTE NOW ARROW - Marquee style
+   VOTE ARROW - Marquee style
    ======================================== */
 
 .vote-arrow {
   position: absolute;
-  top: -20px;
-  right: -10px;
+  top: 10px;
+  right: 15px;
   z-index: 10;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
 }
 
 .vote-arrow .bulb {
-  fill: #ffdd44;
+  fill: #ffee66;
 }
 
-.vote-arrow .bulb.b1 { animation: bulbglow 0.6s ease-in-out infinite 0s; }
-.vote-arrow .bulb.b2 { animation: bulbglow 0.6s ease-in-out infinite 0.07s; }
-.vote-arrow .bulb.b3 { animation: bulbglow 0.6s ease-in-out infinite 0.14s; }
-.vote-arrow .bulb.b4 { animation: bulbglow 0.6s ease-in-out infinite 0.21s; }
-.vote-arrow .bulb.b5 { animation: bulbglow 0.6s ease-in-out infinite 0.28s; }
-.vote-arrow .bulb.b6 { animation: bulbglow 0.6s ease-in-out infinite 0.35s; }
-.vote-arrow .bulb.b7 { animation: bulbglow 0.6s ease-in-out infinite 0.42s; }
-.vote-arrow .bulb.b8 { animation: bulbglow 0.6s ease-in-out infinite 0.49s; }
-.vote-arrow .bulb.b9 { animation: bulbglow 0.6s ease-in-out infinite 0.56s; }
+.vote-arrow .bulb.b1 { animation: bulbchase 0.8s ease-in-out infinite 0s; }
+.vote-arrow .bulb.b2 { animation: bulbchase 0.8s ease-in-out infinite 0.08s; }
+.vote-arrow .bulb.b3 { animation: bulbchase 0.8s ease-in-out infinite 0.16s; }
+.vote-arrow .bulb.b4 { animation: bulbchase 0.8s ease-in-out infinite 0.24s; }
+.vote-arrow .bulb.b5 { animation: bulbchase 0.8s ease-in-out infinite 0.32s; }
+.vote-arrow .bulb.b6 { animation: bulbchase 0.8s ease-in-out infinite 0.40s; }
+.vote-arrow .bulb.b7 { animation: bulbchase 0.8s ease-in-out infinite 0.48s; }
+.vote-arrow .bulb.b8 { animation: bulbchase 0.8s ease-in-out infinite 0.56s; }
+.vote-arrow .bulb.b9 { animation: bulbchase 0.8s ease-in-out infinite 0.64s; }
 
-@keyframes bulbglow {
-  0%, 100% { fill: #ffdd44; filter: drop-shadow(0 0 4px #ffdd44); }
-  50% { fill: #331100; filter: none; }
+@keyframes bulbchase {
+  0%, 100% { fill: #ffee66; filter: drop-shadow(0 0 6px #ffcc00); }
+  50% { fill: #442200; filter: none; }
 }
 
 /* Responsive */
