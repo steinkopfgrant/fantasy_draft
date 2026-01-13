@@ -987,8 +987,8 @@
 
 .vote-arrow {
   position: absolute;
-  top: -15px;
-  right: 20px;
+  top: -20px;
+  right: -10px;
   z-index: 10;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
 }
@@ -1005,6 +1005,7 @@
 .vote-arrow .bulb.b6 { animation: bulbglow 0.6s ease-in-out infinite 0.35s; }
 .vote-arrow .bulb.b7 { animation: bulbglow 0.6s ease-in-out infinite 0.42s; }
 .vote-arrow .bulb.b8 { animation: bulbglow 0.6s ease-in-out infinite 0.49s; }
+.vote-arrow .bulb.b9 { animation: bulbglow 0.6s ease-in-out infinite 0.56s; }
 
 @keyframes bulbglow {
   0%, 100% { fill: #ffdd44; filter: drop-shadow(0 0 4px #ffdd44); }
