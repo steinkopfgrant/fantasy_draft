@@ -86,6 +86,9 @@ const PayoutService = require('./services/PayoutService');
 // Create Express app
 const app = express();
 
+// Trust first proxy (Railway runs behind a proxy)
+app.set('trust proxy', 1);
+
 // Create HTTP server
 const server = http.createServer(app);
 
