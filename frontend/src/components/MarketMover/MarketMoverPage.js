@@ -431,7 +431,7 @@ const MarketMoverPage = () => {
       {/* Vote Section */}
       {marketMoverData.votingActive && (
         <div className="vote-section">
-          <svg className="vote-arrow" viewBox="0 0 60 160" width="70" height="185">
+          <svg className="vote-arrow" viewBox="0 0 60 170" width="70" height="195">
             <defs>
               <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#cc2020"/>
@@ -439,24 +439,26 @@ const MarketMoverPage = () => {
               </linearGradient>
             </defs>
             <path 
-              d="M 8,5 L 52,5 L 52,110 L 36,110 L 36,140 L 8,125 L 24,110 L 8,110 Z"
+              d="M 8,5 L 52,5 L 52,130 L 30,155 L 8,130 Z"
               fill="url(#arrowGrad)"
               stroke="#880000"
               strokeWidth="2"
             />
-            <circle className="bulb b1" cx="30" cy="12" r="4"/>
-            <circle className="bulb b2" cx="48" cy="35" r="4"/>
-            <circle className="bulb b3" cx="48" cy="65" r="4"/>
-            <circle className="bulb b4" cx="48" cy="95" r="4"/>
-            <circle className="bulb b5" cx="36" cy="125" r="4"/>
-            <circle className="bulb b6" cx="18" cy="118" r="4"/>
-            <circle className="bulb b7" cx="12" cy="95" r="4"/>
-            <circle className="bulb b8" cx="12" cy="65" r="4"/>
-            <circle className="bulb b9" cx="12" cy="35" r="4"/>
-            <text x="30" y="38" fill="#fffacd" fontSize="18" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">V</text>
-            <text x="30" y="58" fill="#fffacd" fontSize="18" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">O</text>
-            <text x="30" y="78" fill="#fffacd" fontSize="18" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">T</text>
-            <text x="30" y="98" fill="#fffacd" fontSize="18" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">E</text>
+            <circle className="bulb b1" cx="18" cy="12" r="4"/>
+            <circle className="bulb b2" cx="42" cy="12" r="4"/>
+            <circle className="bulb b3" cx="48" cy="40" r="4"/>
+            <circle className="bulb b4" cx="48" cy="70" r="4"/>
+            <circle className="bulb b5" cx="48" cy="100" r="4"/>
+            <circle className="bulb b6" cx="42" cy="128" r="4"/>
+            <circle className="bulb b7" cx="30" cy="145" r="4"/>
+            <circle className="bulb b8" cx="18" cy="128" r="4"/>
+            <circle className="bulb b9" cx="12" cy="100" r="4"/>
+            <circle className="bulb b10" cx="12" cy="70" r="4"/>
+            <circle className="bulb b11" cx="12" cy="40" r="4"/>
+            <text x="30" y="40" fill="#fffacd" fontSize="20" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">V</text>
+            <text x="30" y="62" fill="#fffacd" fontSize="20" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">O</text>
+            <text x="30" y="84" fill="#fffacd" fontSize="20" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">T</text>
+            <text x="30" y="106" fill="#fffacd" fontSize="20" fontWeight="900" fontFamily="Arial Black, sans-serif" textAnchor="middle">E</text>
           </svg>
           <h2>🗳️ Cast Your Vote</h2>
           <p className="vote-description">Search for any NFL player to vote them onto Fire Sale or Cool Down</p>
