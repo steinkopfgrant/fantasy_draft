@@ -62,7 +62,7 @@ Categories:
     // Initialize services
     const PayoutService = require('../services/PayoutService');
     const ScoringService = require('../services/ScoringService');
-    const SettlementService = require('../services/SettlementService');
+    const { SettlementService } = require('../services/settlement');
     const SettlementTestService = require('../services/testing/SettlementTestService');
     
     const payoutService = new PayoutService(db, db.sequelize);
