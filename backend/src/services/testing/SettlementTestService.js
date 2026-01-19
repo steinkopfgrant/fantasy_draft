@@ -111,15 +111,17 @@ class SettlementTestService {
   async createTestUser(username, balance = 100) {
     const { User } = this.models;
     
+    // Generate alphanumeric username (no underscores allowed)
+    const timestamp = Date.now().toString().slice(-6);
+    const cleanUsername = `test${username}${timestamp}`;
+    
     const user = await User.create({
       id: uuidv4(),
-      username: `test_${username}_${Date.now()}`,
-      email: `test_${username}_${Date.now()}@test.com`,
-      password_hash: 'test_hash_not_for_login',
+      username: cleanUsername,
+      email: `${cleanUsername}@test.com`,
+      password: 'testpassword123', // At least 6 chars, will be hashed by model hook
       balance: balance,
-      is_admin: false,
-      created_at: new Date(),
-      updated_at: new Date()
+      is_admin: false
     });
     
     this.testData.users.push(user.id);
