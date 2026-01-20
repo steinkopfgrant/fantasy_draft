@@ -83,7 +83,7 @@ router.get('/contest/:contestId', async (req, res) => {
       ...contest,
       entries: entries.map(e => ({
         id: e.id,
-        userId: e.user_id,
+        odId: e.user_id,
         username: e.User?.username || 'Unknown',
         status: e.status,
         draftRoomId: e.draft_room_id
@@ -209,7 +209,7 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
         maxPlayers: 5,
         players: result.roomStatus?.players || [],
         newPlayer: {
-          id: userId,
+          id: odId,
           username: username,
           entryId: result.entryId
         }
@@ -291,7 +291,7 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     const entry = await ContestEntry.findOne({
       where: { 
         id: entryId,
-        user_id: userId 
+        user_id: odId 
       },
       include: [{
         model: Contest,
@@ -302,7 +302,7 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     if (!entry) {
       console.error('Entry not found or unauthorized:', {
         entryId,
-        userId,
+        odId,
         query: `SELECT * FROM contest_entries WHERE id = '${entryId}' AND user_id = '${userId}'`
       });
       return res.status(404).json({ 
@@ -362,14 +362,14 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
       // Create new lineup
       console.log('Creating new lineup...');
       console.log('Data to insert:', {
-        user_id: userId,
+        user_id: odId,
         contest_entry_id: entryId,
         contest_id: entry.contest_id,
         contest_type: entry.Contest.type
       });
       
       const lineup = await db.Lineup.create({
-        user_id: userId,
+        user_id: odId,
         contest_entry_id: entryId,
         contest_id: entry.contest_id,
         contest_type: entry.Contest.type,
@@ -715,6 +715,9 @@ router.post('/debug/launch-draft/:roomId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==================== ADMIN: FILL ROOM WITH BOTS ====================
+
 // Admin: Fill lobby with bots (for testing)
 router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
   try {
@@ -728,7 +731,7 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
     
     const { roomId } = req.params;
     
-    // Get room status to find contest and current players
+    // Get room status
     const roomStatus = await contestService.getRoomStatus(roomId);
     if (!roomStatus) {
       return res.status(404).json({ error: 'Room not found' });
@@ -739,43 +742,38 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       return res.json({ success: true, message: 'Room already full' });
     }
     
-    // Create/get bot users
     const botEntries = [];
     for (let i = 1; i <= slotsNeeded; i++) {
-      const botUsername = `bot_${i}`;
+      const botUsername = `botuser${i}`;
       
-      // Find or create bot user
-      let [botUser] = await User.findOrCreate({
-        where: { username: botUsername },
-        defaults: {
-          email: `${botUsername}@bot.local`,
-          password: 'botpassword123',
-          balance: 10000,
-          is_bot: true
-        }
-      });
-      
-      // Enter the contest (this should assign to same room)
       try {
+        // Find or create bot user (no underscore, alphanumeric only)
+        const [botUser] = await User.findOrCreate({
+          where: { username: botUsername },
+          defaults: {
+            email: `${botUsername}@bot.local`,
+            password: '$2b$10$dummyhashvalueforbotusersonly1234567890abc',
+            balance: 10000
+          }
+        });
+        
+        // Enter contest
         const entry = await contestService.enterContest(
           roomStatus.contestId,
           botUser.id,
           botUsername
         );
-        botEntries.push({ odUsername: botUsername, odId: botUser.id, entry });
+        botEntries.push(botUsername);
+        console.log(`✅ Bot ${botUsername} joined room ${roomId}`);
       } catch (err) {
-        console.log(`Bot ${botUsername} entry failed:`, err.message);
+        console.log(`Bot ${botUsername} failed:`, err.message);
       }
       
       // Small delay to prevent race conditions
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise(r => setTimeout(r, 200));
     }
     
-    res.json({ 
-      success: true, 
-      message: `Added ${botEntries.length} bots`,
-      botsAdded: botEntries.length
-    });
+    res.json({ success: true, botsAdded: botEntries.length });
     
   } catch (error) {
     console.error('Fill room error:', error);
