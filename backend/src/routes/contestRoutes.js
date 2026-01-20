@@ -715,5 +715,72 @@ router.post('/debug/launch-draft/:roomId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// Admin: Fill lobby with bots (for testing)
+router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.userId;
+    const user = await User.findByPk(userId);
+    
+    // Admin check
+    if (!user || (user.username !== 'aaaaaa' && !user.is_admin)) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    
+    const { roomId } = req.params;
+    
+    // Get room status to find contest and current players
+    const roomStatus = await contestService.getRoomStatus(roomId);
+    if (!roomStatus) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    
+    const slotsNeeded = 5 - roomStatus.currentPlayers;
+    if (slotsNeeded <= 0) {
+      return res.json({ success: true, message: 'Room already full' });
+    }
+    
+    // Create/get bot users
+    const botEntries = [];
+    for (let i = 1; i <= slotsNeeded; i++) {
+      const botUsername = `bot_${i}`;
+      
+      // Find or create bot user
+      let [botUser] = await User.findOrCreate({
+        where: { username: botUsername },
+        defaults: {
+          email: `${botUsername}@bot.local`,
+          password: 'botpassword123',
+          balance: 10000,
+          is_bot: true
+        }
+      });
+      
+      // Enter the contest (this should assign to same room)
+      try {
+        const entry = await contestService.enterContest(
+          roomStatus.contestId,
+          botUser.id,
+          botUsername
+        );
+        botEntries.push({ odUsername: botUsername, odId: botUser.id, entry });
+      } catch (err) {
+        console.log(`Bot ${botUsername} entry failed:`, err.message);
+      }
+      
+      // Small delay to prevent race conditions
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Added ${botEntries.length} bots`,
+      botsAdded: botEntries.length
+    });
+    
+  } catch (error) {
+    console.error('Fill room error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 module.exports = router;
