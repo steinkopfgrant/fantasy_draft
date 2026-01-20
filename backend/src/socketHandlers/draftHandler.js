@@ -80,6 +80,9 @@ class DraftHandler {
         }
       }
       
+      // Calculate current timeRemaining from turnStartTime
+      const timeRemaining = this.calculateTimeRemaining(draftState);
+      
       // Send the complete draft state to the reconnected user
       this.sendCompleteState(socket, roomId);
       
@@ -91,7 +94,7 @@ class DraftHandler {
         contestName: activeEntry.Contest?.name,
         status: draftState.status,
         currentTurn: draftState.currentTurn,
-        timeRemaining: draftState.timeRemaining,
+        timeRemaining: timeRemaining,
         message: 'Reconnected to active draft'
       });
       
@@ -172,6 +175,7 @@ class DraftHandler {
       currentDrafter: null,
       picks: [],
       timeRemaining: this.TURN_TIME,
+      turnStartTime: null, // Track when current turn started for accurate timer on rejoin
       draftOrder: [],
       totalPlayers: roomStatus.maxPlayers,
       connectedPlayers: roomStatus.currentPlayers,
@@ -197,6 +201,20 @@ class DraftHandler {
       }
     }
     return players;
+  }
+
+  // Calculate accurate time remaining from turnStartTime
+  calculateTimeRemaining(draftState) {
+    if (!draftState || draftState.status !== 'active' || !draftState.turnStartTime) {
+      return draftState?.timeRemaining || this.TURN_TIME;
+    }
+    
+    const elapsed = Math.floor((Date.now() - draftState.turnStartTime) / 1000);
+    const remaining = Math.max(0, this.TURN_TIME - elapsed);
+    
+    console.log(`⏱️ Timer calculation: turnStartTime=${draftState.turnStartTime}, elapsed=${elapsed}s, remaining=${remaining}s`);
+    
+    return remaining;
   }
 
   sendCompleteState(socket, roomId) {
@@ -236,17 +254,26 @@ class DraftHandler {
     const currentDrafter = currentDrafterIndex !== undefined ? 
       teams[currentDrafterIndex] : null;
 
+    // Calculate accurate timeRemaining from turnStartTime
+    const timeRemaining = this.calculateTimeRemaining(draftState);
+
     const stateToSend = {
       roomId,
+      contestId: draftState.contestId, // Include contestId for consistency
       status: draftState.status,
       currentTurn: draftState.currentTurn,
       currentDrafter,
       teams,
       availablePlayers: draftState.availablePlayers,
-      timeRemaining: draftState.timeRemaining,
+      timeRemaining: timeRemaining, // Use calculated time, not stored value
+      timeLimit: this.TURN_TIME,
       playerBoard: draftState.playerBoard,
-      draftOrder: draftState.draftOrder
+      draftOrder: draftState.draftOrder,
+      picks: draftState.picks,
+      startTime: draftState.startTime
     };
+
+    console.log(`📤 Sending draft state: turn=${stateToSend.currentTurn}, timeRemaining=${timeRemaining}s, status=${stateToSend.status}`);
 
     socket.emit('draft-state', stateToSend);
     socket.emit('draft-state-update', stateToSend);
@@ -302,6 +329,8 @@ class DraftHandler {
     draftState.status = 'active';
     draftState.currentTurn = 0;
     draftState.timeRemaining = this.TURN_TIME;
+    draftState.turnStartTime = Date.now(); // Track when turn started
+    draftState.startTime = new Date().toISOString();
 
     const currentDrafterIndex = draftState.draftOrder[0];
     draftState.currentDrafter = draftState.users[currentDrafterIndex];
@@ -365,16 +394,23 @@ class DraftHandler {
     const currentDrafter = currentDrafterIndex !== undefined ? 
       teams[currentDrafterIndex] : null;
 
+    // Calculate accurate timeRemaining from turnStartTime
+    const timeRemaining = this.calculateTimeRemaining(draftState);
+
     return {
       roomId,
+      contestId: draftState.contestId,
       status: draftState.status,
       currentTurn: draftState.currentTurn,
       currentDrafter,
       teams,
       availablePlayers: draftState.availablePlayers,
-      timeRemaining: draftState.timeRemaining,
+      timeRemaining: timeRemaining, // Use calculated time
+      timeLimit: this.TURN_TIME,
       playerBoard: draftState.playerBoard,
-      draftOrder: draftState.draftOrder
+      draftOrder: draftState.draftOrder,
+      picks: draftState.picks,
+      startTime: draftState.startTime
     };
   }
 
@@ -382,6 +418,12 @@ class DraftHandler {
     const existingTimer = this.pickTimers.get(roomId);
     if (existingTimer) {
       clearInterval(existingTimer);
+    }
+
+    const draftState = this.draftStates.get(roomId);
+    if (draftState) {
+      draftState.turnStartTime = Date.now(); // Record when this turn's timer started
+      draftState.timeRemaining = this.TURN_TIME;
     }
 
     let timeRemaining = this.TURN_TIME;
@@ -604,6 +646,7 @@ class DraftHandler {
 
     draftState.currentTurn++;
     draftState.timeRemaining = this.TURN_TIME;
+    draftState.turnStartTime = Date.now(); // Reset turn start time for new turn
 
     console.log(`Moving to turn ${draftState.currentTurn} of ${draftState.draftOrder.length}`);
 
@@ -645,6 +688,7 @@ class DraftHandler {
     }
 
     draftState.status = 'completed';
+    draftState.turnStartTime = null; // Clear turn timer
 
     console.log('\n📋 FINAL ROSTERS IN MEMORY:');
     for (const user of draftState.users) {
