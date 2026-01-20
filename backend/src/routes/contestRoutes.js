@@ -209,7 +209,7 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
         maxPlayers: 5,
         players: result.roomStatus?.players || [],
         newPlayer: {
-          id: odId,
+          id: userId,
           username: username,
           entryId: result.entryId
         }
@@ -362,14 +362,14 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
       // Create new lineup
       console.log('Creating new lineup...');
       console.log('Data to insert:', {
-        user_id: odId,
+        user_id: userId,
         contest_entry_id: entryId,
         contest_id: entry.contest_id,
         contest_type: entry.Contest.type
       });
       
       const lineup = await db.Lineup.create({
-        user_id: odId,
+        user_id: userId,
         contest_entry_id: entryId,
         contest_id: entry.contest_id,
         contest_type: entry.Contest.type,
