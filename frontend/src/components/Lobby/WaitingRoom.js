@@ -150,16 +150,15 @@ const WaitingRoom = ({ roomData, onLeave, isAdmin = false }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `/api/debug/fill-lobby/${contestId}`,
-        { includeMe: false },
+        `/api/contests/admin/fill-room/${roomId}`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      console.log('Fill lobby response:', response.data);
-      // Socket events should update the player list automatically
+      console.log('Fill room response:', response.data);
     } catch (error) {
-      console.error('Failed to fill lobby:', error);
-      alert('Failed to fill lobby: ' + (error.response?.data?.error || error.message));
+      console.error('Failed to fill room:', error);
+      alert('Failed to fill room: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsFilling(false);
     }
