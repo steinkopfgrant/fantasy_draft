@@ -3,12 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socketService from '../../services/socket';
-import { useAuth } from '../../contexts/AuthContext';
 import './WaitingRoom.css';
 
-const WaitingRoom = ({ roomData, onLeave }) => {
+const WaitingRoom = ({ roomData, onLeave, isAdmin = false }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [players, setPlayers] = useState(roomData.players || []);
   const [timeWaiting, setTimeWaiting] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -22,9 +20,6 @@ const WaitingRoom = ({ roomData, onLeave }) => {
     maxPlayers = 5
   } = roomData;
   
-  // Check if current user is admin
-  const isAdmin = user?.username === 'aaaaaa';
-  
   // Debug log to track state
   useEffect(() => {
     console.log('🎮 WaitingRoom State:', {
@@ -32,9 +27,10 @@ const WaitingRoom = ({ roomData, onLeave }) => {
       currentPlayers: roomData?.currentPlayers,
       maxPlayers: roomData?.maxPlayers,
       playersList: roomData?.players,
-      isFull: roomData?.currentPlayers >= 5
+      isFull: roomData?.currentPlayers >= 5,
+      isAdmin
     });
-  }, [roomData]);
+  }, [roomData, isAdmin]);
   
   // Update players when roomData changes
   useEffect(() => {

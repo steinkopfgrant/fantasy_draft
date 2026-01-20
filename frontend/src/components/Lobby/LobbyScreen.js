@@ -497,6 +497,7 @@ const LobbyScreen = () => {
         onLeave={() => handleLeaveContest(waitingRoomData.contestId)}
         countdown={waitingRoomData.countdown}
         draftStarting={waitingRoomData.draftStarting}
+        isAdmin={user?.username === 'aaaaaa' || user?.is_admin}
       />
     );
   }
