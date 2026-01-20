@@ -108,37 +108,9 @@ const DraftScreen = ({ showToast }) => {
   // Standardized current user ID
   const currentUserId = getUserId(user);
 
-  // Calculate isMyTurn with standardized logic - multiple fallbacks for rejoin scenarios
-  // Using IIFE instead of useMemo to avoid hook ordering issues
-  const calculatedIsMyTurn = (() => {
-    // Method 1: Direct match on currentDrafter (preferred when available)
-    if (currentDrafter && currentUserId && getUserId(currentDrafter) === currentUserId) {
-      return true;
-    }
-    
-    // Method 2: Calculate from snake draft order if currentDrafter is missing/stale
-    // This handles the rejoin case where currentDrafter hasn't been populated yet
-    if (teams && teams.length > 0 && currentTurn !== undefined && status === 'active') {
-      const pickNumber = (currentTurn || 0) + 1;
-      const totalTeams = teams.length;
-      const round = Math.ceil(pickNumber / totalTeams);
-      const positionInRound = ((pickNumber - 1) % totalTeams) + 1;
-      
-      // Snake draft: odd rounds go forward (1,2,3,4,5), even rounds reverse (5,4,3,2,1)
-      const expectedTeamIndex = round % 2 === 1 
-        ? positionInRound - 1 
-        : totalTeams - positionInRound;
-      
-      const expectedTeam = teams[expectedTeamIndex];
-      
-      if (expectedTeam && getUserId(expectedTeam) === currentUserId) {
-        return true;
-      }
-    }
-    
-    return false;
-  })();
-  
+  // Calculate isMyTurn with standardized logic
+  const calculatedIsMyTurn = currentDrafter && currentUserId && 
+    getUserId(currentDrafter) === currentUserId;
   const actualIsMyTurn = isMyTurn || calculatedIsMyTurn;
   
   // Find my team with standardized logic
@@ -919,14 +891,33 @@ const DraftScreen = ({ showToast }) => {
       // Update state intelligently
       const shouldUpdateTeams = processedTeams.length > 0;
       
+      // Calculate isMyTurn with fallback to snake draft order
+      let calculatedIsMyTurn = data.isMyTurn || 
+        (data.currentDrafter && getUserId(data.currentDrafter) === currentUserId);
+      
+      // FALLBACK: If currentDrafter is missing but we have teams and currentTurn, calculate from draft order
+      if (!calculatedIsMyTurn && shouldUpdateTeams && data.currentTurn !== undefined && data.status === 'active') {
+        const pickNumber = (data.currentTurn || 0) + 1;
+        const totalTeams = processedTeams.length;
+        const round = Math.ceil(pickNumber / totalTeams);
+        const positionInRound = ((pickNumber - 1) % totalTeams) + 1;
+        const expectedTeamIndex = round % 2 === 1 
+          ? positionInRound - 1 
+          : totalTeams - positionInRound;
+        const expectedTeam = processedTeams[expectedTeamIndex];
+        
+        if (expectedTeam && getUserId(expectedTeam) === currentUserId) {
+          calculatedIsMyTurn = true;
+          console.log('🎯 FALLBACK isMyTurn calculation: true (from snake draft order)');
+        }
+      }
+      
       dispatch(updateDraftState({
         ...data,
         teams: shouldUpdateTeams ? processedTeams : undefined,
         status: data.status || (data.currentTurn > 0 ? 'active' : 'waiting'),
         currentDrafter: data.currentDrafter || data.currentPlayer || null,
-        isMyTurn: data.isMyTurn || 
-                  (data.currentDrafter && getUserId(data.currentDrafter) === currentUserId) ||
-                  false,
+        isMyTurn: calculatedIsMyTurn || false,
         playerBoard: data.playerBoard || currentState.playerBoard,
         timeRemaining: data.timeRemaining || data.timeLimit || currentState.timeRemaining || 30
       }));
