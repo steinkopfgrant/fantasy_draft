@@ -1146,8 +1146,13 @@ const DraftScreen = ({ showToast }) => {
     };
 
     const handleTimerUpdate = (data) => {
-      if (data.roomId === roomId && data.timeRemaining !== undefined) {
-        dispatch(updateTimer(data.timeRemaining));
+      // Handle both formats - with and without roomId
+      const timeValue = typeof data === 'number' ? data : data.timeRemaining;
+      const eventRoomId = typeof data === 'object' ? data.roomId : undefined;
+      
+      // Accept if no roomId in data (room-specific event) or if roomId matches
+      if ((eventRoomId === undefined || eventRoomId === roomId) && timeValue !== undefined) {
+        dispatch(updateTimer(timeValue));
       }
     };
 
@@ -1161,6 +1166,7 @@ const DraftScreen = ({ showToast }) => {
     socketService.on('draft-countdown', handleDraftCountdown);
     socketService.on('draft-complete', handleDraftComplete);
     socketService.on('timer-update', handleTimerUpdate);
+    socketService.on('draft-timer', handleTimerUpdate);
 
     return () => {
       console.log('🧹 Cleaning up draft socket event handlers');
@@ -1174,6 +1180,7 @@ const DraftScreen = ({ showToast }) => {
       socketService.off('draft-countdown', handleDraftCountdown);
       socketService.off('draft-complete', handleDraftComplete);
       socketService.off('timer-update', handleTimerUpdate);
+      socketService.off('draft-timer', handleTimerUpdate);
     };
   }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId]);
 
