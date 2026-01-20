@@ -1,14 +1,18 @@
 // frontend/src/components/Lobby/WaitingRoom.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import socketService from '../../services/socket';
+import { useAuth } from '../../contexts/AuthContext';
 import './WaitingRoom.css';
 
 const WaitingRoom = ({ roomData, onLeave }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [players, setPlayers] = useState(roomData.players || []);
   const [timeWaiting, setTimeWaiting] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isFilling, setIsFilling] = useState(false);
   
   const {
     contestId,
@@ -17,6 +21,9 @@ const WaitingRoom = ({ roomData, onLeave }) => {
     entryId,
     maxPlayers = 5
   } = roomData;
+  
+  // Check if current user is admin
+  const isAdmin = user?.username === 'aaaaaa';
   
   // Debug log to track state
   useEffect(() => {
@@ -140,6 +147,28 @@ const WaitingRoom = ({ roomData, onLeave }) => {
     }
   };
   
+  const handleFillWithBots = async () => {
+    if (isFilling) return;
+    
+    setIsFilling(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `/api/debug/fill-lobby/${contestId}`,
+        { includeMe: false },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('Fill lobby response:', response.data);
+      // Socket events should update the player list automatically
+    } catch (error) {
+      console.error('Failed to fill lobby:', error);
+      alert('Failed to fill lobby: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setIsFilling(false);
+    }
+  };
+  
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -147,7 +176,7 @@ const WaitingRoom = ({ roomData, onLeave }) => {
   };
   
   const currentPlayerCount = players.length || roomData?.currentPlayers || 0;
-  const emptySlots = 5 - currentPlayerCount; // Hardcode 5 players max
+  const emptySlots = 5 - currentPlayerCount;
   const progressPercentage = (currentPlayerCount / 5) * 100;
   
   return (
@@ -217,6 +246,17 @@ const WaitingRoom = ({ roomData, onLeave }) => {
         </div>
         
         <div className="waiting-room-footer">
+          {/* Admin fill button */}
+          {isAdmin && currentPlayerCount < 5 && (
+            <button 
+              className="fill-button"
+              onClick={handleFillWithBots}
+              disabled={isFilling}
+            >
+              {isFilling ? 'Filling...' : `Fill with Bots (${emptySlots} needed)`}
+            </button>
+          )}
+          
           <button 
             className="leave-button"
             onClick={handleLeave}
