@@ -2410,6 +2410,36 @@ class ContestService {
     }
   }
 
+  // Get timer info for a room (used by socket handlers to include timeRemaining)
+  async getTimerInfo(roomId) {
+    try {
+      const turnKey = `turn:${roomId}`;
+      const turnData = await this.redis.get(turnKey);
+      
+      if (!turnData) {
+        console.log(`⏱️ No timer info found for room ${roomId}`);
+        return null;
+      }
+      
+      const { turnStartedAt, currentTurn, currentUserId, timeLimit } = JSON.parse(turnData);
+      const elapsed = Math.floor((Date.now() - turnStartedAt) / 1000);
+      const timeRemaining = Math.max(0, (timeLimit || 30) - elapsed);
+      
+      console.log(`⏱️ Timer info for ${roomId}: ${timeRemaining}s remaining (limit: ${timeLimit}s, elapsed: ${elapsed}s)`);
+      
+      return {
+        timeRemaining,
+        timeLimit: timeLimit || 30,
+        turnStartedAt,
+        currentTurn,
+        currentUserId
+      };
+    } catch (error) {
+      console.error('Error getting timer info:', error);
+      return null;
+    }
+  }
+
   // Health check method
   async healthCheck() {
     try {

@@ -584,7 +584,7 @@ class SocketHandler {
     }
   }
 
-  // FIXED: Added stall detection when getting draft state
+  // FIXED: Added stall detection and timer info when getting draft state
   async handleGetDraftState(socket, data) {
     let { roomId } = data;
     const userId = socket.userId;
@@ -683,12 +683,26 @@ class SocketHandler {
         participants: draft.participants || []
       };
 
+      // ✅ FIX: Merge in live timer info from contestService
+      const timerInfo = await contestService.getTimerInfo(roomId);
+      if (timerInfo) {
+        draftState.timeRemaining = timerInfo.timeRemaining;
+        draftState.timeLimit = timerInfo.timeLimit;
+        draftState.turnStartedAt = timerInfo.turnStartedAt;
+        console.log(`⏱️ Added timer to draft state: ${timerInfo.timeRemaining}s remaining`);
+      } else {
+        // Default if no timer info (draft may be stalled or just starting)
+        draftState.timeRemaining = 30;
+        draftState.timeLimit = 30;
+      }
+
       console.log(`📤 Sending draft state to ${socket.username}:`, {
         roomId,
         teamsCount: teams.length,
         playerBoardRows: playerBoard.length,
         currentTurn: draftState.currentTurn,
-        currentPick: draftState.currentPick
+        currentPick: draftState.currentPick,
+        timeRemaining: draftState.timeRemaining
       });
 
       socket.emit('draft-state', draftState);
@@ -739,7 +753,7 @@ class SocketHandler {
     console.log('Socket disconnected:', socket.id);
   }
 
-  // FIXED: Added stall detection in sendDraftState too
+  // FIXED: Added stall detection and timer info in sendDraftState too
   async sendDraftState(socket, roomId) {
     try {
       console.log(`📨 sendDraftState called for room ${roomId}`);
@@ -823,10 +837,19 @@ class SocketHandler {
         participants: draft.participants || []
       };
 
+      // ✅ FIX: Merge in live timer info from contestService
+      const timerInfo = await contestService.getTimerInfo(roomId);
+      if (timerInfo) {
+        draftState.timeRemaining = timerInfo.timeRemaining;
+        draftState.timeLimit = timerInfo.timeLimit;
+        draftState.turnStartedAt = timerInfo.turnStartedAt;
+      }
+
       console.log(`📤 Sending draft state from sendDraftState:`, {
         roomId,
         teamsCount: teams.length,
-        playerBoardRows: playerBoard.length
+        playerBoardRows: playerBoard.length,
+        timeRemaining: draftState.timeRemaining
       });
 
       socket.emit('draft-state', draftState);
