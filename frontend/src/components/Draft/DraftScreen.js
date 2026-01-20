@@ -109,7 +109,8 @@ const DraftScreen = ({ showToast }) => {
   const currentUserId = getUserId(user);
 
   // Calculate isMyTurn with standardized logic - multiple fallbacks for rejoin scenarios
-  const calculatedIsMyTurn = useMemo(() => {
+  // Using IIFE instead of useMemo to avoid hook ordering issues
+  const calculatedIsMyTurn = (() => {
     // Method 1: Direct match on currentDrafter (preferred when available)
     if (currentDrafter && currentUserId && getUserId(currentDrafter) === currentUserId) {
       return true;
@@ -136,7 +137,7 @@ const DraftScreen = ({ showToast }) => {
     }
     
     return false;
-  }, [currentDrafter, currentUserId, teams, currentTurn, status, getUserId]);
+  })();
   
   const actualIsMyTurn = isMyTurn || calculatedIsMyTurn;
   
