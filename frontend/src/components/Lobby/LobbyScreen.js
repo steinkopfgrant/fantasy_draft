@@ -738,7 +738,7 @@ const LobbyScreen = () => {
                       </>
                     ) : (
                       userEntry ? (
-                        <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); handleLeaveContest(contestId); }}>Leave</button>
+                        <button className="btn" onClick={(e) => { e.stopPropagation(); handleLeaveContest(contestId); }} style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white' }}>Withdraw</button>
                       ) : (
                         <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleJoinContest(contestId); }} disabled={!canJoin || isJoining}>
                           {isJoining ? 'Joining...' : isFull ? 'Full' : contest.status !== 'open' ? 'Not Open' : 'Join Contest'}
