@@ -49,6 +49,8 @@ const checkAdmin = async (req, res, next) => {
 // Apply admin check to all routes
 router.use(checkAdmin);
 
+// ==================== CONTEST LISTING ====================
+
 /**
  * GET /api/admin/settlement/contests
  * List all contests with their settlement status
@@ -113,6 +115,330 @@ router.get('/contests', async (req, res) => {
   }
 });
 
+// ==================== PLAYER SCORE MANAGEMENT ====================
+
+/**
+ * GET /api/admin/settlement/scores/:week/:season
+ * Get all player scores for a week
+ */
+router.get('/scores/:week/:season', async (req, res) => {
+  try {
+    const { week, season } = req.params;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const scores = await scoringService.getWeekScores(parseInt(week), parseInt(season));
+    
+    res.json({
+      success: true,
+      week: parseInt(week),
+      season: parseInt(season),
+      count: scores.length,
+      scores
+    });
+  } catch (error) {
+    console.error('Error getting scores:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/set-player-score
+ * Manually set a player's score
+ */
+router.post('/set-player-score', async (req, res) => {
+  try {
+    const { playerName, playerTeam, week, season, score, points, breakdown } = req.body;
+    
+    if (!playerName || (score === undefined && points === undefined)) {
+      return res.status(400).json({
+        success: false,
+        error: 'playerName and score/points are required'
+      });
+    }
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const scoreValue = score !== undefined ? score : points;
+    
+    const result = await scoringService.setPlayerScore(
+      playerName,
+      playerTeam || 'UNK',
+      week || 1,
+      season || 2025,
+      { total: scoreValue, breakdown: breakdown || {} }
+    );
+    
+    res.json({
+      success: true,
+      message: `Score set for ${playerName}: ${scoreValue} pts`,
+      result
+    });
+  } catch (error) {
+    console.error('Error setting player score:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/bulk-import-scores
+ * Import multiple player scores at once
+ * Body: { week, season, scores: [{ name, team, points }, ...] }
+ */
+router.post('/bulk-import-scores', async (req, res) => {
+  try {
+    const { week, season, scores } = req.body;
+    
+    if (!week || !season || !scores || !Array.isArray(scores)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields: week, season, scores (array)' 
+      });
+    }
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const result = await scoringService.bulkImportScores(
+      scores,
+      parseInt(week),
+      parseInt(season)
+    );
+    
+    res.json({
+      success: true,
+      message: `Imported ${result.success} scores (${result.failed} failed)`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error bulk importing scores:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/import-csv
+ * Import scores from CSV format
+ * Body: { week, season, csv: "PlayerName,Team,Points\n..." }
+ */
+router.post('/import-csv', async (req, res) => {
+  try {
+    const { week, season, csv } = req.body;
+    
+    if (!week || !season || !csv) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields: week, season, csv' 
+      });
+    }
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const result = await scoringService.importScoresFromCSV(
+      csv,
+      parseInt(week),
+      parseInt(season)
+    );
+    
+    res.json({
+      success: true,
+      message: `Imported ${result.success} scores from CSV`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error importing CSV:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/finalize-week
+ * Mark all scores for a week as final
+ */
+router.post('/finalize-week', async (req, res) => {
+  try {
+    const { week, season = 2025 } = req.body;
+    
+    if (!week) {
+      return res.status(400).json({
+        success: false,
+        error: 'week is required'
+      });
+    }
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const count = await scoringService.finalizeWeekScores(parseInt(week), parseInt(season));
+    
+    res.json({
+      success: true,
+      message: `Finalized ${count} player scores for Week ${week}`,
+      count
+    });
+  } catch (error) {
+    console.error('Error finalizing week scores:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== CONTEST SCORING ====================
+
+/**
+ * POST /api/admin/settlement/calculate-scores/:contestId
+ * Recalculate all entry scores for a contest
+ */
+router.post('/calculate-scores/:contestId', async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const { week = 1, season = 2025 } = req.body;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    console.log(`\n🔧 Admin ${req.user.username} calculating scores for contest ${contestId}`);
+    
+    const results = await scoringService.recalculateContestScores(
+      contestId,
+      parseInt(week),
+      parseInt(season)
+    );
+    
+    res.json({
+      success: true,
+      message: `Calculated scores for ${results.calculated || results.length} entries`,
+      ...results
+    });
+  } catch (error) {
+    console.error('Error calculating scores:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/settlement/leaderboard/:contestId
+ * Get current leaderboard for a contest
+ */
+router.get('/leaderboard/:contestId', async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const { limit = 100 } = req.query;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const leaderboard = await scoringService.getContestLeaderboard(contestId, parseInt(limit));
+    const summary = await scoringService.getContestScoringSummary(contestId);
+    
+    res.json({
+      success: true,
+      contestId,
+      summary,
+      entries: leaderboard.length,
+      leaderboard
+    });
+  } catch (error) {
+    console.error('Error getting leaderboard:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/settlement/scoring-summary/:contestId
+ * Get scoring stats for a contest
+ */
+router.get('/scoring-summary/:contestId', async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const summary = await scoringService.getContestScoringSummary(contestId);
+    
+    res.json({
+      success: true,
+      contestId,
+      ...summary
+    });
+  } catch (error) {
+    console.error('Error getting scoring summary:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== SETTLEMENT VALIDATION ====================
+
+/**
+ * GET /api/admin/settlement/validate/:contestId
+ * Check if all rostered players have scores (pre-settlement check)
+ */
+router.get('/validate/:contestId', async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const week = parseInt(req.query.week) || 1;
+    const season = parseInt(req.query.season) || 2025;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const validation = await scoringService.validateScoresForSettlement(
+      contestId,
+      week,
+      season
+    );
+    
+    res.json({
+      success: true,
+      contestId,
+      week,
+      season,
+      ...validation
+    });
+  } catch (error) {
+    console.error('Error validating settlement:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/settlement/score-template/:contestId
+ * Get a template of all players that need scores
+ */
+router.get('/score-template/:contestId', async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    
+    if (!scoringService) {
+      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
+    }
+    
+    const template = await scoringService.generateScoreTemplate(contestId);
+    
+    res.json({
+      success: true,
+      contestId,
+      playerCount: template.length,
+      template
+    });
+  } catch (error) {
+    console.error('Error generating score template:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 /**
  * GET /api/admin/settlement/status/:contestId
  * Check if a contest is ready to settle
@@ -120,7 +446,7 @@ router.get('/contests', async (req, res) => {
 router.get('/status/:contestId', async (req, res) => {
   try {
     const { contestId } = req.params;
-    const { week = 1, season = 2024 } = req.query;
+    const { week = 1, season = 2025 } = req.query;
     
     if (!settlementService) {
       return res.status(500).json({ success: false, error: 'Settlement service not initialized' });
@@ -138,6 +464,8 @@ router.get('/status/:contestId', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// ==================== SETTLEMENT EXECUTION ====================
 
 /**
  * GET /api/admin/settlement/preview/:contestId
@@ -170,13 +498,32 @@ router.get('/preview/:contestId', async (req, res) => {
 router.post('/settle/:contestId', async (req, res) => {
   try {
     const { contestId } = req.params;
-    const { force = false } = req.body;
+    const { force = false, week = 1, season = 2025 } = req.body;
     
     if (!settlementService) {
       return res.status(500).json({ success: false, error: 'Settlement service not initialized' });
     }
     
     console.log(`\n🔧 Admin ${req.user.username} initiated settlement for contest ${contestId}`);
+    
+    // Validate scores unless forcing
+    if (!force && scoringService) {
+      const validation = await scoringService.validateScoresForSettlement(
+        contestId,
+        parseInt(week),
+        parseInt(season)
+      );
+      
+      if (!validation.ready) {
+        return res.status(400).json({
+          success: false,
+          error: 'Not all players have scores',
+          missingCount: validation.missingCount,
+          missingScores: validation.missingScores.slice(0, 20),
+          hint: 'Import missing scores or use force: true to settle anyway'
+        });
+      }
+    }
     
     // Check readiness unless forcing
     if (!force) {
@@ -252,134 +599,7 @@ router.get('/summary/:contestId', async (req, res) => {
   }
 });
 
-/**
- * POST /api/admin/settlement/calculate-scores/:contestId
- * Recalculate all entry scores for a contest
- */
-router.post('/calculate-scores/:contestId', async (req, res) => {
-  try {
-    const { contestId } = req.params;
-    const { week = 1, season = 2024 } = req.body;
-    
-    if (!scoringService) {
-      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
-    }
-    
-    console.log(`\n🔧 Admin ${req.user.username} calculating scores for contest ${contestId}`);
-    
-    const results = await scoringService.recalculateContestScores(
-      contestId,
-      parseInt(week),
-      parseInt(season)
-    );
-    
-    res.json({
-      success: true,
-      message: `Calculated scores for ${results.length} entries`,
-      results
-    });
-  } catch (error) {
-    console.error('Error calculating scores:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * GET /api/admin/settlement/leaderboard/:contestId
- * Get current leaderboard for a contest
- */
-router.get('/leaderboard/:contestId', async (req, res) => {
-  try {
-    const { contestId } = req.params;
-    const { limit = 100 } = req.query;
-    
-    if (!scoringService) {
-      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
-    }
-    
-    const leaderboard = await scoringService.getContestLeaderboard(contestId, parseInt(limit));
-    
-    res.json({
-      success: true,
-      contestId,
-      entries: leaderboard.length,
-      leaderboard
-    });
-  } catch (error) {
-    console.error('Error getting leaderboard:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * POST /api/admin/settlement/set-player-score
- * Manually set a player's score (for testing)
- */
-router.post('/set-player-score', async (req, res) => {
-  try {
-    const { playerName, playerTeam, week, season, score, breakdown } = req.body;
-    
-    if (!playerName || !playerTeam || score === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'playerName, playerTeam, and score are required'
-      });
-    }
-    
-    if (!scoringService) {
-      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
-    }
-    
-    const result = await scoringService.setPlayerScore(
-      playerName,
-      playerTeam,
-      week || 1,
-      season || 2024,
-      { total: score, breakdown: breakdown || {} }
-    );
-    
-    res.json({
-      success: true,
-      message: `Score set for ${playerName}: ${score} pts`,
-      result
-    });
-  } catch (error) {
-    console.error('Error setting player score:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * POST /api/admin/settlement/finalize-week
- * Mark all scores for a week as final
- */
-router.post('/finalize-week', async (req, res) => {
-  try {
-    const { week, season = 2024 } = req.body;
-    
-    if (!week) {
-      return res.status(400).json({
-        success: false,
-        error: 'week is required'
-      });
-    }
-    
-    if (!scoringService) {
-      return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
-    }
-    
-    const count = await scoringService.finalizeWeekScores(parseInt(week), parseInt(season));
-    
-    res.json({
-      success: true,
-      message: `Finalized ${count} player scores for Week ${week}`,
-      count
-    });
-  } catch (error) {
-    console.error('Error finalizing week scores:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// ==================== DEBUGGING / TESTING ====================
 
 /**
  * GET /api/admin/settlement/entry/:entryId
@@ -423,7 +643,7 @@ router.get('/contest-players/:contestId', async (req, res) => {
     
     console.log(`📋 Getting drafted players for contest ${contestId}`);
     
-    // Get lineups directly by contest_id (lineups table has contest_id column!)
+    // Get lineups directly by contest_id
     const lineups = await db.Lineup.findAll({
       where: { contest_id: contestId }
     });
@@ -451,14 +671,6 @@ router.get('/contest-players/:contestId', async (req, res) => {
       if (entryLineups.length > 0) {
         lineups.push(...entryLineups);
         console.log(`📋 Found ${entryLineups.length} lineups via entry IDs`);
-      } else {
-        // Debug: show sample lineups to find working contests
-        const sampleLineups = await db.Lineup.findAll({ 
-          attributes: ['contest_id'],
-          group: ['contest_id'],
-          limit: 5 
-        });
-        console.log(`📋 Contests with lineups:`, sampleLineups.map(l => l.contest_id));
       }
     }
     
@@ -466,36 +678,25 @@ router.get('/contest-players/:contestId', async (req, res) => {
     const playerMap = new Map();
     
     for (const lineup of lineups) {
-      let roster = lineup.roster;  // Changed from lineup.players
+      let roster = lineup.roster;
       
-      // Handle different storage formats
-      if (!roster) {
-        console.log(`📋 Lineup ${lineup.id} has no roster field`);
-        continue;
-      }
-      
-      console.log(`📋 Lineup roster type: ${typeof roster}`);
+      if (!roster) continue;
       
       if (typeof roster === 'string') {
         try {
           roster = JSON.parse(roster);
         } catch (e) {
-          console.log('Failed to parse roster JSON:', e.message);
           continue;
         }
       }
       
-      // Handle if it's an object with position keys vs array
+      // Handle object format { QB: {...}, RB: {...}, ... }
       let players;
       if (Array.isArray(roster)) {
         players = roster;
       } else {
-        console.log(`📋 Roster is object with keys:`, Object.keys(roster));
-        // Format is { QB: {...}, RB: {...}, WR: {...}, TE: {...}, FLEX: {...} }
         players = Object.values(roster).filter(p => p && p.name);
       }
-      
-      console.log(`📋 Lineup has ${players.length} players`);
       
       for (const player of players) {
         if (player && player.name) {
@@ -539,7 +740,7 @@ router.get('/contest-players/:contestId', async (req, res) => {
  */
 router.post('/bulk-set-scores', async (req, res) => {
   try {
-    const { contestId, week = 1, season = 2024, randomize = true } = req.body;
+    const { contestId, week = 1, season = 2025, randomize = true } = req.body;
     
     if (!contestId) {
       return res.status(400).json({ success: false, error: 'contestId is required' });
@@ -562,7 +763,7 @@ router.post('/bulk-set-scores', async (req, res) => {
     const playerMap = new Map();
     
     for (const lineup of lineups) {
-      let roster = lineup.roster;  // Changed from lineup.players
+      let roster = lineup.roster;
       
       if (!roster) continue;
       if (typeof roster === 'string') {
