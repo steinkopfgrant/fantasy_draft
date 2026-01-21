@@ -161,6 +161,13 @@ class BaseSettlement {
       throw new Error('Contest already settled');
     }
     
+    // AUTO-CLOSE if contest is full but still open (fixes race condition bug)
+    if (contest.status === 'open' && contest.current_entries >= contest.max_entries) {
+      console.log(`⚠️ Contest ${contest.id} is full (${contest.current_entries}/${contest.max_entries}) but still OPEN - auto-closing for settlement`);
+      await contest.update({ status: 'closed' });
+      contest.status = 'closed';
+    }
+    
     if (contest.status !== 'completed' && contest.status !== 'in_progress' && contest.status !== 'closed') {
       throw new Error(`Contest cannot be settled - status is ${contest.status}`);
     }
@@ -181,7 +188,7 @@ class BaseSettlement {
     for (let rank = startRank; rank <= endRank; rank++) {
       totalPrize += this.getPrizeForRank(rank, prizeStructure);
     }
-    
+
     // Split evenly among tied entries
     return totalPrize / tiedEntries.length;
   }

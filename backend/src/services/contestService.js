@@ -505,12 +505,12 @@ class ContestService {
       }, { transaction });
 
       // 9. Update contest entries
-      const previousEntryCount = contest.current_entries;
       await contest.increment('current_entries', { transaction });
+      await contest.reload({ transaction });
       
-      const newEntryCount = previousEntryCount + 1;
+      const newEntryCount = contest.current_entries;
       
-      console.log(`Contest ${contestId} entry count: ${previousEntryCount} -> ${newEntryCount} (max: ${contest.max_entries})`);
+      console.log(`Contest ${contestId} entry count now: ${newEntryCount} (max: ${contest.max_entries})`);
       
       let newCashGameCreated = false;
       let newCashGameData = null;
