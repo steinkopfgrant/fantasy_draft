@@ -45,7 +45,7 @@ const DraftScreen = ({ showToast }) => {
   const hasJoinedRef = useRef(false);
   const initializationAttemptedRef = useRef(false);
   const socketHandlersRef = useRef(false);
-  const timerInitializedRef = useRef(false);  // FIX 1: New ref to track if timer has been initialized by server
+  const timerInitializedRef = useRef(false);  // FIX 1: Track if server has sent timer data
   
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
@@ -598,6 +598,7 @@ const DraftScreen = ({ showToast }) => {
     
     // Reset mountedRef on each mount
     mountedRef.current = true;
+    timerInitializedRef.current = false;  // FIX 2: Reset timer flag for each new draft
     
     if (!user || !roomId) {
       console.error('Missing user or roomId', { user, roomId });
@@ -929,7 +930,7 @@ const DraftScreen = ({ showToast }) => {
       console.log('🎯 Draft turn:', data);
       if (data.roomId !== roomId) return;
       
-      timerInitializedRef.current = true;  // FIX 2: Mark timer as initialized when we get a draft turn from server
+      timerInitializedRef.current = true;  // FIX 3: Server sent turn data, timer is now valid
       
       dispatch(updateDraftState({
         status: 'active',
@@ -1151,7 +1152,7 @@ const DraftScreen = ({ showToast }) => {
 
     const handleTimerUpdate = (data) => {
       if (data.roomId === roomId && data.timeRemaining !== undefined) {
-        timerInitializedRef.current = true;  // FIX 3: Mark timer as initialized when we get a timer update from server
+        timerInitializedRef.current = true;  // FIX 4: Server sent timer data, timer is now valid
         dispatch(updateTimer(data.timeRemaining));
       }
     };
@@ -1405,7 +1406,7 @@ const DraftScreen = ({ showToast }) => {
     dispatch(setShowAutoPickSuggestion(e.target.checked));
   }, [dispatch]);
 
-  // Handle timer countdown - FIX 4: Only count down if timer has been initialized by server
+  // Handle timer countdown - FIX 5: Only run if server has initialized timer
   useEffect(() => {
     if (status === 'active' && timeRemaining > 0 && timerInitializedRef.current) {
       const timer = setInterval(() => {
