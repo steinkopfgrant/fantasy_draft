@@ -45,6 +45,7 @@ const DraftScreen = ({ showToast }) => {
   const hasJoinedRef = useRef(false);
   const initializationAttemptedRef = useRef(false);
   const socketHandlersRef = useRef(false);
+  const timerInitializedRef = useRef(false);  // FIX 1: New ref to track if timer has been initialized by server
   
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
@@ -928,6 +929,8 @@ const DraftScreen = ({ showToast }) => {
       console.log('🎯 Draft turn:', data);
       if (data.roomId !== roomId) return;
       
+      timerInitializedRef.current = true;  // FIX 2: Mark timer as initialized when we get a draft turn from server
+      
       dispatch(updateDraftState({
         status: 'active',
         currentPick: data.currentPick || 1,
@@ -1148,6 +1151,7 @@ const DraftScreen = ({ showToast }) => {
 
     const handleTimerUpdate = (data) => {
       if (data.roomId === roomId && data.timeRemaining !== undefined) {
+        timerInitializedRef.current = true;  // FIX 3: Mark timer as initialized when we get a timer update from server
         dispatch(updateTimer(data.timeRemaining));
       }
     };
@@ -1401,9 +1405,9 @@ const DraftScreen = ({ showToast }) => {
     dispatch(setShowAutoPickSuggestion(e.target.checked));
   }, [dispatch]);
 
-  // Handle timer countdown
+  // Handle timer countdown - FIX 4: Only count down if timer has been initialized by server
   useEffect(() => {
-    if (status === 'active' && timeRemaining > 0) {
+    if (status === 'active' && timeRemaining > 0 && timerInitializedRef.current) {
       const timer = setInterval(() => {
         dispatch(updateTimer(Math.max(0, timeRemaining - 1)));
       }, 1000);
