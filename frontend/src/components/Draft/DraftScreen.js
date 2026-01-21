@@ -73,7 +73,6 @@ const DraftScreen = ({ showToast }) => {
     draftOrder,
     picks,
     timeRemaining,
-    timerInitialized,  // FIX: Add timerInitialized from Redux
     currentDrafter,
     currentDrafterPosition,
     userDraftPosition,
@@ -1402,16 +1401,16 @@ const DraftScreen = ({ showToast }) => {
     dispatch(setShowAutoPickSuggestion(e.target.checked));
   }, [dispatch]);
 
-  // Handle timer countdown - FIX: Only run if server has initialized timer
+  // Handle timer countdown
   useEffect(() => {
-    if (status === 'active' && timeRemaining > 0 && timerInitialized) {
+    if (status === 'active' && timeRemaining > 0) {
       const timer = setInterval(() => {
         dispatch(updateTimer(Math.max(0, timeRemaining - 1)));
       }, 1000);
       
       return () => clearInterval(timer);
     }
-  }, [status, timeRemaining, timerInitialized, dispatch]);
+  }, [status, timeRemaining, dispatch]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
   useEffect(() => {
