@@ -184,6 +184,7 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
   console.log('❄️ Cool Down players:', Array.from(coolDownNames));
   
   // Helper: Select player with Fire Sale boost and Cool Down penalty
+  // NOTE: Players CAN appear multiple times on the board - this creates interesting game theory
   const selectWeightedPlayer = (pool, position, price) => {
     if (!pool || pool.length === 0) return null;
     
@@ -218,21 +219,15 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     return selected;
   };
   
-  // Track which players we've already placed to avoid duplicates
-  const usedPlayers = new Set();
-  
   // Generate rows 0-4 (prices 5-1) with position-specific players
   prices.forEach((price, rowIndex) => {
     const row = [];
     positions.forEach(position => {
       const pool = PLAYER_POOLS[position][price] || [];
-      // Filter out already used players
-      const availablePool = pool.filter(p => !usedPlayers.has(p.name));
       
-      if (availablePool.length > 0) {
-        const selectedPlayer = selectWeightedPlayer(availablePool, position, price);
+      if (pool.length > 0) {
+        const selectedPlayer = selectWeightedPlayer(pool, position, price);
         if (selectedPlayer) {
-          usedPlayers.add(selectedPlayer.name);
           const isFireSale = fireSaleNames.has(selectedPlayer.name?.toLowerCase());
           const isCoolDown = coolDownNames.has(selectedPlayer.name?.toLowerCase());
           
@@ -253,12 +248,11 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     // CRITICAL: For row 0 ($5 row), only allow RB and WR (no TE)
     const flexPositions = (rowIndex === 0) ? ['RB', 'WR'] : ['RB', 'WR', 'TE'];
     const flexPos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
-    const flexPool = (PLAYER_POOLS[flexPos][price] || []).filter(p => !usedPlayers.has(p.name));
+    const flexPool = PLAYER_POOLS[flexPos][price] || [];
     
     if (flexPool.length > 0) {
       const flexPlayer = selectWeightedPlayer(flexPool, flexPos, price);
       if (flexPlayer) {
-        usedPlayers.add(flexPlayer.name);
         const isFireSale = fireSaleNames.has(flexPlayer.name?.toLowerCase());
         const isCoolDown = coolDownNames.has(flexPlayer.name?.toLowerCase());
         
@@ -283,11 +277,10 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
   
   // Position 0 (bottom-left) is always a QB
   const qbPrice = prices[Math.floor(Math.random() * prices.length)];
-  const qbPool = (PLAYER_POOLS['QB'][qbPrice] || []).filter(p => !usedPlayers.has(p.name));
+  const qbPool = PLAYER_POOLS['QB'][qbPrice] || [];
   if (qbPool.length > 0) {
     const qbPlayer = selectWeightedPlayer(qbPool, 'QB', qbPrice);
     if (qbPlayer) {
-      usedPlayers.add(qbPlayer.name);
       const isFireSale = fireSaleNames.has(qbPlayer.name?.toLowerCase());
       const isCoolDown = coolDownNames.has(qbPlayer.name?.toLowerCase());
       
@@ -304,17 +297,16 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
     }
   }
   
-  // Positions 1-3 in Wildcards row are RB/WR/TE
-  for (let i = 1; i < 4; i++) {
+  // Positions 1-4 in Wildcards row are RB/WR/TE (4 more players for 5 total)
+  for (let i = 1; i < 5; i++) {
     const flexPositions = ['RB', 'WR', 'TE'];
     const pos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
     const price = prices[Math.floor(Math.random() * prices.length)];
-    const pool = (PLAYER_POOLS[pos][price] || []).filter(p => !usedPlayers.has(p.name));
+    const pool = PLAYER_POOLS[pos][price] || [];
     
     if (pool.length > 0) {
       const player = selectWeightedPlayer(pool, pos, price);
       if (player) {
-        usedPlayers.add(player.name);
         const isFireSale = fireSaleNames.has(player.name?.toLowerCase());
         const isCoolDown = coolDownNames.has(player.name?.toLowerCase());
         
@@ -330,41 +322,6 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
         });
       }
     }
-  }
-  
-  // FIXED: Position 4 (5th slot) - GUARANTEED to add a player
-  // Try ALL price tiers until we find an available player
-  let fifthPlayerAdded = false;
-  const positionsToTry = ['WR', 'RB', 'TE']; // Prefer WR for stacking
-  
-  for (const pos of positionsToTry) {
-    if (fifthPlayerAdded) break;
-    for (const tryPrice of [3, 2, 4, 1, 5]) {
-      if (fifthPlayerAdded) break;
-      const pool = (PLAYER_POOLS[pos][tryPrice] || []).filter(p => !usedPlayers.has(p.name));
-      if (pool.length > 0) {
-        const player = pool[Math.floor(Math.random() * pool.length)];
-        usedPlayers.add(player.name);
-        const isFireSale = fireSaleNames.has(player.name?.toLowerCase());
-        const isCoolDown = coolDownNames.has(player.name?.toLowerCase());
-        
-        flexRow.push({
-          ...player,
-          position: 'FLEX',
-          originalPosition: pos,
-          price: tryPrice,
-          drafted: false,
-          draftedBy: null,
-          isFireSale: isFireSale,
-          isCoolDown: isCoolDown
-        });
-        fifthPlayerAdded = true;
-      }
-    }
-  }
-  
-  if (!fifthPlayerAdded) {
-    console.error('❌ CRITICAL: Could not find any player for 5th Wildcard slot!');
   }
   
   board.push(flexRow);
@@ -385,12 +342,11 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
   if (!hasRBInFlex && flexSpots.length > 0) {
     const spotToReplace = flexSpots[Math.floor(Math.random() * flexSpots.length)];
     const price = board[spotToReplace.row][spotToReplace.col].price;
-    const rbPool = (PLAYER_POOLS['RB'][price] || []).filter(p => !usedPlayers.has(p.name));
+    const rbPool = PLAYER_POOLS['RB'][price] || [];
     
     if (rbPool.length > 0) {
       const rbPlayer = selectWeightedPlayer(rbPool, 'RB', price);
       if (rbPlayer) {
-        usedPlayers.add(rbPlayer.name);
         const isFireSale = fireSaleNames.has(rbPlayer.name?.toLowerCase());
         const isCoolDown = coolDownNames.has(rbPlayer.name?.toLowerCase());
         
@@ -487,6 +443,13 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
         player.matchup = getMatchupString(player.team);
       }
     });
+  });
+
+  // Log board summary
+  console.log('📋 Board generated:');
+  board.forEach((row, i) => {
+    const label = i === 5 ? 'Wildcards' : `$${5 - i}`;
+    console.log(`  ${label}: ${row.length} players`);
   });
 
   return board;
