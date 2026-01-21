@@ -504,13 +504,13 @@ class ContestService {
         description: `Entry fee for ${contest.name}`
       }, { transaction });
 
-      // 9. Update contest entries
-      const previousEntryCount = contest.current_entries;
+      // 9. Update contest entries - FIXED: reload to get actual DB value after increment
       await contest.increment('current_entries', { transaction });
+      await contest.reload({ transaction });  // FIXED: Get actual DB value
       
-      const newEntryCount = previousEntryCount + 1;
+      const newEntryCount = contest.current_entries;  // FIXED: Use actual value, not calculated
       
-      console.log(`Contest ${contestId} entry count: ${previousEntryCount} -> ${newEntryCount} (max: ${contest.max_entries})`);
+      console.log(`Contest ${contestId} entry count now: ${newEntryCount} (max: ${contest.max_entries})`);
       
       let newCashGameCreated = false;
       let newCashGameData = null;
@@ -585,6 +585,7 @@ class ContestService {
         // Market/Tournament contests do NOT auto-create - admin launches them
         
         await contest.update({ status: 'closed' }, { transaction });
+        console.log(`✅ Contest ${contestId} status updated to CLOSED`);
       }
       
       await transaction.commit();
@@ -1125,7 +1126,7 @@ class ContestService {
             contestType: 'cash',
             entries: entries.map((e, index) => ({
               id: e.id,
-              userId: e.user_id,
+              odId: e.user_id,
               username: e.User?.username || 'Unknown',
               contestId: e.contest_id,
               draftRoomId: e.draft_room_id,
