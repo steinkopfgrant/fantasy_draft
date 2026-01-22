@@ -1513,10 +1513,28 @@ class ContestService {
         
         console.log(`✅ Emitted draft-starting with complete data`);
 
-        setTimeout(() => {
-          console.log(`🎲 Starting first pick for room ${roomId}`);
-          this.startNextPick(roomId);
-        }, 2000);
+ // Countdown before first pick - gives frontend time to load
+        let countdown = 5;
+        this.io.to(socketRoomId).emit('draft-countdown', {
+          roomId,
+          seconds: countdown,
+          message: `First pick in ${countdown}...`
+        });
+        
+        const countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            this.io.to(socketRoomId).emit('draft-countdown', {
+              roomId,
+              seconds: countdown,
+              message: `First pick in ${countdown}...`
+            });
+          } else {
+            clearInterval(countdownInterval);
+            console.log(`🎲 Starting first pick for room ${roomId}`);
+            this.startNextPick(roomId);
+          }
+        }, 1000);
       }, 5000);
 
       console.log(`✅ Draft launch sequence initiated for room ${roomId}`);
