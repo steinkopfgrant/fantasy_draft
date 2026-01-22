@@ -1,5 +1,4 @@
 // backend/src/services/contestService.js
-// FIXED: Added countdown tracking to prevent stall checker race condition
 const { Op } = require('sequelize');
 const db = require('../models');
 const { generatePlayerBoard } = require('../utils/gameLogic');
@@ -39,9 +38,6 @@ class ContestService {
     this.activeDrafts = new Map();
     this.draftTimers = new Map();
     
-    // NEW: Track rooms in countdown phase to prevent stall checker interference
-    this.countdownRooms = new Map(); // roomId -> countdownStartTime
-    
     // Track emitted events to prevent duplicates
     this.recentEvents = new Map();
     this.eventCleanupInterval = null;
@@ -62,14 +58,6 @@ class ContestService {
       for (const [eventId, timestamp] of this.recentEvents) {
         if (now - timestamp > 5000) {
           this.recentEvents.delete(eventId);
-        }
-      }
-      
-      // Also clean up old countdown entries (shouldn't happen but safety)
-      for (const [roomId, startTime] of this.countdownRooms) {
-        if (now - startTime > 30000) { // 30 seconds max for countdown
-          console.log(`🧹 Cleaning up stale countdown entry for ${roomId}`);
-          this.countdownRooms.delete(roomId);
         }
       }
     }, 1000);
@@ -1137,7 +1125,7 @@ class ContestService {
             contestType: 'cash',
             entries: entries.map((e, index) => ({
               id: e.id,
-              oderId: e.user_id,
+              userId: e.user_id,
               username: e.User?.username || 'Unknown',
               contestId: e.contest_id,
               draftRoomId: e.draft_room_id,
@@ -1151,7 +1139,7 @@ class ContestService {
             playerBoard: contest.player_board,
             players: entries.map(e => ({
               username: e.User?.username || 'Unknown',
-              oderId: e.user_id,
+              userId: e.user_id,
               position: e.draft_position
             }))
           };
@@ -1260,7 +1248,7 @@ class ContestService {
           contestType: contest?.type,
           entries: entries.map((e, index) => ({
             id: e.id,
-            oderId: e.user_id,
+            userId: e.user_id,
             username: e.User?.username || 'Unknown',
             contestId: e.contest_id,
             draftRoomId: e.draft_room_id,
@@ -1274,7 +1262,7 @@ class ContestService {
           playerBoard: playerBoard,
           players: entries.map(e => ({
             username: e.User?.username || 'Unknown',
-            oderId: e.user_id,
+            userId: e.user_id,
             position: e.draft_position
           }))
         };
@@ -1437,7 +1425,6 @@ class ContestService {
     }
   }
 
-  // FIXED: launchDraft - marks countdown state BEFORE setting 'drafting' status
   async launchDraft(roomId, roomStatus, contest) {
     try {
       console.log(`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
@@ -1448,21 +1435,10 @@ class ContestService {
         return;
       }
 
-      // NEW: Check if already in countdown
-      if (this.countdownRooms.has(roomId)) {
-        console.log(`⏳ Room ${roomId} already in countdown, skipping duplicate launch`);
-        return;
-      }
-
       if (!this.io) {
         console.error('❌ Socket.IO not available, cannot launch draft');
         return;
       }
-
-      // NEW: Mark this room as being in countdown BEFORE doing anything else
-      // This prevents stall checker from interfering
-      this.countdownRooms.set(roomId, Date.now());
-      console.log(`⏳ Marked room ${roomId} as in countdown phase`);
 
       const socketRoomId = `room_${roomId}`;
       const socketsInRoom = await this.io.in(socketRoomId).fetchSockets();
@@ -1492,8 +1468,6 @@ class ContestService {
         picks: []
       });
 
-      // MOVED: Update entries to 'drafting' status AFTER marking countdown
-      // This way stall checker sees countdown flag and won't interfere
       await db.ContestEntry.update(
         { status: 'drafting' },
         {
@@ -1504,41 +1478,17 @@ class ContestService {
         }
       );
 
-      // FIXED: Use a longer, more visible countdown (5 seconds)
-      const COUNTDOWN_SECONDS = 5;
+      console.log(`📢 Emitting draft-countdown to ${socketRoomId}`);
       
-      console.log(`📢 Emitting draft-countdown to ${socketRoomId} (${COUNTDOWN_SECONDS}s)`);
-      
-      // Emit initial countdown
       this.io.to(socketRoomId).emit('draft-countdown', {
         roomId,
         contestId: roomStatus.contestId,
         contestType: roomStatus.contestType,
-        seconds: COUNTDOWN_SECONDS,
-        countdown: COUNTDOWN_SECONDS,
-        message: `Draft starting in ${COUNTDOWN_SECONDS} seconds!`
+        seconds: 5,
+        message: 'Draft starting in 5 seconds!'
       });
 
-      // Emit countdown updates each second
-      for (let i = COUNTDOWN_SECONDS - 1; i > 0; i--) {
-        setTimeout(() => {
-          if (this.countdownRooms.has(roomId)) { // Only emit if still in countdown
-            this.io.to(socketRoomId).emit('draft-countdown', {
-              roomId,
-              seconds: i,
-              countdown: i,
-              message: `Draft starting in ${i} second${i > 1 ? 's' : ''}!`
-            });
-          }
-        }, (COUNTDOWN_SECONDS - i) * 1000);
-      }
-
-      // After countdown completes, start the draft
       setTimeout(() => {
-        // Remove from countdown tracking
-        this.countdownRooms.delete(roomId);
-        console.log(`✅ Countdown complete for room ${roomId}, starting draft`);
-        
         console.log(`📢 Emitting draft-starting to ${socketRoomId}`);
         
         const draftStartData = {
@@ -1548,37 +1498,32 @@ class ContestService {
           playerBoard: roomStatus.playerBoard,
           participants: roomStatus.entries.map((e, index) => ({
             entryId: e.id,
-            oderId: e.userId,
+            userId: e.userId,
             username: e.username,
             draftPosition: e.draftPosition !== null ? e.draftPosition : index
           })),
           teams: draftState.teams,
           draftOrder: draftState.draftOrder,
           currentTurn: 0,
-          status: 'active',
-          timeRemaining: 30  // NEW: Include full 30s in initial state
+          status: 'active'
         };
         
         this.io.to(socketRoomId).emit('draft-starting', draftStartData);
-        this.io.to(socketRoomId).emit('draft-state', {
-          ...draftState,
-          timeRemaining: 30  // NEW: Include full 30s
-        });
+        this.io.to(socketRoomId).emit('draft-state', draftState);
         
         console.log(`✅ Emitted draft-starting with complete data`);
 
-        // Start first pick IMMEDIATELY after countdown (no extra 2s delay)
-        console.log(`🎲 Starting first pick for room ${roomId}`);
-        this.startNextPick(roomId);
-        
-      }, COUNTDOWN_SECONDS * 1000);
+        setTimeout(() => {
+          console.log(`🎲 Starting first pick for room ${roomId}`);
+          this.startNextPick(roomId);
+        }, 2000);
+      }, 5000);
 
       console.log(`✅ Draft launch sequence initiated for room ${roomId}`);
       
     } catch (error) {
       console.error('❌ Error launching draft:', error);
       this.activeDrafts.delete(roomId);
-      this.countdownRooms.delete(roomId); // Clean up on error
       throw error;
     }
   }
@@ -1677,12 +1622,11 @@ class ContestService {
         currentPick: draftState.currentTurn + 1,
         totalPicks,
         currentPlayer: {
-          oderId: currentPlayer.userId,
+          userId: currentPlayer.userId,
           username: currentPlayer.username,
           position: currentPlayerIndex
         },
         timeLimit: timeLimit,
-        timeRemaining: timeLimit,  // NEW: Explicitly send full time
         teams: draftState.teams,
         playerBoard: draftState.playerBoard,
         picks: draftState.picks,
@@ -1690,10 +1634,7 @@ class ContestService {
         currentTurn: draftState.currentTurn
       });
       
-      this.io.to(`room_${roomId}`).emit('draft-state', {
-        ...draftState,
-        timeRemaining: timeLimit  // NEW: Include in state update too
-      });
+      this.io.to(`room_${roomId}`).emit('draft-state', draftState);
     }
 
     // Clear any existing timer for this room/user combo AND delete the entry
@@ -1738,17 +1679,9 @@ class ContestService {
     console.log(`⏱️ Started ${timeLimit}s timer for ${currentPlayer.username} in room ${roomId} (budget: $${remainingBudget})`);
   }
 
-  // FIXED: Check if a draft is stalled - NOW IGNORES COUNTDOWN ROOMS
+  // UPDATED: Check if a draft is stalled and restart timer if needed
   async checkAndRestartStalledDraft(roomId) {
     try {
-      // NEW: Skip if room is in countdown phase
-      if (this.countdownRooms.has(roomId)) {
-        const countdownStart = this.countdownRooms.get(roomId);
-        const elapsed = Date.now() - countdownStart;
-        console.log(`⏳ Room ${roomId} is in countdown (${Math.round(elapsed/1000)}s elapsed), skipping stall check`);
-        return { stalled: false, reason: 'in_countdown' };
-      }
-      
       const draftState = await draftService.getDraft(roomId);
       if (!draftState || draftState.status === 'completed') {
         return { stalled: false, reason: 'no_active_draft' };
@@ -1890,7 +1823,7 @@ class ContestService {
     }
   }
 
-  // FIXED: Background checker - NOW SKIPS COUNTDOWN ROOMS
+  // Background checker for all stalled drafts - runs every 15 seconds
   async checkAllStalledDrafts() {
     try {
       // Find all entries with 'drafting' status
@@ -1907,12 +1840,6 @@ class ContestService {
       console.log(`🔍 checkAllStalledDrafts: Found ${uniqueRooms.length} rooms with drafting entries`);
       
       for (const roomId of uniqueRooms) {
-        // NEW: Skip rooms in countdown phase
-        if (this.countdownRooms.has(roomId)) {
-          console.log(`⏳ Skipping ${roomId} - in countdown phase`);
-          continue;
-        }
-        
         // Check if this room has an active timer
         let hasActiveTimer = false;
         for (const [key] of this.draftTimers) {
@@ -2114,9 +2041,6 @@ class ContestService {
   async completeDraftForRoom(roomId) {
     console.log(`\n🔔🔔🔔 completeDraftForRoom CALLED for room ${roomId} 🔔🔔🔔`);
     
-    // Clean up countdown tracking if still present
-    this.countdownRooms.delete(roomId);
-    
     let draft = this.activeDrafts.get(roomId);
     
     // If draft not in memory, reconstruct from database
@@ -2287,7 +2211,7 @@ class ContestService {
             // Emit ticket update to user
             if (this.io) {
               this.io.emit('tickets-updated', {
-                oderId: entry.User.id,
+                userId: entry.User.id,
                 tickets: result.newBalance,
                 reason: 'draft_completion'
               });
@@ -2406,7 +2330,7 @@ class ContestService {
 
       return {
         id: entry.id,
-        oderId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contest: entry.Contest,
         draftRoomId: entry.draft_room_id,
@@ -2562,7 +2486,6 @@ class ContestService {
         clearTimeout(timerId);
       }
       this.draftTimers.clear();
-      this.countdownRooms.clear(); // NEW: Clear countdown tracking
       
       await this.redis.quit();
       console.log('ContestService cleanup completed');
