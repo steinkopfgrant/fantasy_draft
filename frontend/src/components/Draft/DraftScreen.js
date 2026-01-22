@@ -438,7 +438,10 @@ const DraftScreen = ({ showToast }) => {
           continue;
         }
         
-        const playerPosition = standardizeSlotName(player.position);
+        // FIX: Use originalPosition to get the player's ACTUAL position
+        // This prevents QBs in Wildcards row (position='FLEX', originalPosition='QB') 
+        // from being incorrectly selected for FLEX roster slots
+        const playerPosition = standardizeSlotName(player.originalPosition || player.position);
         
         // Check if player can fill any of our prioritized slots
         const canFillSlot = prioritizedSlots.some(slot => {
