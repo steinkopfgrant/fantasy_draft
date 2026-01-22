@@ -231,11 +231,9 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
           const isFireSale = fireSaleNames.has(selectedPlayer.name?.toLowerCase());
           const isCoolDown = coolDownNames.has(selectedPlayer.name?.toLowerCase());
           
-          // FIX: Always set originalPosition for ALL players
           row.push({
             ...selectedPlayer,
             position: position,
-            originalPosition: position,
             price: price,
             drafted: false,
             draftedBy: null,
@@ -396,12 +394,10 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = []) 
         const col = positionCols[fsPosition];
         
         if (col !== undefined && board[priceRow][col] && !board[priceRow][col].isFireSale) {
-          // FIX: Always set originalPosition
           board[priceRow][col] = {
             name: randomFireSale.name,
             team: randomFireSale.team,
             position: fsPosition,
-            originalPosition: fsPosition,
             price: fsPrice,
             drafted: false,
             draftedBy: null,

@@ -460,29 +460,14 @@ class DraftHandler {
     this.moveToNextTurn(roomId);
   }
 
-  // FIX: Use originalPosition to get the player's ACTUAL position
   findBestSlotForPlayer(player, roster) {
-    // CRITICAL FIX: Use originalPosition first to get the player's actual position
-    // This prevents QBs in Wildcards row (position='FLEX', originalPosition='QB')
-    // from being placed in FLEX slot
-    const position = (player.originalPosition || player.position || player.pos || '').toUpperCase();
+    const position = (player.position || player.pos || '').toUpperCase();
     const emptySlots = [];
 
-    // FIX: QBs can ONLY go in QB slot - never FLEX
-    if (position === 'QB') {
-      if (!roster.QB) {
-        return 'QB';
-      }
-      // QB slot is full and QBs can't go anywhere else
-      return null;
-    }
-
-    // For non-QB positions, check their primary slot first
-    if (!roster[position] && ['RB', 'WR', 'TE'].includes(position)) {
+    if (!roster[position] && ['QB', 'RB', 'WR', 'TE'].includes(position)) {
       emptySlots.push(position);
     }
 
-    // Then check FLEX (only RB, WR, TE can go in FLEX - never QB)
     if (!roster.FLEX && ['RB', 'WR', 'TE'].includes(position)) {
       emptySlots.push('FLEX');
     }
@@ -516,31 +501,19 @@ class DraftHandler {
     }
 
     const normalizedSlot = (slot || '').toUpperCase();
-    
-    // CRITICAL FIX: Use originalPosition first to get the player's actual position
-    // This handles Wildcards row players where position='FLEX' but originalPosition='QB'
-    const playerPosition = (player.originalPosition || player.position || '').toUpperCase();
-    
-    console.log(`📝 makePick validation: ${player.name} (position=${player.position}, originalPosition=${player.originalPosition}) -> ${normalizedSlot} slot`);
-    console.log(`   Using playerPosition: ${playerPosition}`);
+    const playerPosition = (player.position || player.originalPosition || '').toUpperCase();
     
     let isValidPlacement = false;
     
-    // Direct position match (e.g., QB->QB, RB->RB)
     if (normalizedSlot === playerPosition) {
       isValidPlacement = true;
-    } 
-    // FLEX slot can accept RB, WR, TE - but NEVER QB
-    else if (normalizedSlot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) {
+    } else if (normalizedSlot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) {
       isValidPlacement = true;
-    }
-    // QB validation - QBs can ONLY go in QB slot
-    else if (playerPosition === 'QB' && normalizedSlot === 'QB') {
+    } else if (playerPosition === 'QB' && normalizedSlot === 'QB') {
       isValidPlacement = true;
     }
     
     if (!isValidPlacement) {
-      console.log(`🚨 BLOCKED: ${player.name} (${playerPosition}) cannot be placed in ${normalizedSlot} slot`);
       throw new Error(`${player.name} (${playerPosition}) cannot be placed in ${normalizedSlot} slot`);
     }
 
@@ -549,15 +522,12 @@ class DraftHandler {
       throw new Error(`${normalizedSlot} position already filled`);
     }
 
-    // CRITICAL FIX: Store the player's actual position (from originalPosition)
-    // This ensures the roster displays correctly after refresh
     const playerData = {
       ...player,
       playerId: player.playerId || player.id || `${row}-${col}`,
       name: player.name,
       team: player.team,
-      position: playerPosition,  // FIX: Use the actual position, not the board slot
-      originalPosition: player.originalPosition || playerPosition,  // Preserve originalPosition
+      position: playerPosition,
       price: player.price || player.value || 5,
       value: player.value || player.price || 5
     };
@@ -566,7 +536,6 @@ class DraftHandler {
       userId,
       player: playerData,
       slot: normalizedSlot,
-      roster_slot: normalizedSlot,  // FIX: Explicitly include roster_slot
       row,
       col,
       pickNumber: draftState.picks.length + 1,
@@ -600,8 +569,7 @@ class DraftHandler {
     if (pickerSocket) {
       pickerSocket.emit('pick-success', { 
         player: playerData, 
-        slot: normalizedSlot,
-        roster_slot: normalizedSlot,  // FIX: Include roster_slot
+        slot: normalizedSlot, 
         remainingBudget: user.remainingBudget 
       });
     }
@@ -611,7 +579,6 @@ class DraftHandler {
       userId,
       player: playerData,
       slot: normalizedSlot,
-      roster_slot: normalizedSlot,  // FIX: Include roster_slot
       team: currentDrafter.draftPosition,
       remainingBudget: user.remainingBudget
     });
@@ -621,10 +588,9 @@ class DraftHandler {
       userId,
       player: playerData,
       slot: normalizedSlot,
-      roster_slot: normalizedSlot,  // FIX: Include roster_slot explicitly
       row,
       col,
-      pick: { slot: normalizedSlot, roster_slot: normalizedSlot, player: playerData },
+      pick: { slot: normalizedSlot, player: playerData },
       roster: userRoster,
       remainingBudget: user.remainingBudget
     });
@@ -713,9 +679,7 @@ class DraftHandler {
           cleanRoster[position] = {
             name: userRoster[position].name,
             team: userRoster[position].team,
-            // FIX: Use originalPosition for display, fall back to position then slot
-            position: userRoster[position].originalPosition || userRoster[position].position || position,
-            originalPosition: userRoster[position].originalPosition || userRoster[position].position || position,
+            position: userRoster[position].position || position,
             price: userRoster[position].price || 0,
             value: userRoster[position].value || userRoster[position].price || 0,
             playerId: userRoster[position].playerId || `${position}-${user.userId}`
