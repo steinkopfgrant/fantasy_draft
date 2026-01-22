@@ -1,4 +1,5 @@
 // frontend/src/store/slices/draftSlice.js
+// FIXED: Timer now resets to 30s on turn change instead of using server's elapsed time
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import socketService from '../../services/socket';
 
@@ -234,6 +235,7 @@ const initialState = {
   // Timer
   timeRemaining: 30,
   countdownTime: 0,
+  timerResetForTurn: null,  // NEW: Track which turn we've reset the timer for
   
   // Current drafter info
   currentDrafter: null,
@@ -378,7 +380,7 @@ export const skipTurn = createAsyncThunk(
   }
 );
 
-// ENHANCED Draft slice with better roster preservation
+// ENHANCED Draft slice with better roster preservation AND FIXED TIMER
 const draftSlice = createSlice({
   name: 'draft',
   initialState,
@@ -392,10 +394,36 @@ const draftSlice = createSlice({
         playerBoardLength: action.payload.playerBoard?.length,
         hasUsers: !!action.payload.users,
         currentTurn: action.payload.currentTurn,
-        currentPick: action.payload.currentPick
+        currentPick: action.payload.currentPick,
+        timeRemaining: action.payload.timeRemaining
       });
 
+      // ==========================================
+      // TIMER FIX: Detect turn changes BEFORE updating currentTurn
+      // ==========================================
+      const prevTurn = state.currentTurn;
+      const newTurn = action.payload.currentTurn;
+      const isActiveOrGoingActive = action.payload.status === 'active' || state.status === 'active';
+      
+      // Detect if this is a NEW turn (not just a re-sync of the same turn)
+      const turnIsChanging = newTurn !== undefined && 
+                            (prevTurn === undefined || newTurn !== prevTurn);
+      
+      // Only reset timer if:
+      // 1. Turn is actually changing
+      // 2. We haven't already reset for this turn
+      // 3. Draft is active
+      const shouldResetTimer = turnIsChanging && 
+                              newTurn !== state.timerResetForTurn &&
+                              isActiveOrGoingActive;
+      
+      if (shouldResetTimer) {
+        console.log(`⏱️ TIMER FIX: Turn changing from ${prevTurn} to ${newTurn}, will reset to 30s`);
+      }
+      // ==========================================
+
       // ENHANCED: Much more intelligent team processing with budget preservation
+      // (ALL OF THIS LOGIC IS UNCHANGED - ONLY TIMER IS FIXED)
       if (action.payload.teams !== undefined) {
         if (Array.isArray(action.payload.teams)) {
           const currentPlayerCount = countActualPlayers(state.teams);
@@ -563,7 +591,21 @@ const draftSlice = createSlice({
       if (action.payload.currentPick !== undefined) state.currentPick = action.payload.currentPick;
       if (action.payload.draftOrder !== undefined) state.draftOrder = action.payload.draftOrder;
       if (action.payload.picks !== undefined) state.picks = action.payload.picks;
-      if (action.payload.timeRemaining !== undefined) state.timeRemaining = action.payload.timeRemaining;
+      
+      // ==========================================
+      // TIMER FIX: Handle timer based on turn change detection
+      // ==========================================
+      if (shouldResetTimer) {
+        // NEW TURN: Reset timer to full 30 seconds
+        state.timeRemaining = 30;
+        state.timerResetForTurn = newTurn;
+        console.log(`⏱️ TIMER RESET: Turn ${newTurn} starting with 30s`);
+      } else if (action.payload.timeRemaining !== undefined) {
+        // SAME TURN: Use server's time for sync (drift correction)
+        state.timeRemaining = action.payload.timeRemaining;
+      }
+      // ==========================================
+      
       if (action.payload.countdownTime !== undefined) state.countdownTime = action.payload.countdownTime;
       if (action.payload.currentDrafter !== undefined) state.currentDrafter = action.payload.currentDrafter;
       if (action.payload.isMyTurn !== undefined) state.isMyTurn = action.payload.isMyTurn;
@@ -587,6 +629,8 @@ const draftSlice = createSlice({
         finalPlayerCount,
         currentTurn: state.currentTurn,
         status: state.status,
+        timeRemaining: state.timeRemaining,
+        timerResetForTurn: state.timerResetForTurn,
         firstTeamBudget: state.teams?.[0]?.budget,
         firstTeamRosterKeys: state.teams?.[0]?.roster ? Object.keys(state.teams[0].roster) : 'none'
       });
@@ -706,6 +750,7 @@ const draftSlice = createSlice({
     },
     
     resetDraft: (state) => {
+      // This returns initialState which includes timerResetForTurn: null
       return { ...initialState };
     },
     
@@ -762,6 +807,13 @@ const draftSlice = createSlice({
           if (draft.draftOrder) state.draftOrder = draft.draftOrder;
           if (draft.picks) state.picks = draft.picks;
           if (draft.status) state.status = draft.status;
+          
+          // TIMER FIX: If draft is active during initialization, start fresh
+          if (draft.status === 'active') {
+            state.timeRemaining = 30;
+            state.timerResetForTurn = draft.currentTurn;
+            console.log('⏱️ TIMER FIX: Draft active on init, starting at 30s for turn', draft.currentTurn);
+          }
         }
       })
       .addCase(initializeDraft.rejected, (state, action) => {
