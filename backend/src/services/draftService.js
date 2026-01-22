@@ -20,6 +20,38 @@ class DraftService {
     this.io = io;
     console.log('Socket.IO instance set in DraftService');
   }
+
+  // ============================================
+  // ATOMIC LOCKING FOR RACE CONDITION PREVENTION
+  // ============================================
+  
+  /**
+   * Acquires an atomic lock for a pick operation.
+   * Returns true if lock acquired, false if another pick is in progress.
+   */
+  async acquirePickLock(contestId, turnNumber) {
+    const lockKey = `pick_lock:${contestId}:${turnNumber}`;
+    
+    // SET NX (only if not exists) with 10 second expiry
+    const result = await this.redis.set(lockKey, Date.now().toString(), 'NX', 'EX', 10);
+    
+    if (result === 'OK') {
+      console.log(`🔒 Acquired pick lock for ${contestId} turn ${turnNumber}`);
+      return true;
+    } else {
+      console.log(`⏳ Pick lock already held for ${contestId} turn ${turnNumber}`);
+      return false;
+    }
+  }
+
+  /**
+   * Releases the pick lock after processing
+   */
+  async releasePickLock(contestId, turnNumber) {
+    const lockKey = `pick_lock:${contestId}:${turnNumber}`;
+    await this.redis.del(lockKey);
+    console.log(`🔓 Released pick lock for ${contestId} turn ${turnNumber}`);
+  }
   
   ensureStackedWRInBottomRight(playerBoard) {
     if (!playerBoard || !Array.isArray(playerBoard) || playerBoard.length === 0) {
@@ -249,20 +281,48 @@ class DraftService {
     }
   }
   
+  // ============================================
+  // UPDATED: makePick with atomic locking
+  // ============================================
   async makePick(contestId, userId, pick) {
-    const multi = this.redis.multi();
+    // Get current draft state FIRST to know what turn we're locking
+    const draft = await this.getDraft(contestId);
+    if (!draft) {
+      throw new Error('Draft not found');
+    }
+    
+    const turnToLock = draft.currentTurn;
+    
+    // ============================================
+    // CRITICAL: Acquire atomic lock BEFORE processing
+    // ============================================
+    const lockAcquired = await this.acquirePickLock(contestId, turnToLock);
+    
+    if (!lockAcquired) {
+      // Another pick is already being processed for this turn
+      console.log(`🚫 Pick rejected - turn ${turnToLock} already being processed`);
+      throw new Error('Pick already in progress for this turn');
+    }
     
     try {
-      const draft = await this.getDraft(contestId);
-      if (!draft) {
-        throw new Error('Draft not found');
+      // Re-fetch draft state AFTER acquiring lock to ensure consistency
+      const currentDraft = await this.getDraft(contestId);
+      
+      // Verify turn hasn't already advanced (double-check after lock)
+      if (currentDraft.currentTurn !== turnToLock) {
+        console.log(`🚫 Turn already advanced from ${turnToLock} to ${currentDraft.currentTurn}`);
+        throw new Error('Turn has already advanced');
       }
       
-      const currentTeamIndex = draft.draftOrder[draft.currentTurn];
-      const currentTeam = draft.teams[currentTeamIndex];
+      const currentTeamIndex = currentDraft.draftOrder[currentDraft.currentTurn];
+      const currentTeam = currentDraft.teams[currentTeamIndex];
       
       if (currentTeam.userId !== userId) {
         throw new Error('Not your turn');
+      }
+      
+      if (currentDraft.playerBoard[pick.row][pick.col].drafted) {
+        throw new Error('Player already drafted');
       }
       
       // FIX: QBs can ONLY go in QB slot - check both position fields
@@ -273,17 +333,17 @@ class DraftService {
         throw new Error('QBs can only be placed in the QB slot');
       }
       
-      draft.picks.push({
+      currentDraft.picks.push({
         ...pick,
         teamIndex: currentTeamIndex,
-        pickNumber: draft.currentTurn,
+        pickNumber: currentDraft.currentTurn,
         timestamp: new Date().toISOString()
       });
       
       if (pick.row !== undefined && pick.col !== undefined) {
-        if (draft.playerBoard[pick.row] && draft.playerBoard[pick.row][pick.col]) {
-          draft.playerBoard[pick.row][pick.col].drafted = true;
-          draft.playerBoard[pick.row][pick.col].draftedBy = currentTeamIndex;
+        if (currentDraft.playerBoard[pick.row] && currentDraft.playerBoard[pick.row][pick.col]) {
+          currentDraft.playerBoard[pick.row][pick.col].drafted = true;
+          currentDraft.playerBoard[pick.row][pick.col].draftedBy = currentTeamIndex;
         }
       }
       
@@ -295,33 +355,34 @@ class DraftService {
         currentTeam.bonus += bonus;
       }
       
-      draft.currentTurn++;
+      currentDraft.currentTurn++;
       
-      if (draft.currentTurn >= draft.draftOrder.length) {
-        draft.status = 'completed';
-        draft.completedAt = new Date().toISOString();
+      if (currentDraft.currentTurn >= currentDraft.draftOrder.length) {
+        currentDraft.status = 'completed';
+        currentDraft.completedAt = new Date().toISOString();
       }
       
-      if (!Array.isArray(draft.teams)) {
+      if (!Array.isArray(currentDraft.teams)) {
         console.error('🚨 teams is not an array before saving pick!');
         throw new Error('Draft state corrupted');
       }
       
       const key = `state:${contestId}`;
-      await this.redis.set(key, JSON.stringify(draft), 'EX', 86400);
+      await this.redis.set(key, JSON.stringify(currentDraft), 'EX', 86400);
       
-      if (draft.status === 'completed') {
+      if (currentDraft.status === 'completed') {
         await this.redis.srem('active_drafts', contestId);
         setTimeout(async () => {
           await this.cleanupDraft(contestId);
         }, 3600000);
       }
       
-      return draft;
+      console.log(`✅ Pick successfully processed for turn ${turnToLock}`);
+      return currentDraft;
       
-    } catch (error) {
-      multi.discard();
-      throw error;
+    } finally {
+      // ALWAYS release the lock, even if an error occurred
+      await this.releasePickLock(contestId, turnToLock);
     }
   }
   
@@ -549,6 +610,9 @@ class DraftService {
     }
   }
 
+  // ============================================
+  // UPDATED: autoPick with graceful lock handling
+  // ============================================
   async autoPick(contestId, userId) {
     try {
       const draft = await this.getDraft(contestId);
@@ -556,7 +620,19 @@ class DraftService {
         throw new Error('Draft not found');
       }
       
-      const currentTeamIndex = draft.draftOrder[draft.currentTurn];
+      const turnToProcess = draft.currentTurn;
+      
+      // Check if a pick is already in progress for this turn
+      // We do a quick check before doing expensive work
+      const lockKey = `pick_lock:${contestId}:${turnToProcess}`;
+      const existingLock = await this.redis.get(lockKey);
+      
+      if (existingLock) {
+        console.log(`🤖 AutoPick skipped - pick already in progress for turn ${turnToProcess}`);
+        return null; // Gracefully skip - manual pick won the race
+      }
+      
+      const currentTeamIndex = draft.draftOrder[turnToProcess];
       const currentTeam = draft.teams[currentTeamIndex];
       
       if (currentTeam.userId !== userId) {
@@ -641,9 +717,16 @@ class DraftService {
         isAutoPick: true
       };
       
+      // This will acquire its own lock via makePick
+      // If manual pick already has the lock, this will throw and we handle it gracefully
       return await this.makePick(contestId, userId, pick);
       
     } catch (error) {
+      if (error.message === 'Pick already in progress for this turn' || 
+          error.message === 'Turn has already advanced') {
+        console.log(`🤖 AutoPick gracefully skipped - manual pick won the race`);
+        return null;
+      }
       console.error('Error in autoPick:', error);
       return await this.skipTurn(contestId, userId, 'autopick_error');
     }
