@@ -665,7 +665,7 @@ class ContestService {
     }
   }
 
-  // FIXED: findOrCreateRoom - checks ALL rooms including empty ones
+  // FIXED: findOrCreateRoom - properly handles completed drafts and position conflicts
   async findOrCreateRoom(contestId, userId, transaction) {
     console.log(`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
     
@@ -673,7 +673,7 @@ class ContestService {
     console.log(`Contest type: ${contest?.type}, status: ${contest?.status}`);
     
     for (let attempt = 0; attempt < 3; attempt++) {
-      // FIXED: Get ALL distinct rooms for this contest (including those with only cancelled entries)
+      // Get ALL distinct rooms for this contest
       const allRooms = await db.ContestEntry.findAll({
         attributes: [[db.sequelize.fn('DISTINCT', db.sequelize.col('draft_room_id')), 'draft_room_id']],
         where: {
@@ -686,16 +686,30 @@ class ContestService {
 
       console.log(`Attempt ${attempt + 1}: Found ${allRooms.length} total rooms for contest`);
 
-      // For each room, get active entry count and check if user can join
+      // For each room, check if it's joinable
       const roomsWithCounts = [];
       for (const room of allRooms) {
         const roomId = room.draft_room_id;
         
-        // Count ACTIVE entries only
+        // FIX: Check for ANY completed entries - if draft ran, room is closed
+        const completedCount = await db.ContestEntry.count({
+          where: {
+            draft_room_id: roomId,
+            status: 'completed'
+          },
+          transaction
+        });
+        
+        if (completedCount > 0) {
+          // Draft already ran for this room - skip it entirely
+          continue;
+        }
+        
+        // Count ACTIVE entries (pending/drafting)
         const activeCount = await db.ContestEntry.count({
           where: {
             draft_room_id: roomId,
-            status: { [Op.notIn]: ['cancelled', 'completed'] }
+            status: { [Op.in]: ['pending', 'drafting'] }
           },
           transaction
         });
@@ -705,7 +719,7 @@ class ContestService {
           where: {
             draft_room_id: roomId,
             user_id: userId,
-            status: { [Op.notIn]: ['cancelled', 'completed'] }
+            status: { [Op.in]: ['pending', 'drafting'] }
           },
           transaction
         });
@@ -734,8 +748,8 @@ class ContestService {
         const roomId = room.roomId;
         
         try {
-          // Lock and verify room state
-          const currentEntries = await db.ContestEntry.findAll({
+          // Lock and verify room state - get ALL entries, not just active
+          const allEntriesInRoom = await db.ContestEntry.findAll({
             where: { draft_room_id: roomId },
             attributes: ['draft_position', 'user_id', 'status'],
             order: [['draft_position', 'ASC']],
@@ -743,7 +757,14 @@ class ContestService {
             lock: true
           });
 
-          const activeEntries = currentEntries.filter(e => !['cancelled', 'completed'].includes(e.status));
+          // FIX: Re-check for completed entries after lock (could have changed)
+          const completedEntries = allEntriesInRoom.filter(e => e.status === 'completed');
+          if (completedEntries.length > 0) {
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: draft completed during lock`);
+            continue;
+          }
+
+          const activeEntries = allEntriesInRoom.filter(e => ['pending', 'drafting'].includes(e.status));
           
           if (activeEntries.length >= 5) {
             console.log(`  ⏭️ Skipping room_${room.roomNum}: filled up during lock (${activeEntries.length}/5)`);
@@ -757,8 +778,12 @@ class ContestService {
             continue;
           }
 
-          // Find available position (only from active entries)
-          const usedPositions = activeEntries.map(e => e.draft_position).filter(p => p !== null);
+          // FIX: Find available position from ALL entries (not just active)
+          // This respects the DB unique constraint on (draft_room_id, draft_position)
+          const usedPositions = allEntriesInRoom
+            .map(e => e.draft_position)
+            .filter(p => p !== null);
+          
           let assignedPosition = null;
           for (let pos = 0; pos < 5; pos++) {
             if (!usedPositions.includes(pos)) {
@@ -770,6 +795,10 @@ class ContestService {
           if (assignedPosition !== null) {
             console.log(`✅ Assigning user to room_${room.roomNum} at position ${assignedPosition} (${activeEntries.length + 1}/5 players)`);
             return { roomId, position: assignedPosition };
+          } else {
+            // All 5 positions used (even if some cancelled) - room is exhausted
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: all positions used (including cancelled)`);
+            continue;
           }
         } catch (error) {
           console.log(`  ⚠️ Error checking room_${room.roomNum}: ${error.message}`);
