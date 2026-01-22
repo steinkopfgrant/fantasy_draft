@@ -1052,12 +1052,13 @@ const DraftScreen = ({ showToast }) => {
     };
 
     const handleDraftCountdown = (data) => {
-      console.log('⏰ Draft countdown:', data);
-      if (data.roomId === roomId) {
-        dispatch(updateDraftState({
-          status: 'countdown',
-          countdownTime: data.countdown
-        }));
+     console.log('⏰ Draft countdown:', data);
+     if (data.roomId === roomId) {
+       const countdownValue = data.countdown ?? data.countdownTime ?? data.time ?? data.seconds ?? 5;
+       dispatch(updateDraftState({
+         status: 'countdown',
+         countdownTime: countdownValue
+       }));
       }
     };
 
@@ -1411,6 +1412,16 @@ const DraftScreen = ({ showToast }) => {
       return () => clearInterval(timer);
     }
   }, [status, timeRemaining, dispatch]);
+
+  // Handle countdown timer decrement (5, 4, 3, 2, 1)
+  useEffect(() => {
+    if (status === 'countdown' && countdownTime > 0) {
+      const timer = setTimeout(() => {
+        dispatch(updateDraftState({ countdownTime: countdownTime - 1 }));
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, countdownTime, dispatch]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
   useEffect(() => {
