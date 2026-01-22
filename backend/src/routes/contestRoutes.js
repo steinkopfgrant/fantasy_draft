@@ -7,6 +7,12 @@ const { Contest, ContestEntry, User, DraftPick, Transaction } = db;
 const { v4: uuidv4 } = require('uuid');
 const contestService = require('../services/contestService');
 
+// ============================================================================
+// ⚠️  IMPORTANT: NEVER USE "odId" - ALWAYS USE "userId"
+// ⚠️  This has caused multiple bugs. The correct variable is ALWAYS "userId"
+// ⚠️  which comes from: const userId = req.user.id || req.user.userId;
+// ============================================================================
+
 // Import injury swap service (optional - won't break if not present)
 let injurySwapService;
 try {
@@ -139,6 +145,7 @@ router.get('/room/:roomId/status', async (req, res) => {
 // Get user's contest entries
 router.get('/my-entries', authMiddleware, async (req, res) => {
   try {
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     console.log('Fetching entries for user:', userId);
     
@@ -160,6 +167,7 @@ router.get('/my-entries', authMiddleware, async (req, res) => {
 router.post('/enter/:contestId', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const username = req.user.username || 'Player';
     
@@ -238,6 +246,7 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
 router.post('/withdraw/:entryId', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const result = await contestService.withdrawEntry(entryId, userId);
@@ -255,6 +264,7 @@ router.post('/draft/:entryId/pick', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
     const { player, position } = req.body;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     // Verify user owns this entry
@@ -279,6 +289,7 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
     const { roster, totalSpent } = req.body;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     console.log('=== SAVING COMPLETED DRAFT ===');
@@ -288,10 +299,11 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     console.log('Roster:', JSON.stringify(roster));
     
     // Get the contest entry with contest details
+    // ⚠️ FIXED: Changed odId to userId
     const entry = await ContestEntry.findOne({
       where: { 
         id: entryId,
-        user_id: odId 
+        user_id: userId 
       },
       include: [{
         model: Contest,
@@ -300,9 +312,10 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     });
     
     if (!entry) {
+      // ⚠️ FIXED: Changed odId to userId in error log
       console.error('Entry not found or unauthorized:', {
         entryId,
-        odId,
+        userId,
         query: `SELECT * FROM contest_entries WHERE id = '${entryId}' AND user_id = '${userId}'`
       });
       return res.status(404).json({ 
@@ -431,6 +444,7 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
 // Get user's contest history
 router.get('/history', authMiddleware, async (req, res) => {
   try {
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const limit = parseInt(req.query.limit) || 50;
     
@@ -449,6 +463,7 @@ router.get('/history', authMiddleware, async (req, res) => {
 router.post('/:contestId/join-lobby', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const io = req.app.get('io');
@@ -466,6 +481,7 @@ router.post('/:contestId/join-lobby', authMiddleware, async (req, res) => {
 router.post('/:contestId/leave-lobby', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const io = req.app.get('io');
@@ -486,6 +502,7 @@ router.post('/:contestId/ownership', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
     const { playerName } = req.body;
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     // Check if user has tickets
@@ -721,6 +738,7 @@ router.post('/debug/launch-draft/:roomId', async (req, res) => {
 // Admin: Fill lobby with bots (for testing)
 router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
   try {
+    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const user = await User.findByPk(userId);
     
