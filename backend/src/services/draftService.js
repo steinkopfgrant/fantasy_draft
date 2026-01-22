@@ -644,11 +644,6 @@ class DraftService {
       return await this.makePick(contestId, userId, pick);
       
     } catch (error) {
-      // FIX: If "Not your turn" - a manual pick already went through, exit gracefully
-      if (error.message === 'Not your turn') {
-        console.log(`🤖 AutoPick: Turn already advanced (manual pick won race), exiting gracefully`);
-        return null;
-      }
       console.error('Error in autoPick:', error);
       return await this.skipTurn(contestId, userId, 'autopick_error');
     }
