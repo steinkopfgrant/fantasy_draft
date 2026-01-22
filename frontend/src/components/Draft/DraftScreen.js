@@ -50,6 +50,15 @@ const DraftScreen = ({ showToast }) => {
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
 
+  // ==================== TIMER SYNC REFS ====================
+  // These refs track server time for accurate timer synchronization
+  const turnStartedAtRef = useRef(null);      // When the current turn started (server timestamp)
+  const serverTimeOffsetRef = useRef(0);       // Difference between server and client time
+  const timeLimitRef = useRef(30);             // Current turn's time limit
+  const timerIntervalRef = useRef(null);       // Interval for timer updates
+  const lastSyncTimeRef = useRef(0);           // Last time we synced with server
+  // ==========================================================
+
   // Create a fallback toast function
   const toast = useCallback((message, type) => {
     if (showToast) {
@@ -211,6 +220,101 @@ const DraftScreen = ({ showToast }) => {
       socketService.emit('get-draft-state', { roomId });
     }
   }, [roomId]);
+
+  // ==================== TIMER SYNC FUNCTIONS ====================
+  
+  // Calculate the actual time remaining based on server timestamp
+  const calculateTimeRemaining = useCallback(() => {
+    if (!turnStartedAtRef.current || !timeLimitRef.current) {
+      return timeLimitRef.current || 30;
+    }
+    
+    // Get current time adjusted for server offset
+    const adjustedNow = Date.now() + serverTimeOffsetRef.current;
+    const elapsed = Math.floor((adjustedNow - turnStartedAtRef.current) / 1000);
+    const remaining = Math.max(0, timeLimitRef.current - elapsed);
+    
+    return remaining;
+  }, []);
+
+  // Update timer from server data
+  const syncTimerFromServer = useCallback((data) => {
+    const { turnStartedAt, serverTime, timeLimit, timeRemaining: serverTimeRemaining } = data;
+    
+    // Calculate server time offset if we have serverTime
+    if (serverTime) {
+      const newOffset = serverTime - Date.now();
+      // Only update offset if it's significantly different (> 100ms)
+      if (Math.abs(newOffset - serverTimeOffsetRef.current) > 100) {
+        serverTimeOffsetRef.current = newOffset;
+        console.log(`⏱️ Server time offset updated: ${newOffset}ms`);
+      }
+    }
+    
+    // Store turn start time
+    if (turnStartedAt) {
+      turnStartedAtRef.current = turnStartedAt;
+      console.log(`⏱️ Turn started at: ${new Date(turnStartedAt).toISOString()}`);
+    }
+    
+    // Store time limit
+    if (timeLimit !== undefined) {
+      timeLimitRef.current = timeLimit;
+      console.log(`⏱️ Time limit: ${timeLimit}s`);
+    }
+    
+    // Calculate and dispatch the actual time remaining
+    const calculatedRemaining = calculateTimeRemaining();
+    
+    // Use server's timeRemaining as fallback if we don't have turnStartedAt
+    const finalRemaining = turnStartedAtRef.current ? calculatedRemaining : (serverTimeRemaining || 30);
+    
+    console.log(`⏱️ Timer sync: calculated=${calculatedRemaining}s, server=${serverTimeRemaining}s, using=${finalRemaining}s`);
+    
+    dispatch(updateTimer(finalRemaining));
+    lastSyncTimeRef.current = Date.now();
+    
+    return finalRemaining;
+  }, [calculateTimeRemaining, dispatch]);
+
+  // Start the timer interval that calculates from server timestamp
+  const startTimerInterval = useCallback(() => {
+    // Clear any existing interval
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
+    
+    // Start new interval that calculates time from server timestamp
+    timerIntervalRef.current = setInterval(() => {
+      if (status !== 'active') {
+        return;
+      }
+      
+      const remaining = calculateTimeRemaining();
+      dispatch(updateTimer(remaining));
+      
+      // Re-sync with server every 10 seconds
+      const now = Date.now();
+      if (now - lastSyncTimeRef.current > 10000) {
+        console.log('⏱️ Requesting timer re-sync from server...');
+        socketService.emit('get-draft-state', { roomId });
+        lastSyncTimeRef.current = now;
+      }
+    }, 1000);
+    
+    console.log('⏱️ Started server-synced timer interval');
+  }, [status, calculateTimeRemaining, dispatch, roomId]);
+
+  // Stop the timer interval
+  const stopTimerInterval = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+      console.log('⏱️ Stopped timer interval');
+    }
+  }, []);
+
+  // =============================================================
 
   // SNAKE DRAFT: Calculate which team should draft at a given pick number (1-based)
   const getTeamForPick = useCallback((pickNumber, totalTeams = 5) => {
@@ -718,6 +822,9 @@ const DraftScreen = ({ showToast }) => {
       socketHandlersRef.current = false;
       initializationAttemptedRef.current = false; // Reset for potential remount
       
+      // Stop timer interval on unmount
+      stopTimerInterval();
+      
       if (autoPickTimeoutRef.current) {
         clearTimeout(autoPickTimeoutRef.current);
       }
@@ -729,7 +836,7 @@ const DraftScreen = ({ showToast }) => {
       // DON'T reset draft or leave room on unmount - this causes issues with remounts
       // Only do this when actually navigating away (handled by route change)
     };
-  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId]);
+  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId, stopTimerInterval]);
 
   // Handle socket connection and join room when ready
   useEffect(() => {
@@ -766,7 +873,7 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [socketConnected, roomId, requestDraftState]);
 
-  // FIXED: Enhanced Socket event handlers with better roster preservation
+  // FIXED: Enhanced Socket event handlers with better roster preservation and TIMER SYNC
   useEffect(() => {
     if (!socketConnected || !roomId) return;
     
@@ -782,13 +889,20 @@ const DraftScreen = ({ showToast }) => {
     // Stop room-status-update spam
     socketService.on('room-status-update', () => {});
 
-    // ENHANCED handleDraftState with ULTRA-ROBUST budget preservation
+    // ENHANCED handleDraftState with ULTRA-ROBUST budget preservation and TIMER SYNC
     const handleDraftState = (data) => {
       console.log('📨 Draft state received:', data);
       
       if (data.roomId !== roomId) return;
 
       const currentState = store.getState().draft;
+      
+      // ==================== TIMER SYNC ====================
+      // Sync timer from server data
+      if (data.turnStartedAt || data.serverTime || data.timeLimit) {
+        syncTimerFromServer(data);
+      }
+      // ====================================================
       
       // Enhanced teams processing with ULTRA-ROBUST budget preservation
       const teamsData = data.teams || data.entries || data.participants || [];
@@ -939,6 +1053,11 @@ const DraftScreen = ({ showToast }) => {
         }
       }
       
+      // Calculate time remaining from server sync or use provided value
+      const syncedTimeRemaining = data.turnStartedAt ? calculateTimeRemaining() : 
+        (data.timeRemaining !== undefined ? data.timeRemaining : 
+        (data.timeLimit !== undefined ? data.timeLimit : 30));
+      
       dispatch(updateDraftState({
         ...data,
         teams: shouldUpdateTeams ? processedTeams : undefined,
@@ -946,14 +1065,25 @@ const DraftScreen = ({ showToast }) => {
         currentDrafter: data.currentDrafter || data.currentPlayer || null,
         isMyTurn: calculatedIsMyTurn || false,
         playerBoard: data.playerBoard || currentState.playerBoard,
-        timeRemaining: data.timeRemaining !== undefined ? data.timeRemaining : 
-               (data.timeLimit !== undefined ? data.timeLimit : 30)
+        timeRemaining: syncedTimeRemaining
       }));
     };
 
+    // UPDATED: handleDraftTurn with TIMER SYNC
     const handleDraftTurn = (data) => {
       console.log('🎯 Draft turn:', data);
       if (data.roomId !== roomId) return;
+      
+      // ==================== TIMER SYNC ====================
+      // Reset timer refs for new turn
+      if (data.turnStartedAt || data.serverTime || data.timeLimit) {
+        syncTimerFromServer(data);
+      } else {
+        // Fallback: reset timer to full time limit
+        turnStartedAtRef.current = Date.now();
+        timeLimitRef.current = data.timeLimit || data.timeRemaining || 30;
+      }
+      // ====================================================
       
       dispatch(updateDraftState({
         status: 'active',
@@ -967,7 +1097,7 @@ const DraftScreen = ({ showToast }) => {
       }));
     };
 
-    // FIXED: Enhanced player picked handler with duplicate prevention
+    // FIXED: Enhanced player picked handler with duplicate prevention and TIMER SYNC
     const handlePlayerPicked = (data) => {
       console.log('✅ Player picked event:', data);
       
@@ -979,6 +1109,13 @@ const DraftScreen = ({ showToast }) => {
         clearTimeout(pickTimeoutRef.current);
         pickTimeoutRef.current = null;
       }
+      
+      // ==================== TIMER SYNC ====================
+      // Sync timer for the next turn
+      if (data.turnStartedAt || data.serverTime) {
+        syncTimerFromServer(data);
+      }
+      // ====================================================
       
       // CRITICAL: Update player board to mark as drafted
       if (data.row !== undefined && data.col !== undefined) {
@@ -1067,6 +1204,12 @@ const DraftScreen = ({ showToast }) => {
       console.log('⏭️ Turn skipped:', data);
       if (data.roomId !== roomId) return;
       
+      // ==================== TIMER SYNC ====================
+      if (data.turnStartedAt || data.serverTime) {
+        syncTimerFromServer(data);
+      }
+      // ====================================================
+      
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,
         currentPick: data.currentPick || (data.currentTurn + 1),
@@ -1095,6 +1238,9 @@ const DraftScreen = ({ showToast }) => {
       console.log('Data:', data);
       console.log('Room ID match:', data.roomId === roomId);
       console.log('Entry ID from Redux:', entryId);
+      
+      // Stop timer on draft complete
+      stopTimerInterval();
       
       if (data.roomId === roomId) {
         const completedTeams = (data.teams || data.entries || teams || []).map((team, index) => ({
@@ -1174,9 +1320,25 @@ const DraftScreen = ({ showToast }) => {
       }
     };
 
+    // UPDATED: handleTimerUpdate with TIMER SYNC
     const handleTimerUpdate = (data) => {
-      if (data.roomId === roomId && data.timeRemaining !== undefined) {
-        dispatch(updateTimer(data.timeRemaining));
+      if (data.roomId === roomId) {
+        // ==================== TIMER SYNC ====================
+        if (data.turnStartedAt || data.serverTime) {
+          syncTimerFromServer(data);
+        } else if (data.timeRemaining !== undefined) {
+          // Fallback to direct time remaining
+          dispatch(updateTimer(data.timeRemaining));
+        }
+        // ====================================================
+      }
+    };
+
+    // NEW: Handle timer-sync event specifically for re-syncing stalled timers
+    const handleTimerSync = (data) => {
+      console.log('⏱️ Timer sync event received:', data);
+      if (data.roomId === roomId) {
+        syncTimerFromServer(data);
       }
     };
 
@@ -1190,6 +1352,7 @@ const DraftScreen = ({ showToast }) => {
     socketService.on('draft-countdown', handleDraftCountdown);
     socketService.on('draft-complete', handleDraftComplete);
     socketService.on('timer-update', handleTimerUpdate);
+    socketService.on('timer-sync', handleTimerSync);  // NEW
 
     return () => {
       console.log('🧹 Cleaning up draft socket event handlers');
@@ -1203,8 +1366,9 @@ const DraftScreen = ({ showToast }) => {
       socketService.off('draft-countdown', handleDraftCountdown);
       socketService.off('draft-complete', handleDraftComplete);
       socketService.off('timer-update', handleTimerUpdate);
+      socketService.off('timer-sync', handleTimerSync);  // NEW
     };
-  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId]);
+  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining]);
 
   // Show toast messages for errors
   useEffect(() => {
@@ -1402,9 +1566,10 @@ const DraftScreen = ({ showToast }) => {
     // Reset module-level tracking when intentionally leaving
     moduleInitializedRoomId = null;
     moduleLastInitTime = 0;
+    stopTimerInterval();
     dispatch(resetDraft());
     navigate('/lobby');
-  }, [navigate, dispatch]);
+  }, [navigate, dispatch, stopTimerInterval]);
 
   // Handle team navigation in results view
   const handlePrevTeam = useCallback(() => {
@@ -1429,16 +1594,20 @@ const DraftScreen = ({ showToast }) => {
     dispatch(setShowAutoPickSuggestion(e.target.checked));
   }, [dispatch]);
 
-  // Handle timer countdown
+  // ==================== TIMER EFFECT - Server-Synced ====================
+  // Start/stop timer interval based on draft status
   useEffect(() => {
-    if (status === 'active' && timeRemaining > 0) {
-      const timer = setInterval(() => {
-        dispatch(updateTimer(Math.max(0, timeRemaining - 1)));
-      }, 1000);
-      
-      return () => clearInterval(timer);
+    if (status === 'active') {
+      startTimerInterval();
+    } else {
+      stopTimerInterval();
     }
-  }, [status, timeRemaining, dispatch]);
+    
+    return () => {
+      stopTimerInterval();
+    };
+  }, [status, startTimerInterval, stopTimerInterval]);
+  // =====================================================================
 
   // Handle countdown timer decrement (5, 4, 3, 2, 1)
   useEffect(() => {

@@ -1538,7 +1538,11 @@ class ContestService {
         };
         
         this.io.to(socketRoomId).emit('draft-starting', draftStartData);
-        this.io.to(socketRoomId).emit('draft-state', draftState);
+        this.io.to(socketRoomId).emit('draft-state', {
+          ...draftState,
+          turnStartedAt: Date.now(),
+          serverTime: Date.now()
+        });
         
         console.log(`✅ Emitted draft-starting with complete data`);
 
@@ -1575,7 +1579,7 @@ class ContestService {
     }
   }
 
-  // FIXED: startNextPick with proper timer error handling and cleanup
+  // FIXED: startNextPick with proper timer error handling, cleanup, and TIMER SYNC
   async startNextPick(roomId) {
     let draft = this.activeDrafts.get(roomId);
     
@@ -1654,15 +1658,19 @@ class ContestService {
       console.log(`💸 ${currentPlayer.username} has $0 budget - using ${timeLimit}s quick timer`);
     }
 
+    // TIMER SYNC: Capture the turn start timestamp
+    const turnStartedAt = Date.now();
+
     // Store turn start timestamp in Redis for stall detection
     const turnKey = `turn:${roomId}`;
     await this.redis.set(turnKey, JSON.stringify({
-      turnStartedAt: Date.now(),
+      turnStartedAt: turnStartedAt,
       currentTurn: draftState.currentTurn,
       currentUserId: currentPlayer.userId,
       timeLimit: timeLimit
     }), 'EX', 3600); // 1 hour expiry
 
+    // TIMER SYNC: Include turnStartedAt and serverTime in emissions
     if (this.io) {
       this.io.to(`room_${roomId}`).emit('draft-turn', {
         roomId,
@@ -1678,10 +1686,17 @@ class ContestService {
         playerBoard: draftState.playerBoard,
         picks: draftState.picks,
         draftOrder: draftState.draftOrder,
-        currentTurn: draftState.currentTurn
+        currentTurn: draftState.currentTurn,
+        turnStartedAt: turnStartedAt,
+        serverTime: Date.now()
       });
       
-      this.io.to(`room_${roomId}`).emit('draft-state', draftState);
+      this.io.to(`room_${roomId}`).emit('draft-state', {
+        ...draftState,
+        turnStartedAt: turnStartedAt,
+        serverTime: Date.now(),
+        timeLimit: timeLimit
+      });
     }
 
     // Clear any existing timer for this room/user combo AND delete the entry
@@ -1820,6 +1835,18 @@ class ContestService {
                 participants: draftState.teams
               });
             }
+          }
+          
+          // TIMER SYNC: Emit timer-sync event with remaining time
+          if (this.io) {
+            this.io.to(`room_${roomId}`).emit('timer-sync', {
+              roomId,
+              timeRemaining: Math.round(remaining / 1000),
+              turnStartedAt: turnStartedAt,
+              serverTime: Date.now(),
+              timeLimit: timeLimit,
+              currentUserId: currentPlayer.userId
+            });
           }
           
           // Capture values for closure
@@ -1989,12 +2016,16 @@ class ContestService {
         teams: updatedDraft.teams,
         currentTurn: updatedDraft.currentTurn,
         currentPick: updatedDraft.currentTurn + 1,
-        picks: updatedDraft.picks
+        picks: updatedDraft.picks,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
       });
       
       this.io.to(socketRoom).emit('draft-state', {
         ...updatedDraft,
-        playerBoard: updatedDraft.playerBoard
+        playerBoard: updatedDraft.playerBoard,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
       });
       
       console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
@@ -2055,12 +2086,16 @@ class ContestService {
             currentTurn: updatedDraft.currentTurn,
             currentPick: updatedDraft.currentTurn + 1,
             picks: updatedDraft.picks,
-            isAutoPick: true
+            isAutoPick: true,
+            turnStartedAt: Date.now(),
+            serverTime: Date.now()
           });
           
           this.io.to(socketRoom).emit('draft-state', {
             ...updatedDraft,
-            playerBoard: updatedDraft.playerBoard
+            playerBoard: updatedDraft.playerBoard,
+            turnStartedAt: Date.now(),
+            serverTime: Date.now()
           });
           
           console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
@@ -2479,7 +2514,8 @@ class ContestService {
         timeLimit: timeLimit || 30,
         turnStartedAt,
         currentTurn,
-        currentUserId
+        currentUserId,
+        serverTime: Date.now()
       };
     } catch (error) {
       console.error('Error getting timer info:', error);
