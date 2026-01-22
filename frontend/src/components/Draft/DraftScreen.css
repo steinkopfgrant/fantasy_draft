@@ -1153,3 +1153,57 @@
     grid-template-columns: 1fr;
   }
 }
+/* Countdown Overlay */
+.countdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.countdown-modal {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 3px solid #4ade80;
+  border-radius: 20px;
+  padding: 50px 80px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(74, 222, 128, 0.3);
+  animation: pulse-glow 1s ease-in-out infinite;
+}
+
+.countdown-modal h2 {
+  color: #4ade80;
+  margin: 0 0 20px 0;
+  font-size: 32px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.countdown-modal .countdown-number {
+  font-size: 120px;
+  font-weight: bold;
+  color: white;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+}
+
+.countdown-modal p {
+  color: #888;
+  margin: 20px 0 0 0;
+  font-size: 18px;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 40px rgba(74, 222, 128, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 60px rgba(74, 222, 128, 0.5);
+  }
+}

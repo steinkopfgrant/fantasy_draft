@@ -1585,40 +1585,6 @@ const DraftScreen = ({ showToast }) => {
     );
   }
 
-  // Render countdown state
-  if (status === 'countdown') {
-    return (
-      <div className="draft-container">
-        <div className="countdown-screen">
-          <h1>Draft Starting Soon!</h1>
-          <div className="countdown-timer">
-            <div className="countdown-number">{countdownTime}</div>
-          </div>
-          <p>Get ready to draft!</p>
-          
-          <div className="draft-order-preview">
-            <h3>Draft Order:</h3>
-            <div className="users-list">
-              {teams && teams.map((team, index) => {
-                const isMyTeam = getUserId(team) === currentUserId;
-                const teamPicks = getPicksForTeam(index, teams.length, 5);
-                return (
-                  <div key={getUserId(team) || index} className={`user-item ${isMyTeam ? 'current-user' : ''}`}>
-                    <span className="position">{index + 1}.</span>
-                    <span className={`username team-${team.color}`}>
-                      {team.name} {isMyTeam && '(You)'}
-                    </span>
-                    <span className="picks-preview">Picks: {teamPicks.join(', ')}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Render results state
   if (showResults || status === 'completed') {
     return (
@@ -1693,6 +1659,17 @@ const DraftScreen = ({ showToast }) => {
   // Render active draft
   return (
     <div className={`draft-container ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
+      {/* Countdown overlay - shows on top of board */}
+      {(status === 'countdown' || (countdownTime && countdownTime > 0)) && (
+        <div className="countdown-overlay">
+          <div className="countdown-modal">
+            <h2>Draft Starting!</h2>
+            <div className="countdown-number">{countdownTime}</div>
+            <p>Get ready to pick...</p>
+          </div>
+        </div>
+      )}
+
       {/* LIVE DRAFT FEED - Replaces old DebugDraftOrder */}
       <LiveDraftFeed 
         teams={teams}
