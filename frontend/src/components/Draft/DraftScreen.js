@@ -609,6 +609,16 @@ const DraftScreen = ({ showToast }) => {
     const now = Date.now();
     const recentlyInitialized = moduleInitializedRoomId === roomId && (now - moduleLastInitTime) < 5000;
     
+    // ✅ FIX: If a DIFFERENT room was initialized, reset the module tracking
+    if (moduleInitializedRoomId && moduleInitializedRoomId !== roomId) {
+      console.log('🔄 Different room from module tracking, allowing re-initialization', {
+        moduleRoomId: moduleInitializedRoomId,
+        newRoomId: roomId
+      });
+      moduleInitializedRoomId = null;
+      moduleLastInitTime = 0;
+    }
+    
     if (recentlyInitialized) {
       console.log('⏭️ Recently initialized this room, skipping (module-level protection)');
       // Just request fresh state
@@ -618,21 +628,38 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
 
-    // CRITICAL: Check if we already have valid draft state for this room
-    // This prevents re-initialization on React remounts
+    // ✅ FIX: Check if we already have valid draft state for THIS SPECIFIC room
+    // This prevents re-initialization on React remounts but ALLOWS re-init for different rooms
     const currentDraftState = store.getState().draft;
+    const existingRoomId = currentDraftState?.roomId || currentDraftState?.contestData?.roomId;
+    const isCorrectRoom = existingRoomId === roomId;
+    
     const hasExistingDraftState = currentDraftState && 
       currentDraftState.status && 
       currentDraftState.status !== 'idle' &&
       currentDraftState.status !== 'error' &&
       currentDraftState.playerBoard &&
-      currentDraftState.playerBoard.length > 0;
+      currentDraftState.playerBoard.length > 0 &&
+      isCorrectRoom; // ✅ CRITICAL: Must be for the SAME room!
+    
+    // ✅ FIX: If we have state for a DIFFERENT room, reset it first
+    if (currentDraftState && 
+        currentDraftState.status !== 'idle' && 
+        existingRoomId && 
+        !isCorrectRoom) {
+      console.log('🔄 Different room detected, resetting draft state', {
+        existingRoomId,
+        newRoomId: roomId
+      });
+      dispatch(resetDraft());
+    }
     
     if (hasExistingDraftState) {
-      console.log('✅ Draft state already exists, skipping re-initialization', {
+      console.log('✅ Draft state already exists for THIS room, skipping re-initialization', {
         status: currentDraftState.status,
         hasBoardData: currentDraftState.playerBoard?.length > 0,
-        teams: currentDraftState.teams?.length
+        teams: currentDraftState.teams?.length,
+        roomId: existingRoomId
       });
       
       // Update module tracking
