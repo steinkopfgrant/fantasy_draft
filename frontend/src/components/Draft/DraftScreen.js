@@ -1054,7 +1054,7 @@ const DraftScreen = ({ showToast }) => {
     const handleDraftCountdown = (data) => {
      console.log('⏰ Draft countdown:', data);
      if (data.roomId === roomId) {
-       const countdownValue = data.countdown ?? data.countdownTime ?? data.time ?? data.seconds ?? 5;
+       const countdownValue = data.countdown || data.countdownTime || data.time || data.seconds || 5;
        dispatch(updateDraftState({
          status: 'countdown',
          countdownTime: countdownValue
@@ -1671,7 +1671,7 @@ const DraftScreen = ({ showToast }) => {
   return (
     <div className={`draft-container ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
       {/* Countdown overlay - shows on top of board */}
-      {(status === 'countdown' || (countdownTime && countdownTime > 0)) && (
+      {status === 'countdown' && countdownTime > 0 && (
         <div className="countdown-overlay">
           <div className="countdown-modal">
             <h2>Draft Starting!</h2>
