@@ -50,14 +50,15 @@ const DraftScreen = ({ showToast }) => {
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
 
-  // ==================== TIMER SYNC REFS ====================
-  // These refs track server time for accurate timer synchronization
-  const turnStartedAtRef = useRef(null);      // When the current turn started (server timestamp)
-  const serverTimeOffsetRef = useRef(0);       // Difference between server and client time
-  const timeLimitRef = useRef(30);             // Current turn's time limit
-  const timerIntervalRef = useRef(null);       // Interval for timer updates
-  const lastSyncTimeRef = useRef(0);           // Last time we synced with server
-  // ==========================================================
+  // CRITICAL: Reset picking state on mount/remount
+  useEffect(() => {
+    console.log('🔄 Resetting isPicking state on mount');
+    setIsPicking(false);
+    if (pickTimeoutRef.current) {
+      clearTimeout(pickTimeoutRef.current);
+      pickTimeoutRef.current = null;
+    }
+  }, [roomId]);
 
   // Create a fallback toast function
   const toast = useCallback((message, type) => {
@@ -117,9 +118,30 @@ const DraftScreen = ({ showToast }) => {
   // Standardized current user ID
   const currentUserId = getUserId(user);
 
-  // Calculate isMyTurn with standardized logic
-  const calculatedIsMyTurn = currentDrafter && currentUserId && 
-    getUserId(currentDrafter) === currentUserId;
+  // Calculate isMyTurn with standardized logic - multiple fallbacks
+  const calculatedIsMyTurn = useMemo(() => {
+    // Method 1: Direct match on currentDrafter
+    if (currentDrafter && currentUserId && getUserId(currentDrafter) === currentUserId) {
+      return true;
+    }
+    
+    // Method 2: Calculate from draft order if currentDrafter is missing
+    if (teams && teams.length > 0 && currentTurn !== undefined && status === 'active') {
+      const pickNumber = (currentTurn || 0) + 1;
+      const totalTeams = teams.length;
+      const round = Math.ceil(pickNumber / totalTeams);
+      const positionInRound = ((pickNumber - 1) % totalTeams) + 1;
+      const expectedTeamIndex = round % 2 === 1 ? positionInRound - 1 : totalTeams - positionInRound;
+      const expectedTeam = teams[expectedTeamIndex];
+      
+      if (expectedTeam && getUserId(expectedTeam) === currentUserId) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, [currentDrafter, currentUserId, teams, currentTurn, status, getUserId]);
+
   const actualIsMyTurn = isMyTurn || calculatedIsMyTurn;
   
   // Find my team with standardized logic
@@ -220,101 +242,6 @@ const DraftScreen = ({ showToast }) => {
       socketService.emit('get-draft-state', { roomId });
     }
   }, [roomId]);
-
-  // ==================== TIMER SYNC FUNCTIONS ====================
-  
-  // Calculate the actual time remaining based on server timestamp
-  const calculateTimeRemaining = useCallback(() => {
-    if (!turnStartedAtRef.current || !timeLimitRef.current) {
-      return timeLimitRef.current || 30;
-    }
-    
-    // Get current time adjusted for server offset
-    const adjustedNow = Date.now() + serverTimeOffsetRef.current;
-    const elapsed = Math.floor((adjustedNow - turnStartedAtRef.current) / 1000);
-    const remaining = Math.max(0, timeLimitRef.current - elapsed);
-    
-    return remaining;
-  }, []);
-
-  // Update timer from server data
-  const syncTimerFromServer = useCallback((data) => {
-    const { turnStartedAt, serverTime, timeLimit, timeRemaining: serverTimeRemaining } = data;
-    
-    // Calculate server time offset if we have serverTime
-    if (serverTime) {
-      const newOffset = serverTime - Date.now();
-      // Only update offset if it's significantly different (> 100ms)
-      if (Math.abs(newOffset - serverTimeOffsetRef.current) > 100) {
-        serverTimeOffsetRef.current = newOffset;
-        console.log(`⏱️ Server time offset updated: ${newOffset}ms`);
-      }
-    }
-    
-    // Store turn start time
-    if (turnStartedAt) {
-      turnStartedAtRef.current = turnStartedAt;
-      console.log(`⏱️ Turn started at: ${new Date(turnStartedAt).toISOString()}`);
-    }
-    
-    // Store time limit
-    if (timeLimit !== undefined) {
-      timeLimitRef.current = timeLimit;
-      console.log(`⏱️ Time limit: ${timeLimit}s`);
-    }
-    
-    // Calculate and dispatch the actual time remaining
-    const calculatedRemaining = calculateTimeRemaining();
-    
-    // Use server's timeRemaining as fallback if we don't have turnStartedAt
-    const finalRemaining = turnStartedAtRef.current ? calculatedRemaining : (serverTimeRemaining || 30);
-    
-    console.log(`⏱️ Timer sync: calculated=${calculatedRemaining}s, server=${serverTimeRemaining}s, using=${finalRemaining}s`);
-    
-    dispatch(updateTimer(finalRemaining));
-    lastSyncTimeRef.current = Date.now();
-    
-    return finalRemaining;
-  }, [calculateTimeRemaining, dispatch]);
-
-  // Start the timer interval that calculates from server timestamp
-  const startTimerInterval = useCallback(() => {
-    // Clear any existing interval
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    
-    // Start new interval that calculates time from server timestamp
-    timerIntervalRef.current = setInterval(() => {
-      if (status !== 'active') {
-        return;
-      }
-      
-      const remaining = calculateTimeRemaining();
-      dispatch(updateTimer(remaining));
-      
-      // Re-sync with server every 10 seconds
-      const now = Date.now();
-      if (now - lastSyncTimeRef.current > 10000) {
-        console.log('⏱️ Requesting timer re-sync from server...');
-        socketService.emit('get-draft-state', { roomId });
-        lastSyncTimeRef.current = now;
-      }
-    }, 1000);
-    
-    console.log('⏱️ Started server-synced timer interval');
-  }, [status, calculateTimeRemaining, dispatch, roomId]);
-
-  // Stop the timer interval
-  const stopTimerInterval = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-      console.log('⏱️ Stopped timer interval');
-    }
-  }, []);
-
-  // =============================================================
 
   // SNAKE DRAFT: Calculate which team should draft at a given pick number (1-based)
   const getTeamForPick = useCallback((pickNumber, totalTeams = 5) => {
@@ -495,16 +422,7 @@ const DraftScreen = ({ showToast }) => {
 
   // FIXED: Enhanced roster lookup - FLEX ONLY SHOWS DEDICATED FLEX PICKS
   const getPlayerFromRoster = useCallback((roster, slot) => {
-    console.log(`🔍 getPlayerFromRoster called:`, {
-      slot,
-      rosterExists: !!roster,
-      rosterType: typeof roster,
-      rosterKeys: roster ? Object.keys(roster) : 'no roster',
-      standardSlot: standardizeSlotName(slot)
-    });
-    
     if (!roster || !slot) {
-      console.log(`❌ Missing roster or slot:`, { roster: !!roster, slot });
       return null;
     }
     
@@ -512,31 +430,26 @@ const DraftScreen = ({ showToast }) => {
     
     // Strategy 1: Direct uppercase lookup (primary method)
     if (roster[standardSlot] && roster[standardSlot].name) {
-      console.log(`✅ Found via uppercase: ${standardSlot} = ${roster[standardSlot].name}`);
       return roster[standardSlot];
     }
     
     // Strategy 2: Direct original case lookup
     if (roster[slot] && roster[slot].name) {
-      console.log(`✅ Found via original case: ${slot} = ${roster[slot].name}`);
       return roster[slot];
     }
     
     // Strategy 3: Lowercase lookup
     const lowerSlot = slot.toLowerCase();
     if (roster[lowerSlot] && roster[lowerSlot].name) {
-      console.log(`✅ Found via lowercase: ${lowerSlot} = ${roster[lowerSlot].name}`);
       return roster[lowerSlot];
     }
     
     // FIXED Strategy 4: Position-based search - SKIP FOR FLEX
-    // Only check position match for non-FLEX slots
     if (standardSlot !== 'FLEX') {
       const entries = Object.entries(roster);
       for (const [key, player] of entries) {
         if (player && player.position && 
             standardizeSlotName(player.position) === standardSlot) {
-          console.log(`✅ Found via position match: ${key} (${player.position}) = ${player.name}`);
           return player;
         }
       }
@@ -544,53 +457,36 @@ const DraftScreen = ({ showToast }) => {
     
     // FIXED Strategy 5: FLEX-specific logic - Only show dedicated FLEX picks
     if (standardSlot === 'FLEX') {
-      console.log(`🔧 Looking for dedicated FLEX player`);
-      
-      // ONLY look for dedicated FLEX entries - don't auto-fill from other positions
       if (roster['FLEX'] && roster['FLEX'].name) {
-        console.log(`✅ Found dedicated FLEX: ${roster['FLEX'].name}`);
         return roster['FLEX'];
       }
       
       if (roster['flex'] && roster['flex'].name) {
-        console.log(`✅ Found dedicated flex: ${roster['flex'].name}`);
         return roster['flex'];
       }
       
       if (roster['Flex'] && roster['Flex'].name) {
-        console.log(`✅ Found dedicated Flex: ${roster['Flex'].name}`);
         return roster['Flex'];
       }
       
-      console.log(`❌ No dedicated FLEX player found (requires separate pick)`);
       return null;
     }
     
-    console.log(`❌ No player found for slot: ${slot} (checked: ${standardSlot}, ${slot}, ${lowerSlot}, position-based)`);
     return null;
   }, [standardizeSlotName]);
 
   // CRITICAL FIX: Enhanced roster processing that preserves slot assignments
   const processRosterData = useCallback((roster) => {
     if (!roster) {
-      console.log('🔧 processRosterData: no roster provided');
       return {};
     }
-    
-    console.log('🔧 processRosterData input:', {
-      type: typeof roster,
-      isArray: Array.isArray(roster),
-      keys: typeof roster === 'object' && !Array.isArray(roster) ? Object.keys(roster) : 'not object'
-    });
     
     const standardizedRoster = {};
     
     // Handle array format
     if (Array.isArray(roster)) {
-      console.log('🔧 Processing array roster with', roster.length, 'items');
       roster.forEach((item, index) => {
         if (item && typeof item === 'object' && item.name) {
-          // For arrays, we need the slot info
           const slot = standardizeSlotName(item.slot || item.roster_slot || item.position);
           standardizedRoster[slot] = {
             name: item.name,
@@ -600,7 +496,6 @@ const DraftScreen = ({ showToast }) => {
             value: item.value || item.price || item.salary || 0,
             playerId: item.playerId || item._id || item.id || `player-${index}`
           };
-          console.log(`✅ Array: ${slot} slot = ${item.name} (${item.position} player)`);
         }
       });
       return standardizedRoster;
@@ -608,78 +503,52 @@ const DraftScreen = ({ showToast }) => {
     
     // Handle object format
     if (typeof roster === 'object') {
-      console.log('🔧 Processing object roster');
       Object.entries(roster).forEach(([key, value]) => {
-        // Skip null/undefined values or non-player entries
         if (!value || value === null || value === undefined) {
-          console.log(`⏭️ Skipping null/undefined value for key: ${key}`);
           return;
         }
         
-        // Skip non-player keys like 'picks'
         if (key === 'picks' || !['QB', 'RB', 'WR', 'TE', 'FLEX'].includes(standardizeSlotName(key))) {
-          console.log(`⏭️ Skipping non-roster key: ${key}`);
           return;
         }
         
-        // If value is a valid player object
         if (typeof value === 'object' && value.name && typeof value.name === 'string') {
-          // CRITICAL FIX: Use the roster slot KEY, not the player's position!
           const slot = standardizeSlotName(key);
           standardizedRoster[slot] = {
             name: value.name,
-            position: value.position || value.originalPosition || slot, // Keep actual position for display
+            position: value.position || value.originalPosition || slot,
             team: value.team || '',
             price: value.price || value.value || value.salary || 0,
             value: value.value || value.price || value.salary || 0,
             playerId: value.playerId || value._id || value.id || `${value.name}-${Date.now()}`
           };
-          console.log(`✅ Object: ${slot} slot = ${value.name} (${value.position || 'unknown'} player)`);
-        } else {
-          console.log(`⏭️ Skipping invalid player for key ${key}:`, typeof value, value);
         }
       });
     }
     
-    console.log('🔧 processRosterData result:', {
-      outputKeys: Object.keys(standardizedRoster),
-      outputCount: Object.keys(standardizedRoster).length,
-      slots: Object.entries(standardizedRoster).map(([slot, p]) => `${slot}: ${p.name} (${p.position})`)
-    });
-    
     return standardizedRoster;
   }, [standardizeSlotName]);
 
-    // FIXED: Enhanced roster merging with duplicate prevention
-    const mergeRosterData = useCallback((oldRoster, newRoster) => {
+  // FIXED: Enhanced roster merging with duplicate prevention
+  const mergeRosterData = useCallback((oldRoster, newRoster) => {
     const current = processRosterData(oldRoster) || {};
     const incoming = processRosterData(newRoster) || {};
     
-    // Start with current to preserve existing data
     const merged = { ...current };
     
-    // Add new valid players - WITH DUPLICATE CHECK
     Object.entries(incoming).forEach(([position, player]) => {
       if (player && player.name && typeof player.name === 'string' && player.name.trim()) {
-        // CRITICAL: Check if this player is already in merged roster under different slot
         const playerAlreadyInRoster = Object.entries(merged).some(([existingSlot, existingPlayer]) => 
           existingSlot !== position && existingPlayer && existingPlayer.name && existingPlayer.name === player.name
         );
         
         if (playerAlreadyInRoster) {
-          console.log(`⏭️ Skipping duplicate player: ${player.name} (already in roster under different slot)`);
+          console.log(`⏭️ Skipping duplicate player: ${player.name}`);
           return;
         }
         
         merged[position] = player;
-        console.log(`🔄 Merged: ${position} = ${player.name}`);
       }
-    });
-    
-    console.log('🔄 Merge result:', {
-      currentCount: Object.keys(current).length,
-      incomingCount: Object.keys(incoming).length,
-      mergedCount: Object.keys(merged).length
     });
     
     return merged;
@@ -713,64 +582,49 @@ const DraftScreen = ({ showToast }) => {
     const now = Date.now();
     const recentlyInitialized = moduleInitializedRoomId === roomId && (now - moduleLastInitTime) < 5000;
     
-    // ✅ FIX: If a DIFFERENT room was initialized, reset the module tracking
-    if (moduleInitializedRoomId && moduleInitializedRoomId !== roomId) {
-      console.log('🔄 Different room from module tracking, allowing re-initialization', {
-        moduleRoomId: moduleInitializedRoomId,
-        newRoomId: roomId
-      });
-      moduleInitializedRoomId = null;
-      moduleLastInitTime = 0;
-    }
-    
     if (recentlyInitialized) {
       console.log('⏭️ Recently initialized this room, skipping (module-level protection)');
-      // Just request fresh state
       if (socketConnected) {
         socketService.emit('get-draft-state', { roomId });
       }
       return;
     }
 
-    // ✅ FIX: Check if we already have valid draft state for THIS SPECIFIC room
-    // This prevents re-initialization on React remounts but ALLOWS re-init for different rooms
+    // CRITICAL: Check if we already have valid draft state for this room
     const currentDraftState = store.getState().draft;
-    const existingRoomId = currentDraftState?.roomId || currentDraftState?.contestData?.roomId;
-    const isCorrectRoom = existingRoomId === roomId;
-    
+    const existingRoomId = currentDraftState.roomId;
     const hasExistingDraftState = currentDraftState && 
       currentDraftState.status && 
       currentDraftState.status !== 'idle' &&
       currentDraftState.status !== 'error' &&
       currentDraftState.playerBoard &&
-      currentDraftState.playerBoard.length > 0 &&
-      isCorrectRoom; // ✅ CRITICAL: Must be for the SAME room!
+      currentDraftState.playerBoard.length > 0;
     
-    // ✅ FIX: If we have state for a DIFFERENT room, reset it first
-    if (currentDraftState && 
-        currentDraftState.status !== 'idle' && 
-        existingRoomId && 
-        !isCorrectRoom) {
+    // CRITICAL FIX: If existing state is for a DIFFERENT room, reset it
+    if (hasExistingDraftState && existingRoomId && existingRoomId !== roomId) {
       console.log('🔄 Different room detected, resetting draft state', {
         existingRoomId,
         newRoomId: roomId
       });
       dispatch(resetDraft());
+      // Reset module tracking too
+      moduleInitializedRoomId = null;
+      moduleLastInitTime = 0;
+      initializationAttemptedRef.current = false;
+      hasJoinedRef.current = false;
     }
     
-    if (hasExistingDraftState) {
-      console.log('✅ Draft state already exists for THIS room, skipping re-initialization', {
+    // Only skip if existing state is for THIS room
+    if (hasExistingDraftState && existingRoomId === roomId) {
+      console.log('✅ Draft state already exists for this room, skipping re-initialization', {
         status: currentDraftState.status,
         hasBoardData: currentDraftState.playerBoard?.length > 0,
-        teams: currentDraftState.teams?.length,
-        roomId: existingRoomId
+        teams: currentDraftState.teams?.length
       });
       
-      // Update module tracking
       moduleInitializedRoomId = roomId;
       moduleLastInitTime = now;
       
-      // Just request fresh state from server without full re-init
       if (socketConnected) {
         socketService.emit('get-draft-state', { roomId });
       }
@@ -807,7 +661,6 @@ const DraftScreen = ({ showToast }) => {
         const errorMessage = error?.message || error?.error || 'Unknown error';
         toast(`Failed to initialize draft: ${errorMessage}`, 'error');
         
-        // Reset module tracking on error
         moduleInitializedRoomId = null;
         
         if (mountedRef.current) {
@@ -820,10 +673,7 @@ const DraftScreen = ({ showToast }) => {
       mountedRef.current = false;
       hasJoinedRef.current = false;
       socketHandlersRef.current = false;
-      initializationAttemptedRef.current = false; // Reset for potential remount
-      
-      // Stop timer interval on unmount
-      stopTimerInterval();
+      initializationAttemptedRef.current = false;
       
       if (autoPickTimeoutRef.current) {
         clearTimeout(autoPickTimeoutRef.current);
@@ -832,11 +682,8 @@ const DraftScreen = ({ showToast }) => {
       if (pickTimeoutRef.current) {
         clearTimeout(pickTimeoutRef.current);
       }
-      
-      // DON'T reset draft or leave room on unmount - this causes issues with remounts
-      // Only do this when actually navigating away (handled by route change)
     };
-  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId, stopTimerInterval]);
+  }, [roomId, user, navigate, toast, dispatch, socketConnected, currentUserId]);
 
   // Handle socket connection and join room when ready
   useEffect(() => {
@@ -873,38 +720,36 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [socketConnected, roomId, requestDraftState]);
 
-  // FIXED: Enhanced Socket event handlers with better roster preservation and TIMER SYNC
+  // FIXED: Enhanced Socket event handlers with better roster preservation
   useEffect(() => {
     if (!socketConnected || !roomId) return;
     
-    // Allow re-setup of handlers if they were cleaned up
     if (socketHandlersRef.current) {
-      console.log('⏭️ Socket handlers already set up');
-      return;
+      console.log('🔄 Re-setting up socket handlers (clearing old ones first)');
+      socketService.off('draft-state');
+      socketService.off('draft-turn');
+      socketService.off('player-picked');
+      socketService.off('pick-success');
+      socketService.off('pick-error');
+      socketService.off('turn-skipped');
+      socketService.off('draft-countdown');
+      socketService.off('draft-complete');
+      socketService.off('draft-timer');
     }
 
     console.log('🎮 Setting up draft socket event handlers');
     socketHandlersRef.current = true;
     
-    // Stop room-status-update spam
     socketService.on('room-status-update', () => {});
 
-    // ENHANCED handleDraftState with ULTRA-ROBUST budget preservation and TIMER SYNC
     const handleDraftState = (data) => {
       console.log('📨 Draft state received:', data);
+      console.log('⏱️ Server timeRemaining:', data.timeRemaining);
       
       if (data.roomId !== roomId) return;
 
       const currentState = store.getState().draft;
       
-      // ==================== TIMER SYNC ====================
-      // Sync timer from server data
-      if (data.turnStartedAt || data.serverTime || data.timeLimit) {
-        syncTimerFromServer(data);
-      }
-      // ====================================================
-      
-      // Enhanced teams processing with ULTRA-ROBUST budget preservation
       const teamsData = data.teams || data.entries || data.participants || [];
       let processedTeams = [];
       
@@ -915,14 +760,11 @@ const DraftScreen = ({ showToast }) => {
           const teamUserId = getUserId(team);
           const teamEntryId = team.entryId || team.entry_id || team.id;
           
-          // Find existing team to preserve roster and budget data
           const existingTeam = currentState.teams?.find(t => getUserId(t) === teamUserId);
           
-          // Process new roster with enhanced logic
           const rawRoster = team.roster || team.picks || [];
           const newRoster = processRosterData(rawRoster);
           
-          // Intelligent merging
           let finalRoster = {};
           if (existingTeam?.roster && Object.keys(existingTeam.roster).length > 0) {
             finalRoster = mergeRosterData(existingTeam.roster, newRoster);
@@ -930,11 +772,9 @@ const DraftScreen = ({ showToast }) => {
             finalRoster = newRoster;
           }
           
-          // ULTRA-ROBUST BUDGET CALCULATION - NEVER RESET FROM $0
-          let finalBudget = 15; // Default budget
+          let finalBudget = 15;
           let finalBonus = team.bonus || existingTeam?.bonus || 0;
           
-          // Calculate roster spend
           const rosterSpend = Object.values(finalRoster).reduce((total, player) => {
             if (player && typeof player === 'object' && player.price !== undefined) {
               return total + (player.price || 0);
@@ -944,80 +784,58 @@ const DraftScreen = ({ showToast }) => {
           
           const calculatedBudget = Math.max(0, 15 - rosterSpend);
           
-          // ABSOLUTE PRIORITY: Preserve $0 budgets at all costs
           if (existingTeam?.budget === 0) {
             finalBudget = 0;
-            console.log(`💰 ${team.name}: ABSOLUTE $0 PROTECTION`);
           } 
-          // HIGH PRIORITY: If roster shows full spend, force $0
           else if (rosterSpend >= 15) {
             finalBudget = 0;
-            console.log(`💰 ${team.name}: FORCED $0 (spent $${rosterSpend})`);
           }
-          // MEDIUM PRIORITY: Server budget (with protection)
           else if (team.budget !== undefined && typeof team.budget === 'number') {
             const serverBudget = team.budget;
             
-            // NEVER allow reset from $0 to positive
             if (existingTeam?.budget === 0 && serverBudget > 0) {
               finalBudget = 0;
-              console.log(`💰 ${team.name}: BLOCKED server reset from $0 to $${serverBudget}`);
             }
-            // Accept reasonable server budgets
             else if (Math.abs(serverBudget - calculatedBudget) <= 1 || finalBonus > 0) {
               finalBudget = Math.max(0, serverBudget);
-              console.log(`💰 ${team.name}: Server budget $${serverBudget}`);
             }
-            // Server budget is wrong
             else {
               finalBudget = calculatedBudget;
-              console.log(`💰 ${team.name}: Server wrong, calculated $${calculatedBudget}`);
             }
           }
-          // LOW PRIORITY: Existing budget
           else if (existingTeam?.budget !== undefined) {
             const existingBudget = existingTeam.budget;
             
             if (existingBudget === 0 || (existingBudget < 1 && rosterSpend > 0)) {
               finalBudget = 0;
-              console.log(`💰 ${team.name}: Preserving low budget $${existingBudget}`);
             } else if (Math.abs(existingBudget - calculatedBudget) <= 1) {
               finalBudget = Math.max(0, existingBudget);
-              console.log(`💰 ${team.name}: Keeping existing $${existingBudget}`);
             } else {
               finalBudget = calculatedBudget;
-              console.log(`💰 ${team.name}: Existing wrong, calculated $${calculatedBudget}`);
             }
           }
-          // FALLBACK: Calculate from roster
           else {
             finalBudget = calculatedBudget;
-            console.log(`💰 ${team.name}: Fresh calculation $${calculatedBudget}`);
           }
           
-          // FINAL SAFETY CHECKS
           finalBudget = Math.max(0, finalBudget);
           
-          // Emergency correction if $15 with roster
           if (finalBudget === 15 && rosterSpend > 0) {
             finalBudget = Math.max(0, 15 - rosterSpend);
-            console.log(`💰 ${team.name}: EMERGENCY fix $15→$${finalBudget}`);
           }
           
-          // Additional safety for high player counts
           const playerCount = Object.values(finalRoster).filter(p => p?.name).length;
           if (playerCount >= 4 && finalBudget > 5 && rosterSpend > 10) {
             const correctedBudget = Math.max(0, 15 - rosterSpend);
             if (correctedBudget < finalBudget) {
               finalBudget = correctedBudget;
-              console.log(`💰 ${team.name}: Multi-player correction $${finalBudget}`);
             }
           }
           
           return {
             ...team,
             userId: teamUserId,
-            entryId: teamEntryId, // ✅ PRESERVE ENTRY ID
+            entryId: teamEntryId,
             name: team.name || team.username || team.teamName || `Team ${index + 1}`,
             roster: finalRoster,
             budget: finalBudget,
@@ -1029,61 +847,32 @@ const DraftScreen = ({ showToast }) => {
         });
       }
       
-      // Update state intelligently
       const shouldUpdateTeams = processedTeams.length > 0;
-      
-      // Calculate isMyTurn with fallback to snake draft order
-      let calculatedIsMyTurn = data.isMyTurn || 
-        (data.currentDrafter && getUserId(data.currentDrafter) === currentUserId);
-      
-      // FALLBACK: If currentDrafter is missing but we have teams and currentTurn, calculate from draft order
-      if (!calculatedIsMyTurn && shouldUpdateTeams && data.currentTurn !== undefined && data.status === 'active') {
-        const pickNumber = (data.currentTurn || 0) + 1;
-        const totalTeams = processedTeams.length;
-        const round = Math.ceil(pickNumber / totalTeams);
-        const positionInRound = ((pickNumber - 1) % totalTeams) + 1;
-        const expectedTeamIndex = round % 2 === 1 
-          ? positionInRound - 1 
-          : totalTeams - positionInRound;
-        const expectedTeam = processedTeams[expectedTeamIndex];
-        
-        if (expectedTeam && getUserId(expectedTeam) === currentUserId) {
-          calculatedIsMyTurn = true;
-          console.log('🎯 FALLBACK isMyTurn calculation: true (from snake draft order)');
-        }
-      }
-      
-      // Calculate time remaining from server sync or use provided value
-      const syncedTimeRemaining = data.turnStartedAt ? calculateTimeRemaining() : 
-        (data.timeRemaining !== undefined ? data.timeRemaining : 
-        (data.timeLimit !== undefined ? data.timeLimit : 30));
+      const incomingDrafter = data.currentDrafter || data.currentPlayer || data.nextDrafter || data.nextPlayer || null;
       
       dispatch(updateDraftState({
         ...data,
+        roomId: roomId, // CRITICAL: Store roomId in state
         teams: shouldUpdateTeams ? processedTeams : undefined,
         status: data.status || (data.currentTurn > 0 ? 'active' : 'waiting'),
-        currentDrafter: data.currentDrafter || data.currentPlayer || null,
-        isMyTurn: calculatedIsMyTurn || false,
+        currentDrafter: incomingDrafter,
+        isMyTurn: data.isMyTurn === true || 
+                  (incomingDrafter && getUserId(incomingDrafter) === currentUserId) ||
+                  false,
         playerBoard: data.playerBoard || currentState.playerBoard,
-        timeRemaining: syncedTimeRemaining
+        timeRemaining: data.timeRemaining || data.timeLimit || currentState.timeRemaining || 30
       }));
+      
+      if (data.timeRemaining !== undefined && data.timeRemaining !== null) {
+        console.log('⏱️ Force syncing timer to server value:', data.timeRemaining);
+        dispatch(updateTimer(data.timeRemaining));
+      }
     };
 
-    // UPDATED: handleDraftTurn with TIMER SYNC
+
     const handleDraftTurn = (data) => {
       console.log('🎯 Draft turn:', data);
       if (data.roomId !== roomId) return;
-      
-      // ==================== TIMER SYNC ====================
-      // Reset timer refs for new turn
-      if (data.turnStartedAt || data.serverTime || data.timeLimit) {
-        syncTimerFromServer(data);
-      } else {
-        // Fallback: reset timer to full time limit
-        turnStartedAtRef.current = Date.now();
-        timeLimitRef.current = data.timeLimit || data.timeRemaining || 30;
-      }
-      // ====================================================
       
       dispatch(updateDraftState({
         status: 'active',
@@ -1095,29 +884,23 @@ const DraftScreen = ({ showToast }) => {
                   (data.currentDrafter && getUserId(data.currentDrafter) === currentUserId) || 
                   false
       }));
+      
+      if (data.timeRemaining !== undefined || data.timeLimit !== undefined) {
+        dispatch(updateTimer(data.timeRemaining || data.timeLimit || 30));
+      }
     };
 
-    // FIXED: Enhanced player picked handler with duplicate prevention and TIMER SYNC
     const handlePlayerPicked = (data) => {
       console.log('✅ Player picked event:', data);
       
       if (data.roomId !== roomId) return;
       
-      // Clear picking state
       setIsPicking(false);
       if (pickTimeoutRef.current) {
         clearTimeout(pickTimeoutRef.current);
         pickTimeoutRef.current = null;
       }
       
-      // ==================== TIMER SYNC ====================
-      // Sync timer for the next turn
-      if (data.turnStartedAt || data.serverTime) {
-        syncTimerFromServer(data);
-      }
-      // ====================================================
-      
-      // CRITICAL: Update player board to mark as drafted
       if (data.row !== undefined && data.col !== undefined) {
         dispatch(updatePlayerBoardCell({
           row: data.row,
@@ -1132,9 +915,6 @@ const DraftScreen = ({ showToast }) => {
         }));
       }
       
-      // IMPORTANT: Only update roster if this is NOT our own pick
-      // (we already did optimistic update for our picks)
-      // EXCEPTION: Autopicks need roster updates since no optimistic update was done
       const pickedUserId = data.userId || data.user_id || getUserId(data);
       const isMyPick = pickedUserId === currentUserId;
       const isAutoPick = data.isAutoPick === true;
@@ -1144,7 +924,6 @@ const DraftScreen = ({ showToast }) => {
         const slot = standardizeSlotName(data.roster_slot || data.slot || data.position);
         
         if (teamIndex >= 0 && slot) {
-          // Check if this player is already in the roster to avoid double updates
           const existingRoster = teams[teamIndex]?.roster || {};
           const existingPlayer = existingRoster[slot];
           
@@ -1161,15 +940,10 @@ const DraftScreen = ({ showToast }) => {
                 playerId: data.player._id || data.player.id || data.player.playerId
               }
             }));
-          } else {
-            console.log('⚠️ Skipping roster update - player already in roster');
           }
         }
-      } else if (isMyPick && !isAutoPick) {
-        console.log('📝 Skipping roster update for own pick (already optimistically updated)');
       }
       
-      // Update draft state
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,
         currentPick: data.currentPick || (data.currentTurn + 1),
@@ -1204,12 +978,6 @@ const DraftScreen = ({ showToast }) => {
       console.log('⏭️ Turn skipped:', data);
       if (data.roomId !== roomId) return;
       
-      // ==================== TIMER SYNC ====================
-      if (data.turnStartedAt || data.serverTime) {
-        syncTimerFromServer(data);
-      }
-      // ====================================================
-      
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,
         currentPick: data.currentPick || (data.currentTurn + 1),
@@ -1222,31 +990,26 @@ const DraftScreen = ({ showToast }) => {
     };
 
     const handleDraftCountdown = (data) => {
-     console.log('⏰ Draft countdown:', data);
-     if (data.roomId === roomId) {
-       const countdownValue = data.countdown || data.countdownTime || data.time || data.seconds || 5;
-       dispatch(updateDraftState({
-         status: 'countdown',
-         countdownTime: countdownValue
-       }));
+      console.log('⏰ Draft countdown:', data);
+      if (data.roomId === roomId) {
+        dispatch(updateDraftState({
+          status: 'countdown',
+          countdownTime: data.countdown
+        }));
       }
     };
 
-    // ✅ FIXED handleDraftComplete function with saving logic
     const handleDraftComplete = async (data) => {
       console.log('🎉🎉🎉 DRAFT COMPLETE EVENT RECEIVED 🎉🎉🎉');
       console.log('Data:', data);
       console.log('Room ID match:', data.roomId === roomId);
       console.log('Entry ID from Redux:', entryId);
       
-      // Stop timer on draft complete
-      stopTimerInterval();
-      
       if (data.roomId === roomId) {
         const completedTeams = (data.teams || data.entries || teams || []).map((team, index) => ({
           ...team,
           userId: getUserId(team),
-          entryId: team.entryId || team.entry_id || team.id, // ✅ PRESERVE ENTRY ID
+          entryId: team.entryId || team.entry_id || team.id,
           roster: processRosterData(team.roster || team.picks || {}),
           budget: team.budget !== undefined ? team.budget : 15,
           bonus: team.bonus || 0,
@@ -1259,25 +1022,14 @@ const DraftScreen = ({ showToast }) => {
           teams: completedTeams
         }));
         
-        // ✅ CRITICAL: SAVE THE COMPLETED DRAFT TO BACKEND
         try {
           const myTeam = completedTeams.find(t => getUserId(t) === currentUserId);
           const myEntryId = entryId || myTeam?.entryId || data.entryId;
           
           console.log('💾 Attempting to save draft...');
-          console.log('My team:', myTeam);
-          console.log('Entry ID options:', {
-            fromRedux: entryId,
-            fromTeam: myTeam?.entryId,
-            fromData: data.entryId,
-            using: myEntryId
-          });
           
           if (myTeam && myTeam.roster && myEntryId) {
             console.log('💾 Saving completed draft to backend...');
-            console.log('Entry ID:', myEntryId);
-            console.log('Roster:', myTeam.roster);
-            console.log('Total Spent:', 15 - (myTeam.budget || 0));
             
             const token = localStorage.getItem('token');
             if (!token) {
@@ -1302,47 +1054,22 @@ const DraftScreen = ({ showToast }) => {
             console.log('✅ Draft saved successfully:', response.data);
             toast('Draft completed and saved!', 'success');
           } else {
-            console.error('❌ Cannot save draft - missing data:', {
-              hasMyTeam: !!myTeam,
-              hasRoster: !!(myTeam?.roster),
-              hasEntryId: !!myEntryId,
-              myTeam,
-              entryId,
-              allTeams: completedTeams
-            });
+            console.error('❌ Cannot save draft - missing data');
             toast('Draft completed but could not save - missing entry ID', 'warning');
           }
         } catch (error) {
           console.error('❌ Error saving draft:', error.response?.data || error.message);
-          console.error('Full error:', error);
           toast('Draft completed but failed to save', 'warning');
         }
       }
     };
 
-    // UPDATED: handleTimerUpdate with TIMER SYNC
     const handleTimerUpdate = (data) => {
-      if (data.roomId === roomId) {
-        // ==================== TIMER SYNC ====================
-        if (data.turnStartedAt || data.serverTime) {
-          syncTimerFromServer(data);
-        } else if (data.timeRemaining !== undefined) {
-          // Fallback to direct time remaining
-          dispatch(updateTimer(data.timeRemaining));
-        }
-        // ====================================================
+      if (data.timeRemaining !== undefined) {
+        dispatch(updateTimer(data.timeRemaining));
       }
     };
 
-    // NEW: Handle timer-sync event specifically for re-syncing stalled timers
-    const handleTimerSync = (data) => {
-      console.log('⏱️ Timer sync event received:', data);
-      if (data.roomId === roomId) {
-        syncTimerFromServer(data);
-      }
-    };
-
-    // Register all event handlers
     socketService.on('draft-state', handleDraftState);
     socketService.on('draft-turn', handleDraftTurn);
     socketService.on('player-picked', handlePlayerPicked);
@@ -1351,24 +1078,24 @@ const DraftScreen = ({ showToast }) => {
     socketService.on('turn-skipped', handleTurnSkipped);
     socketService.on('draft-countdown', handleDraftCountdown);
     socketService.on('draft-complete', handleDraftComplete);
-    socketService.on('timer-update', handleTimerUpdate);
-    socketService.on('timer-sync', handleTimerSync);  // NEW
+    socketService.on('draft-timer', handleTimerUpdate);
 
     return () => {
       console.log('🧹 Cleaning up draft socket event handlers');
+      setIsPicking(false);
       socketHandlersRef.current = false;
-      socketService.off('draft-state', handleDraftState);
-      socketService.off('draft-turn', handleDraftTurn);
-      socketService.off('player-picked', handlePlayerPicked);
-      socketService.off('pick-success', handlePickSuccess);
-      socketService.off('pick-error', handlePickError);
-      socketService.off('turn-skipped', handleTurnSkipped);
-      socketService.off('draft-countdown', handleDraftCountdown);
-      socketService.off('draft-complete', handleDraftComplete);
-      socketService.off('timer-update', handleTimerUpdate);
-      socketService.off('timer-sync', handleTimerSync);  // NEW
+      socketService.off('draft-state');
+      socketService.off('draft-turn');
+      socketService.off('player-picked');
+      socketService.off('pick-success');
+      socketService.off('pick-error');
+      socketService.off('turn-skipped');
+      socketService.off('draft-countdown');
+      socketService.off('draft-complete');
+      socketService.off('draft-timer');
+      socketService.off('room-status-update');
     };
-  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining]);
+  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId]);
 
   // Show toast messages for errors
   useEffect(() => {
@@ -1399,7 +1126,6 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
     
-    // CRITICAL: Check if player is already drafted
     if (player.drafted === true) {
       console.log('❌ Player already drafted:', player.name);
       toast('This player has already been drafted!', 'error');
@@ -1417,7 +1143,6 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
     
-    // Apply emergency budget fix
     const fixedMyTeam = validateAndFixBudget(myTeam);
     
     const availableSlots = getAvailableSlots(fixedMyTeam, player);
@@ -1426,14 +1151,11 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
     
-    // FIXED: Enhanced budget validation
     const totalBudget = Math.max(0, fixedMyTeam.budget || 0) + (fixedMyTeam.bonus || 0);
     
-    // Double-check budget by calculating from roster
     const currentSpent = calculateTotalSpent(fixedMyTeam.roster);
     const calculatedBudget = Math.max(0, 15 - currentSpent) + (fixedMyTeam.bonus || 0);
     
-    // Use the more conservative budget estimate
     const actualBudget = Math.min(totalBudget, calculatedBudget);
     
     if (player.price > actualBudget) {
@@ -1451,20 +1173,16 @@ const DraftScreen = ({ showToast }) => {
     const rosterSlot = standardizeSlotName(availableSlots[0]);
     console.log('✅ Selected roster slot:', rosterSlot);
     
-    // Set picking state
     setIsPicking(true);
     
-    // Timeout to reset picking state
     pickTimeoutRef.current = setTimeout(() => {
       console.log('⏰ Pick timeout (10s) - resetting picking state');
       setIsPicking(false);
       toast('Pick timed out, please try again', 'error');
     }, 10000);
     
-    // CRITICAL: Optimistic update - mark player as drafted IMMEDIATELY
     const teamIndex = teams.findIndex(t => getUserId(t) === currentUserId);
     
-    // Update player board to mark as drafted (optimistic)
     dispatch(updatePlayerBoardCell({
       row,
       col,
@@ -1477,7 +1195,6 @@ const DraftScreen = ({ showToast }) => {
       }
     }));
     
-    // Update team roster (optimistic)
     if (teamIndex >= 0) {
       dispatch(updateTeamRoster({
         teamIndex,
@@ -1493,8 +1210,6 @@ const DraftScreen = ({ showToast }) => {
       }));
     }
     
-    // CRITICAL FIX: Only dispatch makePick action - NO direct socket.emit!
-    // The makePick thunk will handle the socket emission
     const playerId = player._id || player.id || player.playerId || 
                     player.name?.replace(/\s+/g, '-').toLowerCase() || `${row}-${col}`;
     
@@ -1517,12 +1232,10 @@ const DraftScreen = ({ showToast }) => {
     const availableSlots = [];
     const roster = team.roster || {};
 
-    // Check if primary position is available
     if (!getPlayerFromRoster(roster, playerPos)) {
       availableSlots.push(playerPos);
     }
 
-    // Check if FLEX is available for eligible positions
     if (!getPlayerFromRoster(roster, 'FLEX') && ['RB', 'WR', 'TE'].includes(playerPos)) {
       availableSlots.push('FLEX');
     }
@@ -1563,13 +1276,11 @@ const DraftScreen = ({ showToast }) => {
 
   // Handle return to lobby
   const handleReturnToLobby = useCallback(() => {
-    // Reset module-level tracking when intentionally leaving
     moduleInitializedRoomId = null;
     moduleLastInitTime = 0;
-    stopTimerInterval();
     dispatch(resetDraft());
     navigate('/lobby');
-  }, [navigate, dispatch, stopTimerInterval]);
+  }, [navigate, dispatch]);
 
   // Handle team navigation in results view
   const handlePrevTeam = useCallback(() => {
@@ -1594,30 +1305,16 @@ const DraftScreen = ({ showToast }) => {
     dispatch(setShowAutoPickSuggestion(e.target.checked));
   }, [dispatch]);
 
-  // ==================== TIMER EFFECT - Server-Synced ====================
-  // Start/stop timer interval based on draft status
+  // Handle timer countdown - LOCAL COUNTDOWN ENABLED
   useEffect(() => {
-    if (status === 'active') {
-      startTimerInterval();
-    } else {
-      stopTimerInterval();
-    }
-    
-    return () => {
-      stopTimerInterval();
-    };
-  }, [status, startTimerInterval, stopTimerInterval]);
-  // =====================================================================
-
-  // Handle countdown timer decrement (5, 4, 3, 2, 1)
-  useEffect(() => {
-    if (status === 'countdown' && countdownTime > 0) {
-      const timer = setTimeout(() => {
-        dispatch(updateDraftState({ countdownTime: countdownTime - 1 }));
+    if (status === 'active' && timeRemaining > 0) {
+      const timer = setInterval(() => {
+        dispatch(updateTimer(Math.max(0, timeRemaining - 1)));
       }, 1000);
-      return () => clearTimeout(timer);
+      
+      return () => clearInterval(timer);
     }
-  }, [status, countdownTime, dispatch]);
+  }, [status, timeRemaining, dispatch]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
   useEffect(() => {
@@ -1643,7 +1340,6 @@ const DraftScreen = ({ showToast }) => {
       return getPlayerFromRoster(myTeamRoster, slot);
     }, [myTeamRoster, slot]);
     
-    // Only log when player actually changes
     const prevPlayerName = useRef(slotPlayer?.name);
     
     useEffect(() => {
@@ -1676,7 +1372,6 @@ const DraftScreen = ({ showToast }) => {
       </div>
     );
   }, (prevProps, nextProps) => {
-    // Custom comparison function
     const prevPlayer = getPlayerFromRoster(prevProps.myTeamRoster, prevProps.slot);
     const nextPlayer = getPlayerFromRoster(nextProps.myTeamRoster, nextProps.slot);
     
@@ -1710,12 +1405,11 @@ const DraftScreen = ({ showToast }) => {
           )}
         </div>
         
-        {/* Show next few picks */}
         <div className="upcoming-picks">
           <span>Upcoming:</span>
           {[1, 2, 3].map(offset => {
             const upcomingPick = pickNumber + offset;
-            if (upcomingPick > teams.length * 5) return null; // Don't show picks beyond the draft
+            if (upcomingPick > teams.length * 5) return null;
             const upcomingTeamIndex = getTeamForPick(upcomingPick, teams.length);
             const upcomingTeam = teams[upcomingTeamIndex];
             return (
@@ -1787,6 +1481,40 @@ const DraftScreen = ({ showToast }) => {
           <button onClick={handleReturnToLobby} className="back-button">
             Back to Lobby
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render countdown state
+  if (status === 'countdown') {
+    return (
+      <div className="draft-container">
+        <div className="countdown-screen">
+          <h1>Draft Starting Soon!</h1>
+          <div className="countdown-timer">
+            <div className="countdown-number">{countdownTime}</div>
+          </div>
+          <p>Get ready to draft!</p>
+          
+          <div className="draft-order-preview">
+            <h3>Draft Order:</h3>
+            <div className="users-list">
+              {teams && teams.map((team, index) => {
+                const isMyTeam = getUserId(team) === currentUserId;
+                const teamPicks = getPicksForTeam(index, teams.length, 5);
+                return (
+                  <div key={getUserId(team) || index} className={`user-item ${isMyTeam ? 'current-user' : ''}`}>
+                    <span className="position">{index + 1}.</span>
+                    <span className={`username team-${team.color}`}>
+                      {team.name} {isMyTeam && '(You)'}
+                    </span>
+                    <span className="picks-preview">Picks: {teamPicks.join(', ')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1866,17 +1594,6 @@ const DraftScreen = ({ showToast }) => {
   // Render active draft
   return (
     <div className={`draft-container ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
-      {/* Countdown overlay - shows on top of board */}
-      {status === 'countdown' && countdownTime > 0 && (
-        <div className="countdown-overlay">
-          <div className="countdown-modal">
-            <h2>Draft Starting!</h2>
-            <div className="countdown-number">{countdownTime}</div>
-            <p>Get ready to pick...</p>
-          </div>
-        </div>
-      )}
-
       {/* LIVE DRAFT FEED - Replaces old DebugDraftOrder */}
       <LiveDraftFeed 
         teams={teams}
@@ -1919,7 +1636,7 @@ const DraftScreen = ({ showToast }) => {
         </div>
       </div>
 
-      {/* PLAYER BOARD */}
+      {/* PLAYER BOARD - FIXED WITH NULL CHECK */}
       <div className={`player-board ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
         {playerBoard && playerBoard.length > 0 ? (
           playerBoard.map((row, rowIndex) => (
@@ -1928,6 +1645,21 @@ const DraftScreen = ({ showToast }) => {
                 {rowIndex === 5 ? 'Wildcards' : `$${5 - rowIndex}`}
               </div>
               {row.map((player, colIndex) => {
+                // CRITICAL FIX: Handle null/undefined players
+                if (!player || typeof player !== 'object') {
+                  return (
+                    <div 
+                      key={`${rowIndex}-${colIndex}`}
+                      className="player-card empty-card"
+                      style={{ opacity: 0.3 }}
+                    >
+                      <div className="position-badge">-</div>
+                      <div className="player-name">Empty</div>
+                      <div className="player-team">-</div>
+                    </div>
+                  );
+                }
+
                 const isAutoSuggestion = autoPickSuggestion && 
                   autoPickSuggestion.row === rowIndex && 
                   autoPickSuggestion.col === colIndex;
@@ -1957,13 +1689,13 @@ const DraftScreen = ({ showToast }) => {
                       position: 'relative'
                     }}
                   >
-                    <div className={`position-badge ${standardizeSlotName(player.position)}`}>
-                      {standardizeSlotName(player.position)}
+                    <div className={`position-badge ${standardizeSlotName(player.position || '')}`}>
+                      {standardizeSlotName(player.position || '-')}
                     </div>
-                    <div className="player-name">{player.name}</div>
-                    <div className="player-team">{player.team} - ${player.price}</div>
+                    <div className="player-name">{player.name || 'Unknown'}</div>
+                    <div className="player-team">{player.team || 'N/A'} - ${player.price ?? 0}</div>
                     <div className="actual-position-badge">
-                      {standardizeSlotName(player.originalPosition || player.position)}
+                      {standardizeSlotName(player.originalPosition || player.position || '-')}
                     </div>
                     {player.matchup && (
                       <div className="player-matchup">{player.matchup}</div>
