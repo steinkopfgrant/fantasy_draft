@@ -249,41 +249,10 @@ class DraftService {
     }
   }
   
-  /**
-   * Acquire a lock for making a pick in a contest.
-   * Returns true if lock acquired, false if another pick is in progress.
-   */
-  async acquirePickLock(contestId) {
-    const lockKey = `pick_lock:${contestId}`;
-    // SET NX = only set if not exists, EX 5 = expire in 5 seconds (safety net)
-    const result = await this.redis.set(lockKey, Date.now().toString(), 'NX', 'EX', 5);
-    return result === 'OK';
-  }
-  
-  /**
-   * Release the pick lock for a contest.
-   */
-  async releasePickLock(contestId) {
-    const lockKey = `pick_lock:${contestId}`;
-    await this.redis.del(lockKey);
-  }
-  
-  async makePick(contestId, userId, pick, isAutoPick = false) {
-    // STEP 1: Acquire lock FIRST, before any validation
-    const lockAcquired = await this.acquirePickLock(contestId);
-    
-    if (!lockAcquired) {
-      // Another pick is being processed right now
-      if (isAutoPick) {
-        console.log(`🔒 AutoPick blocked by lock for contest ${contestId} - manual pick in progress`);
-        return null; // Auto-pick silently exits
-      }
-      console.log(`🔒 Manual pick blocked by lock for contest ${contestId} - another pick in progress`);
-      throw new Error('Another pick is being processed, please try again');
-    }
+  async makePick(contestId, userId, pick) {
+    const multi = this.redis.multi();
     
     try {
-      // STEP 2: Now safe to read and validate
       const draft = await this.getDraft(contestId);
       if (!draft) {
         throw new Error('Draft not found');
@@ -350,9 +319,9 @@ class DraftService {
       
       return draft;
       
-    } finally {
-      // STEP 3: Always release lock, even if error occurred
-      await this.releasePickLock(contestId);
+    } catch (error) {
+      multi.discard();
+      throw error;
     }
   }
   
@@ -672,10 +641,14 @@ class DraftService {
         isAutoPick: true
       };
       
-      // Pass isAutoPick=true so makePick knows to silently exit if lock fails
-      return await this.makePick(contestId, userId, pick, true);
+      return await this.makePick(contestId, userId, pick);
       
     } catch (error) {
+      // FIX: If "Not your turn" - a manual pick already went through, exit gracefully
+      if (error.message === 'Not your turn') {
+        console.log(`🤖 AutoPick: Turn already advanced (manual pick won race), exiting gracefully`);
+        return null;
+      }
       console.error('Error in autoPick:', error);
       return await this.skipTurn(contestId, userId, 'autopick_error');
     }
