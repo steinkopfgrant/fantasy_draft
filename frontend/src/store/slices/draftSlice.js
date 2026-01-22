@@ -66,7 +66,7 @@ const findAutoPick = (playerBoard, teams, currentTurn, draftOrder) => {
   return bestPick;
 };
 
-// ENHANCED: Better roster processing to handle multiple data formats
+// CRITICAL FIX: Roster processing that correctly uses SLOT KEY, not player position
 const processRosterData = (roster) => {
   if (!roster) return {};
   
@@ -77,10 +77,12 @@ const processRosterData = (roster) => {
   if (Array.isArray(roster)) {
     roster.forEach((player) => {
       if (player && player.position && player.name) {
-        const position = (player.position || '').toUpperCase();
-        standardizedRoster[position] = {
+        // For arrays, use the slot field if available, otherwise position
+        const slot = (player.slot || player.roster_slot || player.position || '').toUpperCase();
+        standardizedRoster[slot] = {
           name: player.name,
-          position: player.position,
+          position: player.originalPosition || player.position,
+          originalPosition: player.originalPosition || player.position,
           team: player.team,
           price: player.price || player.value || player.salary || 0,
           value: player.value || player.price || player.salary || 0,
@@ -88,10 +90,11 @@ const processRosterData = (roster) => {
         };
       } else if (player && player.slot && player.name) {
         // Handle {slot: "QB", name: "..."} format
-        const position = (player.slot || '').toUpperCase();
-        standardizedRoster[position] = {
+        const slot = (player.slot || '').toUpperCase();
+        standardizedRoster[slot] = {
           name: player.name,
-          position: position,
+          position: player.originalPosition || player.position || slot,
+          originalPosition: player.originalPosition || player.position || slot,
           team: player.team,
           price: player.price || player.value || player.salary || 0,
           value: player.value || player.price || player.salary || 0,
@@ -110,17 +113,33 @@ const processRosterData = (roster) => {
         return;
       }
       
+      // Skip non-roster keys like 'picks'
+      const validSlots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+      const slotKey = key.toUpperCase();
+      if (!validSlots.includes(slotKey)) {
+        console.log(`⏭️ Skipping non-roster key: ${key}`);
+        return;
+      }
+      
       // If value is a player object with name
       if (typeof value === 'object' && value.name) {
-        const position = (value.position || key || '').toUpperCase();
-        standardizedRoster[position] = {
+        // CRITICAL FIX: Use the SLOT KEY (key) as the storage key, NOT value.position!
+        // The key IS the roster slot (QB, RB, WR, TE, FLEX)
+        // The value.position is the player's actual position (which may differ for FLEX picks)
+        const slot = slotKey;  // Use the object key as the slot
+        
+        standardizedRoster[slot] = {
           name: value.name,
-          position: value.position || position,
+          // Player's actual position for display purposes
+          position: value.originalPosition || value.position || slot,
+          originalPosition: value.originalPosition || value.position || slot,
           team: value.team,
           price: value.price || value.value || value.salary || 0,
           value: value.value || value.price || value.salary || 0,
           playerId: value.playerId || value._id || value.id
         };
+        
+        console.log(`✅ Processed roster slot ${slot}: ${value.name} (actual position: ${value.originalPosition || value.position || slot})`);
       }
     });
   }
@@ -603,7 +622,7 @@ const draftSlice = createSlice({
         const existingPlayer = currentRoster[position];
         const isNewPick = !existingPlayer || existingPlayer.name !== player?.name;
         
-        // Update roster
+        // Update roster - use position (slot) as key, not player's position
         state.teams[teamIndex].roster = {
           ...currentRoster,
           [position]: player
