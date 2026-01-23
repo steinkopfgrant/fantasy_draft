@@ -77,7 +77,7 @@ try {
 }
 
 // Import middleware for admin route protection
-const { authMiddleware } = require('./middleware/auth');
+const authMiddleware = require('./middleware/auth');
 const { adminMiddleware } = require('./middleware/admin');
 
 // ============================================
