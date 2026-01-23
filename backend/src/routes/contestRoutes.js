@@ -939,16 +939,57 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       });
     }
     
-    // Check if room is now full and should launch draft
-    if (finalPlayerCount >= 5) {
-      console.log(`🚀 Room ${roomId} is full (${finalPlayerCount}/5), launching draft...`);
-      try {
-        await contestService.launchDraft(roomId, updatedStatus, contest);
-      } catch (launchError) {
-        console.error(`❌ Failed to launch draft: ${launchError.message}`);
-        errors.push(`Draft launch failed: ${launchError.message}`);
-      }
+// Check if room is now full and should launch draft
+if (finalPlayerCount >= 5) {
+  console.log(`🚀 Room ${roomId} is full (${finalPlayerCount}/5), launching draft...`);
+  
+  // Close the contest and create replacement for cash games
+  if (contest.type === 'cash') {
+    await contest.update({ status: 'closed' });
+    
+    // Create replacement cash game
+    const { generatePlayerBoard } = require('../utils/gameLogic');
+    const cashGames = await Contest.findAll({
+      where: { type: 'cash', name: { [db.Sequelize.Op.like]: 'Cash Game #%' } },
+      attributes: ['name']
+    });
+    
+    let maxNumber = 0;
+    cashGames.forEach(game => {
+      const match = game.name.match(/Cash Game #(\d+)/);
+      if (match) maxNumber = Math.max(maxNumber, parseInt(match[1]));
+    });
+    
+    const newCashGame = await Contest.create({
+      id: uuidv4(),
+      type: 'cash',
+      name: `Cash Game #${maxNumber + 1}`,
+      status: 'open',
+      entry_fee: contest.entry_fee,
+      prize_pool: contest.prize_pool,
+      max_entries: 5,
+      current_entries: 0,
+      max_entries_per_user: 1,
+      player_board: generatePlayerBoard(),
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    
+    console.log(`✅ Created replacement: ${newCashGame.name}`);
+    
+    // Emit socket event for new contest
+    if (io) {
+      io.emit('contest-created', { contest: newCashGame });
     }
+  }
+  
+  try {
+    await contestService.launchDraft(roomId, updatedStatus, contest);
+  } catch (launchError) {
+    console.error(`❌ Failed to launch draft: ${launchError.message}`);
+    errors.push(`Draft launch failed: ${launchError.message}`);
+  }
+}
     
     res.json({ 
       success: botEntries.length > 0 || finalPlayerCount >= 5,
