@@ -41,7 +41,7 @@ const generateToken = (user) => {
 // ============================================
 // POST /register - Create new account
 // ============================================
-router.post('/register', registerLimiter, async (req, res) => {
+router.post('/register', /* registerLimiter, */ async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
