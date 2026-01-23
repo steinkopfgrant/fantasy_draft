@@ -149,7 +149,7 @@ router.post('/register', registerLimiter, async (req, res) => {
 // ============================================
 // POST /login - Authenticate user
 // ============================================
-router.post('/login', loginLimiter, accountLockout(5, 15 * 60 * 1000), async (req, res) => {
+router.post('/login', /* loginLimiter, accountLockout(5, 15 * 60 * 1000), */ async (req, res) => {
   try {
     const { email, username, password } = req.body;
     
