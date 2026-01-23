@@ -90,6 +90,10 @@ const PayoutService = require('./services/PayoutService');
 // Create Express app
 const app = express();
 
+// Security headers
+const helmet = require('helmet');
+app.use(helmet());
+
 // Trust first proxy (Railway runs behind a proxy)
 app.set('trust proxy', 1);
 
