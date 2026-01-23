@@ -76,6 +76,10 @@ try {
   injurySwapService = null;
 }
 
+// Import middleware for admin route protection
+const { authMiddleware } = require('./middleware/auth');
+const { adminMiddleware } = require('./middleware/admin');
+
 // ============================================
 // SETTLEMENT SERVICES
 // ============================================
@@ -334,8 +338,11 @@ app.use('/api/drafts', draftRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/market-mover', marketMoverRoutes);
 app.use('/api/debug', debugRoutes);
-app.use('/api/admin/sim', simRoutes);
-app.use('/api/admin', injuryRoutes);
+
+// PROTECTED ADMIN ROUTES - require authentication and admin role
+app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
+app.use('/api/admin', authMiddleware, adminMiddleware, injuryRoutes);
+
 app.use('/api/pools', poolsRoutes);
 
 // Placeholder routes for other missing functionality
@@ -476,9 +483,10 @@ app.use((err, req, res, next) => {
 
 // ============================================
 // SETTLEMENT ADMIN ROUTES (must be before 404 handler)
+// PROTECTED - require authentication and admin role
 // ============================================
 const { router: settlementRouter, initializeRouter: initSettlementRouter } = require('./routes/admin/settlement');
-app.use('/api/admin/settlement', settlementRouter);
+app.use('/api/admin/settlement', authMiddleware, adminMiddleware, settlementRouter);
 
 // 404 handler - MUST BE LAST
 app.use((req, res) => {
@@ -590,7 +598,7 @@ async function startServer() {
       console.log('   - Settlement Service: Initialized');
       console.log('   - Injury Swap Service: ' + (injurySwapService ? 'Initialized' : 'Not Available'));
       console.log('   - Debug Routes: Enabled');
-      console.log('   - Sim Routes: Enabled');
+      console.log('   - Sim Routes: Enabled (Admin Protected)');
       console.log('📡 API Documentation: GET /api');
     });
 

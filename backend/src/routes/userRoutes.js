@@ -86,7 +86,8 @@ router.get('/balance', authMiddleware, async (req, res) => {
 });
 
 // Add funds and tickets (for testing)
-router.post('/add-funds', authMiddleware, async (req, res) => {
+const { adminMiddleware } = require('../middleware/admin');
+router.post('/add-funds', authMiddleware, adminMiddleware, async (req, res) => {
     try {
         const { amount, tickets } = req.body;
         const userId = req.user.id || req.user.userId;
