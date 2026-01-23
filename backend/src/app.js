@@ -337,7 +337,7 @@ app.use('/api/contests', contestRoutes);
 app.use('/api/drafts', draftRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/market-mover', marketMoverRoutes);
-app.use('/api/debug', debugRoutes);
+app.use('/api/debug', authMiddleware, adminMiddleware, debugRoutes);
 
 // PROTECTED ADMIN ROUTES - require authentication and admin role
 app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
