@@ -784,7 +784,7 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
         const currentEntries = await ContestEntry.count({
           where: {
             draft_room_id: roomId,
-            status: { [db.Sequelize.Op.notIn]: ['cancelled', 'withdrawn'] }
+            status: { [db.Sequelize.Op.notIn]: ['cancelled'] }
           }
         });
         
