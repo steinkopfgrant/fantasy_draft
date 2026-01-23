@@ -543,7 +543,9 @@ class ContestService {
 
             const nextNumber = maxNumber + 1;
             
+            const { v4: uuidv4 } = require('uuid');
             const newCashGame = await db.Contest.create({
+              id: uuidv4(),
               type: 'cash',
               name: `Cash Game #${nextNumber}`,
               status: 'open',
