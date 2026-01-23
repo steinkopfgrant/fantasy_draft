@@ -738,7 +738,6 @@ router.post('/debug/launch-draft/:roomId', async (req, res) => {
 // Admin: Fill lobby with bots (for testing)
 router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
   try {
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const user = await User.findByPk(userId);
     
@@ -760,12 +759,18 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       return res.json({ success: true, message: 'Room already full' });
     }
     
+    // Get the contest
+    const contest = await Contest.findByPk(roomStatus.contestId);
+    if (!contest) {
+      return res.status(404).json({ error: 'Contest not found' });
+    }
+    
     const botEntries = [];
     for (let i = 1; i <= slotsNeeded; i++) {
       const botUsername = `botuser${i}`;
       
       try {
-        // Find or create bot user (no underscore, alphanumeric only)
+        // Find or create bot user
         const [botUser] = await User.findOrCreate({
           where: { username: botUsername },
           defaults: {
@@ -775,23 +780,52 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
           }
         });
         
-        // Enter contest
-        const entry = await contestService.enterContest(
-          roomStatus.contestId,
-          botUser.id,
-          botUsername
-        );
+        // Get current position in room
+        const currentEntries = await ContestEntry.count({
+          where: {
+            draft_room_id: roomId,
+            status: { [db.Sequelize.Op.notIn]: ['cancelled', 'withdrawn'] }
+          }
+        });
+        
+        // Create entry DIRECTLY with the specific room ID
+        const entry = await ContestEntry.create({
+          id: uuidv4(),
+          user_id: botUser.id,
+          contest_id: roomStatus.contestId,
+          draft_room_id: roomId,  // FORCE THIS ROOM
+          draft_position: currentEntries,
+          status: 'pending',
+          roster: {},
+          total_spent: 0,
+          entered_at: new Date()
+        });
+        
+        // Increment contest entry count
+        await contest.increment('current_entries');
+        
         botEntries.push(botUsername);
-        console.log(`✅ Bot ${botUsername} joined room ${roomId}`);
+        console.log(`✅ Bot ${botUsername} joined room ${roomId} at position ${currentEntries}`);
+        
       } catch (err) {
         console.log(`Bot ${botUsername} failed:`, err.message);
       }
       
-      // Small delay to prevent race conditions
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 100));
     }
     
-    res.json({ success: true, botsAdded: botEntries.length });
+    // Check if room is now full and should launch
+    const updatedStatus = await contestService.getRoomStatus(roomId);
+    if (updatedStatus && updatedStatus.currentPlayers >= 5) {
+      console.log(`🚀 Room ${roomId} is full, launching draft...`);
+      await contestService.launchDraft(roomId, updatedStatus, contest);
+    }
+    
+    res.json({ 
+      success: true, 
+      botsAdded: botEntries.length,
+      roomPlayers: updatedStatus?.currentPlayers || 0
+    });
     
   } catch (error) {
     console.error('Fill room error:', error);
