@@ -765,9 +765,40 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Contest not found' });
     }
     
+    // Find which bots are already in this room
+    const existingBotEntries = await ContestEntry.findAll({
+      where: {
+        draft_room_id: roomId,
+        status: { [db.Sequelize.Op.notIn]: ['cancelled'] }
+      },
+      include: [{
+        model: User,
+        where: { username: { [db.Sequelize.Op.like]: 'botuser%' } },
+        attributes: ['username'],
+        required: false
+      }]
+    });
+    
+    const botsInRoom = new Set(
+      existingBotEntries
+        .filter(e => e.User?.username)
+        .map(e => e.User.username)
+    );
+    console.log(`Bots already in room: ${Array.from(botsInRoom).join(', ') || 'none'}`);
+    
     const botEntries = [];
-    for (let i = 1; i <= slotsNeeded; i++) {
-      const botUsername = `botuser${i}`;
+    let botNum = 1;
+    const maxBotNum = 20;
+    
+    while (botEntries.length < slotsNeeded && botNum <= maxBotNum) {
+      const botUsername = `botuser${botNum}`;
+      
+      // Skip if bot already in room
+      if (botsInRoom.has(botUsername)) {
+        console.log(`⏭️ ${botUsername} already in room, skipping`);
+        botNum++;
+        continue;
+      }
       
       try {
         // Find or create bot user
@@ -779,6 +810,21 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
             balance: 10000
           }
         });
+        
+        // Double-check bot doesn't have entry in room
+        const existingEntry = await ContestEntry.findOne({
+          where: {
+            draft_room_id: roomId,
+            user_id: botUser.id,
+            status: { [db.Sequelize.Op.notIn]: ['cancelled'] }
+          }
+        });
+        
+        if (existingEntry) {
+          console.log(`⏭️ ${botUsername} already has entry, skipping`);
+          botNum++;
+          continue;
+        }
         
         // Get current position in room
         const currentEntries = await ContestEntry.count({
@@ -811,6 +857,7 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
         console.log(`Bot ${botUsername} failed:`, err.message);
       }
       
+      botNum++;
       await new Promise(r => setTimeout(r, 100));
     }
     
