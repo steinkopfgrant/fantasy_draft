@@ -254,6 +254,78 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ============================================
+// RESOURCE MONITORING (for load testing)
+// Add this right after your app.get('/api/health', ...) route
+// ============================================
+
+app.get('/api/debug/resources', (req, res) => {
+  const used = process.memoryUsage();
+  const heapUsedMB = Math.round(used.heapUsed / 1024 / 1024);
+  const rssMB = Math.round(used.rss / 1024 / 1024);
+  const memoryLimitMB = 512; // Free Railway tier estimate
+  
+  // Socket stats
+  let socketCount = 0;
+  let draftRooms = [];
+  try {
+    socketCount = io.engine?.clientsCount || 0;
+    const rooms = io.sockets?.adapter?.rooms;
+    if (rooms) {
+      rooms.forEach((sockets, roomName) => {
+        if (roomName.startsWith('draft_')) {
+          draftRooms.push({ room: roomName, clients: sockets.size });
+        }
+      });
+    }
+  } catch (e) { /* ignore */ }
+  
+  // Draft handler stats
+  let activeDrafts = 0;
+  let activeTimers = 0;
+  try {
+    if (socketHandler.draftHandler?.draftStates) {
+      activeDrafts = socketHandler.draftHandler.draftStates.size;
+    }
+    if (socketHandler.draftHandler?.pickTimers) {
+      activeTimers = socketHandler.draftHandler.pickTimers.size;
+    }
+  } catch (e) { /* ignore */ }
+  
+  res.json({
+    timestamp: new Date().toISOString(),
+    memory: {
+      heapUsed: heapUsedMB + ' MB',
+      heapTotal: Math.round(used.heapTotal / 1024 / 1024) + ' MB',
+      rss: rssMB + ' MB',
+      percent: Math.round((rssMB / memoryLimitMB) * 100) + '%',
+      warning: rssMB > memoryLimitMB * 0.8 ? '⚠️ HIGH' : 'OK'
+    },
+    uptime: Math.round(process.uptime()) + 's',
+    sockets: {
+      connected: socketCount,
+      draftRooms: draftRooms.length,
+      rooms: draftRooms
+    },
+    drafts: {
+      active: activeDrafts,
+      timers: activeTimers
+    }
+  });
+});
+
+// Quick live stats endpoint (for polling during load test)
+app.get('/api/debug/live', (req, res) => {
+  const used = process.memoryUsage();
+  res.json({
+    t: Date.now(),
+    heap: Math.round(used.heapUsed / 1024 / 1024),
+    rss: Math.round(used.rss / 1024 / 1024),
+    sockets: io.engine?.clientsCount || 0,
+    drafts: socketHandler.draftHandler?.draftStates?.size || 0
+  });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
