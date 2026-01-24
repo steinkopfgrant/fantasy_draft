@@ -6,6 +6,9 @@ const userService = require('../services/userService');
 const contestService = require('../services/contestService');
 const db = require('../models');
 
+// Import TransactionService
+const TransactionService = require('../services/TransactionService');
+
 // Get user profile - FIXED to wrap response properly and include is_admin
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
@@ -85,42 +88,79 @@ router.get('/balance', authMiddleware, async (req, res) => {
     }
 });
 
-// Add funds and tickets (for testing)
+// Add funds and tickets (admin only)
+// FIXED: Now properly logs transactions via TransactionService
 const { adminMiddleware } = require('../middleware/admin');
 router.post('/add-funds', authMiddleware, adminMiddleware, async (req, res) => {
     try {
-        const { amount, tickets } = req.body;
-        const userId = req.user.id || req.user.userId;
+        const { amount, tickets, targetUserId, reason } = req.body;
+        const adminUserId = req.user.id || req.user.userId;
+        
+        // Target can be self (for testing) or another user (for admin operations)
+        const userId = targetUserId || adminUserId;
         
         const user = await db.User.findByPk(userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
         
-        // Add funds and tickets
-        if (amount) {
-            user.balance = parseFloat(user.balance || 0) + parseFloat(amount);
+        const results = {
+            userId: user.id,
+            username: user.username
+        };
+        
+        // Add funds using TransactionService (creates audit trail)
+        if (amount && parseFloat(amount) > 0) {
+            const transactionService = new TransactionService(db, db.sequelize);
+            
+            const txResult = await transactionService.addPromoCredit(
+                userId,
+                parseFloat(amount),
+                reason || 'Admin funds addition',
+                adminUserId
+            );
+            
+            results.previousBalance = txResult.previousBalance;
+            results.newBalance = txResult.newBalance;
+            results.transactionId = txResult.transaction.id;
+            
+            console.log(`💰 Admin ${adminUserId} added $${amount} to user ${user.username} (${userId})`);
         }
         
-        if (tickets) {
-            user.tickets = parseInt(user.tickets || 0) + parseInt(tickets);
+        // Tickets are separate from balance (not financial, so no transaction needed)
+        if (tickets && parseInt(tickets) > 0) {
+            const ticketAmount = parseInt(tickets);
+            const previousTickets = parseInt(user.tickets || 0);
+            user.tickets = previousTickets + ticketAmount;
+            await user.save();
+            
+            results.previousTickets = previousTickets;
+            results.newTickets = user.tickets;
+            
+            // Optionally log to TicketTransaction if you have that table
+            if (db.TicketTransaction) {
+                await db.TicketTransaction.create({
+                    user_id: userId,
+                    type: 'admin_grant',
+                    amount: ticketAmount,
+                    balance_after: user.tickets,
+                    reason: reason || `Admin grant by ${adminUserId}`
+                }).catch(err => {
+                    console.log('TicketTransaction logging failed (table may not exist):', err.message);
+                });
+            }
+            
+            console.log(`🎟️ Admin ${adminUserId} added ${tickets} tickets to user ${user.username} (${userId})`);
         }
-        
-        await user.save();
         
         res.json({
             success: true,
-            user: {
-                id: user.id,
-                username: user.username,
-                balance: parseFloat(user.balance),
-                tickets: parseInt(user.tickets)
-            }
+            ...results
         });
         
     } catch (error) {
         console.error('Error adding funds:', error);
-        res.status(500).json({ error: 'Failed to add funds' });
+        res.status(500).json({ error: error.message || 'Failed to add funds' });
     }
 });
 
@@ -168,16 +208,39 @@ router.get('/contests', authMiddleware, async (req, res) => {
     }
 });
 
-// Get user's balance history
+// Get user's balance history (transaction history)
 router.get('/balance-history', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id || req.user.userId;
-        const history = await userService.getBalanceHistory(userId);
         
-        res.json({
-            success: true,
-            history
-        });
+        // Use TransactionService if available, fallback to userService
+        try {
+            const transactionService = new TransactionService(db, db.sequelize);
+            const transactions = await transactionService.getUserTransactions(userId, { limit: 50 });
+            
+            res.json({
+                success: true,
+                history: transactions.map(tx => ({
+                    id: tx.id,
+                    type: tx.type,
+                    amount: parseFloat(tx.amount),
+                    balanceBefore: parseFloat(tx.balance_before || 0),
+                    balanceAfter: parseFloat(tx.balance_after),
+                    description: tx.description,
+                    referenceType: tx.reference_type,
+                    referenceId: tx.reference_id,
+                    createdAt: tx.created_at
+                }))
+            });
+        } catch (txError) {
+            // Fallback to old method if TransactionService fails
+            console.log('TransactionService not available, using fallback:', txError.message);
+            const history = await userService.getBalanceHistory(userId);
+            res.json({
+                success: true,
+                history
+            });
+        }
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -282,6 +345,46 @@ router.get('/search', authMiddleware, async (req, res) => {
             success: false,
             error: 'Failed to search users' 
         });
+    }
+});
+
+// ==================== ADMIN RECONCILIATION ENDPOINTS ====================
+
+// Reconcile single user's balance against transaction history
+router.get('/admin/reconcile/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const transactionService = new TransactionService(db, db.sequelize);
+        
+        const result = await transactionService.reconcileUser(userId);
+        
+        res.json({
+            success: true,
+            ...result
+        });
+    } catch (error) {
+        console.error('Reconciliation error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reconcile ALL users - find any balance discrepancies
+router.get('/admin/reconcile', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const transactionService = new TransactionService(db, db.sequelize);
+        
+        const results = await transactionService.reconcileAllUsers();
+        
+        res.json({
+            success: true,
+            total: results.total,
+            reconciled: results.reconciled,
+            discrepancyCount: results.discrepancies.length,
+            discrepancies: results.discrepancies
+        });
+    } catch (error) {
+        console.error('Reconciliation error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
