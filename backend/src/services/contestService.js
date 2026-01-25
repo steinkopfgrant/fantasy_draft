@@ -249,7 +249,7 @@ class ContestService {
 
       return entries.map(entry => ({
         id: entry.id,
-        odId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
@@ -666,7 +666,7 @@ class ContestService {
         id: entry.id,
         entry: {
           id: entry.id,
-          odId: entry.user_id,
+          userId: entry.user_id,
           contestId: contestId,
           draftRoomId: roomId,
           draftPosition: draftPosition,
@@ -1156,7 +1156,7 @@ class ContestService {
             contestType: 'cash',
             entries: entries.map((e, index) => ({
               id: e.id,
-              odId: e.user_id,
+              userId: e.user_id,
               username: e.User?.username || 'Unknown',
               contestId: e.contest_id,
               draftRoomId: e.draft_room_id,
@@ -1170,7 +1170,7 @@ class ContestService {
             playerBoard: contest.player_board,
             players: entries.map(e => ({
               username: e.User?.username || 'Unknown',
-              odId: e.user_id,
+              userId: e.user_id,
               position: e.draft_position
             }))
           };
@@ -1273,7 +1273,7 @@ class ContestService {
           contestType: contest?.type,
           entries: entries.map((e, index) => ({
             id: e.id,
-            odId: e.user_id,
+            userId: e.user_id,
             username: e.User?.username || 'Unknown',
             contestId: e.contest_id,
             draftRoomId: e.draft_room_id,
@@ -1287,7 +1287,7 @@ class ContestService {
           playerBoard: playerBoard,
           players: entries.map(e => ({
             username: e.User?.username || 'Unknown',
-            odId: e.user_id,
+            userId: e.user_id,
             position: e.draft_position
           }))
         };
@@ -1520,7 +1520,7 @@ class ContestService {
           playerBoard: roomStatus.playerBoard,
           participants: roomStatus.entries.map((e, index) => ({
             entryId: e.id,
-            odId: e.odId,
+            userId: e.userId,
             username: e.username,
             draftPosition: e.draftPosition !== null ? e.draftPosition : index
           })),
@@ -1648,7 +1648,7 @@ class ContestService {
     await this.redis.set(turnKey, JSON.stringify({
       turnStartedAt: turnStartedAt,
       currentTurn: draftState.currentTurn,
-      currentUserId: currentPlayer.odId,
+      currentUserId: currentPlayer.userId,
       timeLimit: timeLimit
     }), 'EX', 3600);
 
@@ -1658,7 +1658,7 @@ class ContestService {
         currentPick: draftState.currentTurn + 1,
         totalPicks,
         currentPlayer: {
-          odId: currentPlayer.odId,
+          userId: currentPlayer.userId,
           username: currentPlayer.username,
           position: currentPlayerIndex
         },
@@ -1680,14 +1680,14 @@ class ContestService {
       });
     }
 
-    const existingTimerKey = `${roomId}_${currentPlayer.odId}`;
+    const existingTimerKey = `${roomId}_${currentPlayer.userId}`;
     if (this.draftTimers.has(existingTimerKey)) {
       clearTimeout(this.draftTimers.get(existingTimerKey));
       this.draftTimers.delete(existingTimerKey);
     }
 
     const capturedRoomId = roomId;
-    const capturedUserId = currentPlayer.odId;
+    const capturedUserId = currentPlayer.userId;
     const capturedUsername = currentPlayer.username;
     const capturedTimerKey = existingTimerKey;
 
@@ -1740,7 +1740,7 @@ class ContestService {
         return { stalled: true, action: 'completed_invalid_player' };
       }
       
-      const timerKey = `${roomId}_${currentPlayer.odId}`;
+      const timerKey = `${roomId}_${currentPlayer.userId}`;
       
       if (this.draftTimers.has(timerKey)) {
         return { stalled: false, reason: 'timer_active' };
@@ -1781,7 +1781,7 @@ class ContestService {
             }
           }
           
-          await this.handleAutoPick(roomId, currentPlayer.odId);
+          await this.handleAutoPick(roomId, currentPlayer.userId);
           return { stalled: true, action: 'auto_picked' };
         }
         
@@ -1810,12 +1810,12 @@ class ContestService {
               turnStartedAt: turnStartedAt,
               serverTime: Date.now(),
               timeLimit: timeLimit,
-              currentUserId: currentPlayer.odId
+              currentUserId: currentPlayer.userId
             });
           }
           
           const capturedRoomId = roomId;
-          const capturedUserId = currentPlayer.odId;
+          const capturedUserId = currentPlayer.userId;
           const capturedTimerKey = timerKey;
           
           const timerId = setTimeout(async () => {
@@ -1900,7 +1900,7 @@ class ContestService {
     }
   }
 
-  async handlePlayerPick(roomId, odId, playerData, positionData) {
+  async handlePlayerPick(roomId, userId, playerData, positionData) {
     const draft = this.activeDrafts.get(roomId);
     if (!draft) {
       throw new Error('Draft not found');
@@ -1910,16 +1910,16 @@ class ContestService {
     const row = positionData?.row;
     const col = positionData?.col;
 
-    console.log(`Processing pick: Room ${roomId}, User ${odId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
+    console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
-    const timerKey = `${roomId}_${odId}`;
+    const timerKey = `${roomId}_${userId}`;
     const timerId = this.draftTimers.get(timerKey);
     if (timerId) {
       clearTimeout(timerId);
       this.draftTimers.delete(timerKey);
     }
 
-    const updatedDraft = await draftService.makePick(roomId, odId, {
+    const updatedDraft = await draftService.makePick(roomId, userId, {
       player: playerData,
       rosterSlot: rosterSlot,
       row: row !== undefined ? row : playerData?.row,
@@ -1930,7 +1930,7 @@ class ContestService {
     if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
       if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
         updatedDraft.playerBoard[row][col].drafted = true;
-        updatedDraft.playerBoard[row][col].draftedBy = odId;
+        updatedDraft.playerBoard[row][col].draftedBy = userId;
         
         const boardKey = `board:${roomId}`;
         await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
@@ -1942,7 +1942,7 @@ class ContestService {
     const entry = await db.ContestEntry.findOne({
       where: {
         draft_room_id: roomId,
-        user_id: odId,
+        user_id: userId,
         status: 'drafting'
       }
     });
@@ -1961,7 +1961,7 @@ class ContestService {
       
       this.io.to(socketRoom).emit('player-picked', {
         roomId,
-        odId,
+        userId,
         player: playerData,
         position: rosterSlot,
         row: row,
@@ -1989,17 +1989,17 @@ class ContestService {
     await this.startNextPick(roomId);
   }
 
-  async handleAutoPick(roomId, odId) {
-    console.log(`Auto-picking for user ${odId} in room ${roomId}`);
+  async handleAutoPick(roomId, userId) {
+    console.log(`Auto-picking for user ${userId} in room ${roomId}`);
     
-    const timerKey = `${roomId}_${odId}`;
+    const timerKey = `${roomId}_${userId}`;
     if (this.draftTimers.has(timerKey)) {
       clearTimeout(this.draftTimers.get(timerKey));
       this.draftTimers.delete(timerKey);
     }
     
     try {
-      const updatedDraft = await draftService.autoPick(roomId, odId);
+      const updatedDraft = await draftService.autoPick(roomId, userId);
       
       if (updatedDraft && this.io) {
         const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
@@ -2010,7 +2010,7 @@ class ContestService {
           const entry = await db.ContestEntry.findOne({
             where: {
               draft_room_id: roomId,
-              user_id: odId,
+              user_id: userId,
               status: 'drafting'
             }
           });
@@ -2027,7 +2027,7 @@ class ContestService {
           
           this.io.to(socketRoom).emit('player-picked', {
             roomId,
-            odId,
+            userId,
             player: lastPick.player,
             position: lastPick.rosterSlot,
             row: lastPick.row,
@@ -2117,8 +2117,8 @@ class ContestService {
     const rosterMap = new Map();
     if (draftState && draftState.teams) {
       for (const team of draftState.teams) {
-        if (team.odId && team.roster) {
-          rosterMap.set(team.odId, team.roster);
+        if (team.userId && team.roster) {
+          rosterMap.set(team.userId, team.roster);
         }
       }
     }
@@ -2133,8 +2133,8 @@ class ContestService {
 
     for (const entry of entries) {
       try {
-        const odId = entry.user_id;
-        const roster = rosterMap.get(odId) || {};
+        const userId = entry.user_id;
+        const roster = rosterMap.get(userId) || {};
         
         const cleanRoster = {};
         let playerCount = 0;
@@ -2146,13 +2146,13 @@ class ContestService {
               position: roster[position].position || position,
               price: roster[position].price || 0,
               value: roster[position].value || roster[position].price || 0,
-              playerId: roster[position].playerId || `${position}-${odId}`
+              playerId: roster[position].playerId || `${position}-${userId}`
             };
             playerCount++;
           }
         });
 
-        console.log(`\n💾 Saving ${entry.User?.username} (${odId}):`);
+        console.log(`\n💾 Saving ${entry.User?.username} (${userId}):`);
         console.log(`   Players: ${playerCount}`);
         console.log(`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
 
@@ -2185,7 +2185,7 @@ class ContestService {
           
           const lineup = await db.Lineup.create({
             id: uuidv4(),
-            user_id: odId,
+            user_id: userId,
             contest_entry_id: entry.id,
             contest_id: entry.contest_id,
             contest_type: entry.Contest?.type || 'cash',
@@ -2230,7 +2230,7 @@ class ContestService {
             
             if (this.io) {
               this.io.emit('tickets-updated', {
-                odId: entry.User.id,
+                userId: entry.User.id,
                 tickets: result.newBalance,
                 reason: 'draft_completion'
               });
@@ -2344,7 +2344,7 @@ class ContestService {
 
       return {
         id: entry.id,
-        odId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contest: entry.Contest,
         draftRoomId: entry.draft_room_id,
@@ -2359,11 +2359,11 @@ class ContestService {
     }
   }
 
-  async getUserContestHistory(odId, limit = 50) {
+  async getUserContestHistory(userId, limit = 50) {
     try {
       const entries = await db.ContestEntry.findAll({
         where: {
-          user_id: odId,
+          user_id: userId,
           status: 'completed'
         },
         include: [{
