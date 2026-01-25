@@ -5,17 +5,24 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Transaction extends Model {
     /**
-     * Helper to check if this is a credit (money in)
+     * Check if this is a credit (money in)
      */
     isCredit() {
       return parseFloat(this.amount) > 0;
     }
 
     /**
-     * Helper to check if this is a debit (money out)
+     * Check if this is a debit (money out)
      */
     isDebit() {
       return parseFloat(this.amount) < 0;
+    }
+
+    /**
+     * Get absolute amount
+     */
+    getAbsoluteAmount() {
+      return Math.abs(parseFloat(this.amount));
     }
   }
 
@@ -34,79 +41,72 @@ module.exports = (sequelize, DataTypes) => {
       },
       onDelete: 'CASCADE'
     },
-    // Transaction types - exhaustive list
+    // Using STRING instead of ENUM to avoid migration headaches
+    // Valid types: deposit, withdrawal, entry_fee, entry_refund, 
+    // contest_winnings, promo_credit, adjustment
+    // Legacy types: contest_entry, contest_refund (kept for backward compatibility)
     type: {
-      type: DataTypes.ENUM(
-        'deposit',           // Money added via Stripe/payment
-        'withdrawal',        // Money withdrawn to bank
-        'entry_fee',         // Deducted when entering contest
-        'entry_refund',      // Refunded when withdrawing from contest
-        'contest_winnings',  // Prize money from contest
-        'promo_credit',      // Admin/promotional credit
-        'adjustment'         // Manual correction (rare, requires notes)
-      ),
+      type: DataTypes.STRING(50),
       allowNull: false
     },
     // Positive = credit, Negative = debit
     amount: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      validate: {
-        notZero(value) {
-          if (parseFloat(value) === 0) {
-            throw new Error('Transaction amount cannot be zero');
-          }
-        }
-      }
+      allowNull: false
     },
-    // Balance AFTER this transaction - critical for reconciliation
+    // Balance AFTER this transaction
     balance_after: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
     },
-    // Balance BEFORE this transaction - for audit trail
+    // Balance BEFORE this transaction (nullable for legacy transactions)
     balance_before: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false
+      allowNull: true  // IMPORTANT: Must be nullable for existing data
     },
-    // Reference to related entity (contest_id, stripe_payment_id, etc)
+    // Reference to related entity
     reference_type: {
       type: DataTypes.STRING(50),
-      allowNull: true,
-      comment: 'Type of reference: contest, stripe_payment, admin_action, etc'
+      allowNull: true
     },
     reference_id: {
       type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    // Legacy field - kept for backward compatibility with existing queries
+    contest_id: {
+      type: DataTypes.UUID,
       allowNull: true,
-      comment: 'ID of the referenced entity'
+      references: {
+        model: 'contests',
+        key: 'id'
+      }
     },
     // Human-readable description
     description: {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    // For admin actions - who did it
+    // For admin actions
     admin_user_id: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: 'users',
         key: 'id'
-      },
-      comment: 'Admin who initiated this transaction (for promo_credit, adjustment)'
+      }
     },
-    // Metadata for anything else needed
+    // Extra data
     metadata: {
       type: DataTypes.JSONB,
-      defaultValue: {},
-      comment: 'Additional data: stripe_charge_id, contest_name, etc'
+      allowNull: true,
+      defaultValue: {}
     },
-    // Idempotency key to prevent double-processing
+    // Prevents duplicate transactions (webhook retries, etc)
     idempotency_key: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      unique: true,
-      comment: 'Unique key to prevent duplicate transactions'
+      unique: true
     },
     created_at: {
       type: DataTypes.DATE,
@@ -118,27 +118,13 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'Transaction',
     tableName: 'transactions',
     underscored: true,
-    timestamps: false, // We manage created_at ourselves, no updated_at needed
+    timestamps: false,
     indexes: [
-      {
-        fields: ['user_id']
-      },
-      {
-        fields: ['type']
-      },
-      {
-        fields: ['reference_type', 'reference_id']
-      },
-      {
-        fields: ['created_at']
-      },
-      {
-        fields: ['idempotency_key'],
-        unique: true,
-        where: {
-          idempotency_key: { [sequelize.Sequelize.Op.ne]: null }
-        }
-      }
+      { fields: ['user_id'] },
+      { fields: ['type'] },
+      { fields: ['contest_id'] },
+      { fields: ['reference_type', 'reference_id'] },
+      { fields: ['created_at'] }
     ]
   });
 
