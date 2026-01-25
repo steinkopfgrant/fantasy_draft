@@ -1619,7 +1619,7 @@ class ContestService {
     const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
     const currentPlayer = draftState.teams[currentPlayerIndex];
     
-    if (!currentPlayer || !currentPlayer.odId) {
+    if (!currentPlayer || !currentPlayer.userId) {
       console.error(`❌ startNextPick: Invalid currentPlayer at index ${currentPlayerIndex}`);
       console.log(`  draftOrder: ${JSON.stringify(draftState.draftOrder)}`);
       console.log(`  currentTurn: ${draftState.currentTurn}`);
@@ -1734,7 +1734,7 @@ class ContestService {
       const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
       const currentPlayer = draftState.teams[currentPlayerIndex];
       
-      if (!currentPlayer || !currentPlayer.odId) {
+      if (!currentPlayer || !currentPlayer.userId) {
         console.log(`⚠️ Invalid currentPlayer in checkAndRestartStalledDraft for ${roomId}`);
         await this.completeDraftForRoom(roomId);
         return { stalled: true, action: 'completed_invalid_player' };
