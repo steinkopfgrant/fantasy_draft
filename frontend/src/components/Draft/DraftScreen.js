@@ -1821,7 +1821,7 @@ const DraftScreen = ({ showToast }) => {
   }
 
   // Render results state
-  if (showResults || (status === 'completed' && currentTurn > 0)) {
+  if ((showResults || (status === 'completed' && currentTurn > 0)) && status !== 'countdown') {
     return (
       <div className="draft-container">
         <div className="results-screen">
