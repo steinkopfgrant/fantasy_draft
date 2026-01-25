@@ -792,6 +792,7 @@ class ContestService {
           }
 
           const usedPositions = allEntriesInRoom
+            .filter(e => ['pending', 'drafting'].includes(e.status))
             .map(e => e.draft_position)
             .filter(p => p !== null);
           
