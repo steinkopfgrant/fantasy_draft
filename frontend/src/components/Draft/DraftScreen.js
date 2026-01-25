@@ -1821,6 +1821,7 @@ const DraftScreen = ({ showToast }) => {
   }
 
   // Render results state
+  console.log('🔍 RENDER CHECK - status:', status, 'showResults:', showResults, 'currentTurn:', currentTurn);
   if ((showResults || (status === 'completed' && currentTurn > 0)) && status !== 'countdown') {
     return (
       <div className="draft-container">
