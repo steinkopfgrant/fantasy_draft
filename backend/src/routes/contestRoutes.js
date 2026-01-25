@@ -785,18 +785,23 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       attributes: ['id', 'user_id', 'draft_position', 'status']
     });
     
-    // Track which positions are taken (by ANY entry, regardless of status)
+ // Track which positions are taken by ACTIVE entries only (not cancelled)
     const usedPositions = new Set();
     const userIdsInRoom = new Set();
     const botUsernamesInRoom = new Set();
     
     allEntriesInRoom.forEach(entry => {
-      if (entry.draft_position !== null) {
+      // Only count positions from active entries (pending/drafting)
+      // Cancelled entries should NOT block positions
+      if (entry.draft_position !== null && entry.status !== 'cancelled') {
         usedPositions.add(entry.draft_position);
       }
-      userIdsInRoom.add(entry.user_id);
-      if (entry.User?.username?.startsWith('botuser')) {
-        botUsernamesInRoom.add(entry.User.username);
+      // Only track active users for duplicate prevention
+      if (entry.status !== 'cancelled') {
+        userIdsInRoom.add(entry.user_id);
+        if (entry.User?.username?.startsWith('botuser')) {
+          botUsernamesInRoom.add(entry.User.username);
+        }
       }
     });
     
