@@ -54,7 +54,7 @@ class ContestService {
   initializeTransactionService() {
     if (!this.transactionService) {
       this.transactionService = new TransactionService(db, db.sequelize);
-      console.log(('✅ TransactionService initialized in ContestService');
+      console.log('✅ TransactionService initialized in ContestService');
     }
     return this.transactionService;
   }
@@ -70,7 +70,7 @@ class ContestService {
   setSocketIO(io) {
     this.io = io;
     draftService.setSocketIO(io);
-    console.log(('Socket.IO instance set in ContestService');
+    console.log('Socket.IO instance set in ContestService');
     
     // Initialize TransactionService when socket is set (db should be ready)
     this.initializeTransactionService();
@@ -95,7 +95,7 @@ class ContestService {
     this.stalledDraftInterval = setInterval(() => {
       this.checkAllStalledDrafts();
     }, 15000);
-    console.log(('🔄 Started stalled draft checker (every 15s)');
+    console.log('🔄 Started stalled draft checker (every 15s)');
   }
 
   setIo(io) {
@@ -111,7 +111,7 @@ class ContestService {
     }
     
     if (this.recentEvents.has(eventId)) {
-      console.log((`Skipping duplicate event: ${eventName}`);
+      console.log(`Skipping duplicate event: ${eventName}`);
       return;
     }
     
@@ -334,7 +334,7 @@ class ContestService {
         throw new Error('Contest not found');
       }
 
-      console.log((`Entering contest: ${contest.name} (${contest.type}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
+      console.log(`Entering contest: ${contest.name} (${contest.type}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
 
       if (contest.status !== 'open') {
         throw new Error('Contest is not accepting entries');
@@ -379,7 +379,7 @@ class ContestService {
           throw new Error(`Maximum entries (${maxEntriesPerUser}) reached for MarketMaker tournament`);
         }
         
-        console.log((`MarketMaker: User has ${totalUserEntries}/${maxEntriesPerUser} entries`);
+        console.log(`MarketMaker: User has ${totalUserEntries}/${maxEntriesPerUser} entries`);
         
       } else if (contest.type === 'cash') {
         const existingEntry = await db.ContestEntry.findOne({
@@ -458,7 +458,7 @@ class ContestService {
           throw new Error('No draft positions available in room');
         }
 
-        console.log((`Cash game: Assigning position ${draftPosition} to user ${username} (${currentEntries.length + 1}/5 players after join)`);
+        console.log(`Cash game: Assigning position ${draftPosition} to user ${username} (${currentEntries.length + 1}/5 players after join)`);
         
         entry = await db.ContestEntry.create({
           user_id: userId,
@@ -469,7 +469,7 @@ class ContestService {
           entered_at: new Date()
         }, { transaction });
 
-        console.log((`Created entry for ${username} with position ${draftPosition} in room ${roomId}`);
+        console.log(`Created entry for ${username} with position ${draftPosition} in room ${roomId}`);
         
       } else if (['market', 'bash', 'firesale'].includes(contest.type)) {
         const roomAssignment = await this.findOrCreateRoom(contestId, userId, transaction);
@@ -487,7 +487,7 @@ class ContestService {
             let newBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
             
             await this.redis.set(boardKey, JSON.stringify(newBoard), 'EX', 86400);
-            console.log((`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
+            console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
           }
         }
         
@@ -500,7 +500,7 @@ class ContestService {
           entered_at: new Date()
         }, { transaction });
 
-        console.log((`Created entry for ${username} with position ${draftPosition} in room ${roomId}`);
+        console.log(`Created entry for ${username} with position ${draftPosition} in room ${roomId}`);
       }
 
       if (!entry) {
@@ -524,11 +524,11 @@ class ContestService {
         );
         newBalance = txResult.newBalance;
         
-        console.log((`💰 Entry fee deducted: $${entryFee.toFixed(2)} from ${username}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+        console.log(`💰 Entry fee deducted: $${entryFee.toFixed(2)} from ${username}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
       } else {
         // Free contest - no fee to deduct
         newBalance = userBalance;
-        console.log((`🆓 Free contest entry for ${username}, no fee deducted`);
+        console.log(`🆓 Free contest entry for ${username}, no fee deducted`);
       }
       // ====================================================================
 
@@ -538,17 +538,17 @@ class ContestService {
       
       const newEntryCount = contest.current_entries;
       
-      console.log((`Contest ${contestId} entry count now: ${newEntryCount} (max: ${contest.max_entries})`);
+      console.log(`Contest ${contestId} entry count now: ${newEntryCount} (max: ${contest.max_entries})`);
       
       let newCashGameCreated = false;
       let newCashGameData = null;
       
       // 8. Handle full contest - ONLY create new cash games, NOT market/tournament
       if (newEntryCount >= contest.max_entries) {
-        console.log((`Contest ${contestId} (${contest.name}) is now full with ${newEntryCount}/${contest.max_entries} entries`);
+        console.log(`Contest ${contestId} (${contest.name}) is now full with ${newEntryCount}/${contest.max_entries} entries`);
         
         if (contest.type === 'cash') {
-          console.log((`Cash game ${contestId} is full, creating replacement...`);
+          console.log(`Cash game ${contestId} is full, creating replacement...`);
           
           try {
             const cashGames = await db.Contest.findAll({
@@ -588,7 +588,7 @@ class ContestService {
               max_salary: 15
             }, { transaction });
             
-            console.log((`Successfully created new cash game: ${newCashGame.id} (${newCashGame.name})`);
+            console.log(`Successfully created new cash game: ${newCashGame.id} (${newCashGame.name})`);
             
             newCashGameCreated = true;
             newCashGameData = {
@@ -651,7 +651,7 @@ class ContestService {
       }
 
       setTimeout(async () => {
-        console.log((`📋 Checking draft launch for room ${roomId} after entry creation`);
+        console.log(`📋 Checking draft launch for room ${roomId} after entry creation`);
         try {
           await this.checkAndLaunchDraft(roomId, freshContest);
         } catch (error) {
@@ -659,7 +659,7 @@ class ContestService {
         }
       }, 1000);
 
-      console.log((`User ${username} entered ${contest.name}. Entries: ${actualCurrentEntries}/${contest.max_entries}`);
+      console.log(`User ${username} entered ${contest.name}. Entries: ${actualCurrentEntries}/${contest.max_entries}`);
 
       return {
         success: true,
@@ -693,10 +693,10 @@ class ContestService {
 
   // findOrCreateRoom - unchanged
   async findOrCreateRoom(contestId, userId, transaction) {
-    console.log((`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
+    console.log(`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
     
     const contest = await db.Contest.findByPk(contestId, { transaction });
-    console.log((`Contest type: ${contest?.type}, status: ${contest?.status}`);
+    console.log(`Contest type: ${contest?.type}, status: ${contest?.status}`);
     
     for (let attempt = 0; attempt < 3; attempt++) {
       const allRooms = await db.ContestEntry.findAll({
@@ -709,7 +709,7 @@ class ContestService {
         transaction
       });
 
-      console.log((`Attempt ${attempt + 1}: Found ${allRooms.length} total rooms for contest`);
+      console.log(`Attempt ${attempt + 1}: Found ${allRooms.length} total rooms for contest`);
 
       const roomsWithCounts = [];
       for (const room of allRooms) {
@@ -758,7 +758,7 @@ class ContestService {
         return a.roomNum - b.roomNum;
       });
       
-      console.log((`Available rooms: ${roomsWithCounts.map(r => `room_${r.roomNum}(${r.activeCount}/5)`).join(', ') || 'NONE'}`);
+      console.log(`Available rooms: ${roomsWithCounts.map(r => `room_${r.roomNum}(${r.activeCount}/5)`).join(', ') || 'NONE'}`);
 
       for (const room of roomsWithCounts) {
         const roomId = room.roomId;
@@ -774,20 +774,20 @@ class ContestService {
 
           const completedEntries = allEntriesInRoom.filter(e => e.status === 'completed');
           if (completedEntries.length > 0) {
-            console.log((`  ⏭️ Skipping room_${room.roomNum}: draft completed during lock`);
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: draft completed during lock`);
             continue;
           }
 
           const activeEntries = allEntriesInRoom.filter(e => ['pending', 'drafting'].includes(e.status));
           
           if (activeEntries.length >= 5) {
-            console.log((`  ⏭️ Skipping room_${room.roomNum}: filled up during lock (${activeEntries.length}/5)`);
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: filled up during lock (${activeEntries.length}/5)`);
             continue;
           }
 
           const userInThisRoom = activeEntries.some(e => e.user_id === userId);
           if (userInThisRoom) {
-            console.log((`  ⏭️ Skipping room_${room.roomNum}: user already has active entry`);
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: user already has active entry`);
             continue;
           }
 
@@ -805,14 +805,14 @@ class ContestService {
           }
 
           if (assignedPosition !== null) {
-            console.log((`✅ Assigning user to room_${room.roomNum} at position ${assignedPosition} (${activeEntries.length + 1}/5 players)`);
+            console.log(`✅ Assigning user to room_${room.roomNum} at position ${assignedPosition} (${activeEntries.length + 1}/5 players)`);
             return { roomId, position: assignedPosition };
           } else {
-            console.log((`  ⏭️ Skipping room_${room.roomNum}: all positions used (including cancelled)`);
+            console.log(`  ⏭️ Skipping room_${room.roomNum}: all positions used (including cancelled)`);
             continue;
           }
         } catch (error) {
-          console.log((`  ⚠️ Error checking room_${room.roomNum}: ${error.message}`);
+          console.log(`  ⚠️ Error checking room_${room.roomNum}: ${error.message}`);
           continue;
         }
       }
@@ -843,7 +843,7 @@ class ContestService {
 
     const newRoomNumber = maxRoomNumber + 1;
     const newRoomId = `${contestId}_room_${newRoomNumber}`;
-    console.log((`📦 Creating new room_${newRoomNumber} (max existing was ${maxRoomNumber})`);
+    console.log(`📦 Creating new room_${newRoomNumber} (max existing was ${maxRoomNumber})`);
 
     return { roomId: newRoomId, position: 0 };
   }
@@ -891,7 +891,7 @@ class ContestService {
       // Update entry status
       await entry.update({ status: 'cancelled' }, { transaction });
       
-      console.log((`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
+      console.log(`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
 
       // ====================================================================
       // REFUND ENTRY FEE USING TRANSACTIONSERVICE
@@ -911,12 +911,12 @@ class ContestService {
         );
         newBalance = txResult.newBalance;
         
-        console.log((`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${userId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+        console.log(`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${userId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
       } else {
         // Free contest - no refund needed
         const user = await db.User.findByPk(userId, { transaction });
         newBalance = parseFloat(user.balance);
-        console.log((`🆓 Free contest withdrawal, no refund needed`);
+        console.log(`🆓 Free contest withdrawal, no refund needed`);
       }
       // ====================================================================
 
@@ -926,13 +926,13 @@ class ContestService {
         
         if (contest.status === 'closed' && contest.current_entries - 1 < contest.max_entries) {
           await contest.update({ status: 'open' }, { transaction });
-          console.log((`Reopened contest ${contest.id} after withdrawal`);
+          console.log(`Reopened contest ${contest.id} after withdrawal`);
         }
       }
 
       await transaction.commit();
 
-      console.log((`User ${userId} withdrew from ${contest.name}. Entries: ${contest.current_entries - 1}/${contest.max_entries}`);
+      console.log(`User ${userId} withdrew from ${contest.name}. Entries: ${contest.current_entries - 1}/${contest.max_entries}`);
 
       const freshContest = await db.Contest.findByPk(entry.contest_id);
 
@@ -1005,7 +1005,7 @@ class ContestService {
         return bNum - aNum;
       });
 
-      console.log((`🎯 Lowest priority entry for user ${userId}: room ${entriesWithCounts[0].entry.draft_room_id} (${entriesWithCounts[0].roomCount}/5 players)`);
+      console.log(`🎯 Lowest priority entry for user ${userId}: room ${entriesWithCounts[0].entry.draft_room_id} (${entriesWithCounts[0].roomCount}/5 players)`);
       
       return entriesWithCounts[0].entry;
     } catch (error) {
@@ -1017,12 +1017,12 @@ class ContestService {
   // Clean up old room boards from Redis
   async cleanupRoomBoards() {
     try {
-      console.log(('🧹 Starting room board cleanup...');
+      console.log('🧹 Starting room board cleanup...');
       
       const keys = await this.redis.keys('ffsale:board:*');
       
       if (keys.length === 0) {
-        console.log(('No room boards to clean up');
+        console.log('No room boards to clean up');
         return 0;
       }
       
@@ -1045,7 +1045,7 @@ class ContestService {
           if (ttl === -1 || ttl > ONE_DAY / 1000) {
             await this.redis.expire(key.replace('ffsale:', ''), ONE_DAY / 1000);
             cleanedCount++;
-            console.log((`Set expiry for board ${roomId}`);
+            console.log(`Set expiry for board ${roomId}`);
           }
         }
       }
@@ -1067,11 +1067,11 @@ class ContestService {
         if (!contest || contest.status === 'completed' || contest.status === 'cancelled') {
           await this.redis.del(key.replace('ffsale:', ''));
           cleanedCount++;
-          console.log((`Removed counter for completed contest ${contestId}`);
+          console.log(`Removed counter for completed contest ${contestId}`);
         }
       }
       
-      console.log((`✅ Room board cleanup complete. Processed ${cleanedCount} keys`);
+      console.log(`✅ Room board cleanup complete. Processed ${cleanedCount} keys`);
       return cleanedCount;
       
     } catch (error) {
@@ -1083,8 +1083,8 @@ class ContestService {
   // getRoomStatus - unchanged
   async getRoomStatus(roomId) {
     try {
-      console.log((`\n=== GET ROOM STATUS DEBUG ===`);
-      console.log((`Getting room status for: ${roomId}`);
+      console.log(`\n=== GET ROOM STATUS DEBUG ===`);
+      console.log(`Getting room status for: ${roomId}`);
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
       
@@ -1128,7 +1128,7 @@ class ContestService {
                 entry.draft_position = newPosition;
                 usedPositions.add(newPosition);
                 positionFixed = true;
-                console.log((`Fixed null position for ${entry.User?.username}, assigned position ${newPosition}`);
+                console.log(`Fixed null position for ${entry.User?.username}, assigned position ${newPosition}`);
               }
             }
           }
@@ -1148,7 +1148,7 @@ class ContestService {
             });
           }
           
-          console.log((`Cash game room - Found ${entries.length} entries`);
+          console.log(`Cash game room - Found ${entries.length} entries`);
 
           return {
             id: roomId,
@@ -1178,7 +1178,7 @@ class ContestService {
         }
       }
 
-      console.log((`Checking tournament room: ${roomId}`);
+      console.log(`Checking tournament room: ${roomId}`);
       
       let entries = await db.ContestEntry.findAll({
         where: {
@@ -1220,7 +1220,7 @@ class ContestService {
             entry.draft_position = newPosition;
             usedPositions.add(newPosition);
             positionFixed = true;
-            console.log((`Fixed null position for ${entry.User?.username}, assigned position ${newPosition}`);
+            console.log(`Fixed null position for ${entry.User?.username}, assigned position ${newPosition}`);
           }
         }
       }
@@ -1243,7 +1243,7 @@ class ContestService {
         });
       }
 
-      console.log((`Active entries: ${entries.length}`);
+      console.log(`Active entries: ${entries.length}`);
 
       if (entries.length > 0) {
         const contest = entries[0].Contest;
@@ -1261,7 +1261,7 @@ class ContestService {
             playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
             
             await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
-            console.log((`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
+            console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
           }
         } else if (contest) {
           playerBoard = contest.player_board;
@@ -1293,17 +1293,17 @@ class ContestService {
           }))
         };
         
-        console.log((`Returning room status: ${result.currentPlayers}/5 players, status: ${result.status}`);
+        console.log(`Returning room status: ${result.currentPlayers}/5 players, status: ${result.status}`);
         return result;
       }
 
-      console.log((`No entries found for room ${roomId}`);
+      console.log(`No entries found for room ${roomId}`);
       
       if (roomId.includes('_room_')) {
         const contestId = roomId.split('_room_')[0];
         const contest = await db.Contest.findByPk(contestId);
         if (contest) {
-          console.log((`Found contest ${contest.name} for empty room`);
+          console.log(`Found contest ${contest.name} for empty room`);
           let playerBoard;
           
           if (contest.type === 'market') {
@@ -1338,7 +1338,7 @@ class ContestService {
         }
       }
 
-      console.log((`Room ${roomId} not found`);
+      console.log(`Room ${roomId} not found`);
       return null;
     } catch (error) {
       console.error('Error getting room status:', error);
@@ -1406,7 +1406,7 @@ class ContestService {
 
       await transaction.commit();
 
-      console.log((`✅ Entry ${entryId} completed with lineup ${lineupRecord.id}`);
+      console.log(`✅ Entry ${entryId} completed with lineup ${lineupRecord.id}`);
       
       return { 
         entry, 
@@ -1422,27 +1422,27 @@ class ContestService {
 
   async checkAndLaunchDraft(roomId, contest) {
     try {
-      console.log((`\n=== CHECKING DRAFT LAUNCH FOR ROOM ${roomId} ===`);
+      console.log(`\n=== CHECKING DRAFT LAUNCH FOR ROOM ${roomId} ===`);
       
       const roomStatus = await this.getRoomStatus(roomId);
       if (!roomStatus) {
-        console.log(('❌ Room status not found');
+        console.log('❌ Room status not found');
         return;
       }
 
-      console.log((`Room ${roomId}: ${roomStatus.currentPlayers}/5 players`);
-      console.log((`Room status: ${roomStatus.status}`);
+      console.log(`Room ${roomId}: ${roomStatus.currentPlayers}/5 players`);
+      console.log(`Room status: ${roomStatus.status}`);
 
       if (roomStatus.currentPlayers === 5 && roomStatus.status === 'ready') {
-        console.log((`✅ Room ${roomId} has exactly 5 players! Launching draft...`);
+        console.log(`✅ Room ${roomId} has exactly 5 players! Launching draft...`);
         
         setTimeout(async () => {
           await this.launchDraft(roomId, roomStatus, contest);
         }, 500);
       } else if (roomStatus.currentPlayers < 5) {
-        console.log((`⏳ Room ${roomId} waiting for more players (${roomStatus.currentPlayers}/5)`);
+        console.log(`⏳ Room ${roomId} waiting for more players (${roomStatus.currentPlayers}/5)`);
       } else {
-        console.log((`⚠️ Room ${roomId} in unexpected state - players: ${roomStatus.currentPlayers}`);
+        console.log(`⚠️ Room ${roomId} in unexpected state - players: ${roomStatus.currentPlayers}`);
       }
     } catch (error) {
       console.error('Error checking draft launch:', error);
@@ -1451,11 +1451,11 @@ class ContestService {
 
   async launchDraft(roomId, roomStatus, contest) {
     try {
-      console.log((`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
-      console.log((`Contest type: ${roomStatus.contestType}, Players: ${roomStatus.entries.length}`);
+      console.log(`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
+      console.log(`Contest type: ${roomStatus.contestType}, Players: ${roomStatus.entries.length}`);
       
       if (this.activeDrafts.has(roomId)) {
-        console.log((`Draft already active for room ${roomId}`);
+        console.log(`Draft already active for room ${roomId}`);
         return;
       }
 
@@ -1466,12 +1466,12 @@ class ContestService {
 
       const socketRoomId = `room_${roomId}`;
       const socketsInRoom = await this.io.in(socketRoomId).fetchSockets();
-      console.log((`📡 Sockets currently in ${socketRoomId}: ${socketsInRoom.length}`);
+      console.log(`📡 Sockets currently in ${socketRoomId}: ${socketsInRoom.length}`);
 
       const { generatePlayerBoard } = require('../utils/gameLogic');
       let playerBoard = roomStatus.playerBoard;
       if (!playerBoard || !Array.isArray(playerBoard) || playerBoard.length === 0) {
-        console.log(('📋 Generating fresh player board for draft');
+        console.log('📋 Generating fresh player board for draft');
         playerBoard = generatePlayerBoard('nfl');
       }
 
@@ -1501,7 +1501,7 @@ class ContestService {
         }
       );
 
-      console.log((`📢 Emitting draft-countdown to ${socketRoomId}`);
+      console.log(`📢 Emitting draft-countdown to ${socketRoomId}`);
       
       this.io.to(socketRoomId).emit('draft-countdown', {
         roomId,
@@ -1512,7 +1512,7 @@ class ContestService {
       });
 
       setTimeout(() => {
-        console.log((`📢 Emitting draft-starting to ${socketRoomId}`);
+        console.log(`📢 Emitting draft-starting to ${socketRoomId}`);
         
         const draftStartData = {
           roomId: roomId,
@@ -1538,7 +1538,7 @@ class ContestService {
           serverTime: Date.now()
         });
         
-        console.log((`✅ Emitted draft-starting with complete data`);
+        console.log(`✅ Emitted draft-starting with complete data`);
 
         let countdown = 5;
         this.io.to(socketRoomId).emit('draft-countdown', {
@@ -1557,13 +1557,13 @@ class ContestService {
             });
           } else {
             clearInterval(countdownInterval);
-            console.log((`🎲 Starting first pick for room ${roomId}`);
+            console.log(`🎲 Starting first pick for room ${roomId}`);
             this.startNextPick(roomId);
           }
         }, 1000);
       }, 5000);
 
-      console.log((`✅ Draft launch sequence initiated for room ${roomId}`);
+      console.log(`✅ Draft launch sequence initiated for room ${roomId}`);
       
     } catch (error) {
       console.error('❌ Error launching draft:', error);
@@ -1576,13 +1576,13 @@ class ContestService {
     let draft = this.activeDrafts.get(roomId);
     
     if (!draft) {
-      console.log((`⚠️ startNextPick: Draft ${roomId} not in activeDrafts, reconstructing...`);
+      console.log(`⚠️ startNextPick: Draft ${roomId} not in activeDrafts, reconstructing...`);
       const entry = await db.ContestEntry.findOne({
         where: { draft_room_id: roomId, status: 'drafting' },
         include: [{ model: db.Contest, attributes: ['id', 'type'] }]
       });
       if (!entry) {
-        console.log((`❌ startNextPick: No drafting entries found for room ${roomId}`);
+        console.log(`❌ startNextPick: No drafting entries found for room ${roomId}`);
         return;
       }
       draft = {
@@ -1591,20 +1591,20 @@ class ContestService {
         contestType: entry.Contest?.type
       };
       this.activeDrafts.set(roomId, draft);
-      console.log((`✅ startNextPick: Reconstructed draft for room ${roomId}`);
+      console.log(`✅ startNextPick: Reconstructed draft for room ${roomId}`);
     }
 
     const draftState = await draftService.getDraft(roomId);
     
     if (!draftState) {
-      console.log((`⚠️ startNextPick: No draft state in Redis for ${roomId}, checking if draft should complete...`);
+      console.log(`⚠️ startNextPick: No draft state in Redis for ${roomId}, checking if draft should complete...`);
       
       const draftingEntries = await db.ContestEntry.count({
         where: { draft_room_id: roomId, status: 'drafting' }
       });
       
       if (draftingEntries > 0) {
-        console.log((`🔄 Found ${draftingEntries} drafting entries, forcing draft completion...`);
+        console.log(`🔄 Found ${draftingEntries} drafting entries, forcing draft completion...`);
         await this.completeDraftForRoom(roomId);
       }
       return;
@@ -1622,9 +1622,9 @@ class ContestService {
     
     if (!currentPlayer || !currentPlayer.userId) {
       console.error(`❌ startNextPick: Invalid currentPlayer at index ${currentPlayerIndex}`);
-      console.log((`  draftOrder: ${JSON.stringify(draftState.draftOrder)}`);
-      console.log((`  currentTurn: ${draftState.currentTurn}`);
-      console.log((`  teams: ${draftState.teams.map(t => t?.username || 'undefined').join(', ')}`);
+      console.log(`  draftOrder: ${JSON.stringify(draftState.draftOrder)}`);
+      console.log(`  currentTurn: ${draftState.currentTurn}`);
+      console.log(`  teams: ${draftState.teams.map(t => t?.username || 'undefined').join(', ')}`);
       await this.completeDraftForRoom(roomId);
       return;
     }
@@ -1640,7 +1640,7 @@ class ContestService {
     const timeLimit = remainingBudget <= 0 ? 3 : 30;
     
     if (remainingBudget <= 0) {
-      console.log((`💸 ${currentPlayer.username} has $0 budget - using ${timeLimit}s quick timer`);
+      console.log(`💸 ${currentPlayer.username} has $0 budget - using ${timeLimit}s quick timer`);
     }
 
     const turnStartedAt = Date.now();
@@ -1693,7 +1693,7 @@ class ContestService {
     const capturedTimerKey = existingTimerKey;
 
     const timerId = setTimeout(async () => {
-      console.log((`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId}`);
+      console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId}`);
       
       this.draftTimers.delete(capturedTimerKey);
       
@@ -1715,7 +1715,7 @@ class ContestService {
     }, timeLimit * 1000);
 
     this.draftTimers.set(existingTimerKey, timerId);
-    console.log((`⏱️ Started ${timeLimit}s timer for ${currentPlayer.username} in room ${roomId} (budget: $${remainingBudget})`);
+    console.log(`⏱️ Started ${timeLimit}s timer for ${currentPlayer.username} in room ${roomId} (budget: $${remainingBudget})`);
   }
 
   async checkAndRestartStalledDraft(roomId) {
@@ -1727,7 +1727,7 @@ class ContestService {
 
       const totalPicks = draftState.teams.length * 5;
       if (draftState.currentTurn >= totalPicks) {
-        console.log((`🔄 Draft ${roomId} should be completed, finalizing...`);
+        console.log(`🔄 Draft ${roomId} should be completed, finalizing...`);
         await this.completeDraftForRoom(roomId);
         return { stalled: false, reason: 'completed' };
       }
@@ -1736,7 +1736,7 @@ class ContestService {
       const currentPlayer = draftState.teams[currentPlayerIndex];
       
       if (!currentPlayer || !currentPlayer.userId) {
-        console.log((`⚠️ Invalid currentPlayer in checkAndRestartStalledDraft for ${roomId}`);
+        console.log(`⚠️ Invalid currentPlayer in checkAndRestartStalledDraft for ${roomId}`);
         await this.completeDraftForRoom(roomId);
         return { stalled: true, action: 'completed_invalid_player' };
       }
@@ -1766,7 +1766,7 @@ class ContestService {
         const timeLimitMs = timeLimit * 1000;
         
         if (currentTurn === draftState.currentTurn && elapsed > timeLimitMs) {
-          console.log((`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (limit: ${timeLimit}s) - auto-picking now`);
+          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (limit: ${timeLimit}s) - auto-picking now`);
           
           if (!this.activeDrafts.has(roomId)) {
             const entry = await db.ContestEntry.findOne({
@@ -1788,7 +1788,7 @@ class ContestService {
         
         if (currentTurn === draftState.currentTurn) {
           const remaining = Math.max(1000, timeLimitMs - elapsed);
-          console.log((`🔄 Restarting timer for ${roomId} with ${Math.round(remaining/1000)}s remaining (limit: ${timeLimit}s)`);
+          console.log(`🔄 Restarting timer for ${roomId} with ${Math.round(remaining/1000)}s remaining (limit: ${timeLimit}s)`);
           
           if (!this.activeDrafts.has(roomId)) {
             const entry = await db.ContestEntry.findOne({
@@ -1820,7 +1820,7 @@ class ContestService {
           const capturedTimerKey = timerKey;
           
           const timerId = setTimeout(async () => {
-            console.log((`⏰ Restarted timer FIRED for ${currentPlayer.username} in room ${capturedRoomId}`);
+            console.log(`⏰ Restarted timer FIRED for ${currentPlayer.username} in room ${capturedRoomId}`);
             this.draftTimers.delete(capturedTimerKey);
             try {
               await this.handleAutoPick(capturedRoomId, capturedUserId);
@@ -1835,7 +1835,7 @@ class ContestService {
         }
       }
       
-      console.log((`🔄 No turn data for ${roomId} - starting fresh pick`);
+      console.log(`🔄 No turn data for ${roomId} - starting fresh pick`);
       
       if (!this.activeDrafts.has(roomId)) {
         const entry = await db.ContestEntry.findOne({
@@ -1872,7 +1872,7 @@ class ContestService {
       if (draftingEntries.length === 0) return;
       
       const uniqueRooms = [...new Set(draftingEntries.map(e => e.draft_room_id))];
-      console.log((`🔍 checkAllStalledDrafts: Found ${uniqueRooms.length} rooms with drafting entries`);
+      console.log(`🔍 checkAllStalledDrafts: Found ${uniqueRooms.length} rooms with drafting entries`);
       
       for (const roomId of uniqueRooms) {
         let hasActiveTimer = false;
@@ -1884,12 +1884,12 @@ class ContestService {
         }
         
         if (!hasActiveTimer) {
-          console.log((`🔍 Checking potentially stalled draft: ${roomId}`);
+          console.log(`🔍 Checking potentially stalled draft: ${roomId}`);
           
           const draftState = await draftService.getDraft(roomId);
           
           if (!draftState) {
-            console.log((`⚠️ No Redis state for ${roomId} - forcing completion`);
+            console.log(`⚠️ No Redis state for ${roomId} - forcing completion`);
             await this.completeDraftForRoom(roomId);
           } else {
             await this.checkAndRestartStalledDraft(roomId);
@@ -1911,7 +1911,7 @@ class ContestService {
     const row = positionData?.row;
     const col = positionData?.col;
 
-    console.log((`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
+    console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
     const timerKey = `${roomId}_${userId}`;
     const timerId = this.draftTimers.get(timerKey);
@@ -1936,7 +1936,7 @@ class ContestService {
         const boardKey = `board:${roomId}`;
         await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
         
-        console.log((`✅ Marked player at [${row}][${col}] as drafted`);
+        console.log(`✅ Marked player at [${row}][${col}] as drafted`);
       }
     }
 
@@ -1984,14 +1984,14 @@ class ContestService {
         serverTime: Date.now()
       });
       
-      console.log((`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
+      console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
     }
 
     await this.startNextPick(roomId);
   }
 
   async handleAutoPick(roomId, userId) {
-    console.log((`Auto-picking for user ${userId} in room ${roomId}`);
+    console.log(`Auto-picking for user ${userId} in room ${roomId}`);
     
     const timerKey = `${roomId}_${userId}`;
     if (this.draftTimers.has(timerKey)) {
@@ -2023,7 +2023,7 @@ class ContestService {
               pickNumber: updatedDraft.picks.length,
               isAutoPick: true
             });
-            console.log((`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
+            console.log(`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
           }
           
           this.io.to(socketRoom).emit('player-picked', {
@@ -2051,7 +2051,7 @@ class ContestService {
             serverTime: Date.now()
           });
           
-          console.log((`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
+          console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
         }
       }
     } catch (error) {
@@ -2071,18 +2071,18 @@ class ContestService {
   }
 
   async completeDraftForRoom(roomId) {
-    console.log((`\n🔔🔔🔔 completeDraftForRoom CALLED for room ${roomId} 🔔🔔🔔`);
+    console.log(`\n🔔🔔🔔 completeDraftForRoom CALLED for room ${roomId} 🔔🔔🔔`);
     
     let draft = this.activeDrafts.get(roomId);
     
     if (!draft) {
-      console.log((`⚠️ Draft ${roomId} not in activeDrafts, reconstructing from database...`);
+      console.log(`⚠️ Draft ${roomId} not in activeDrafts, reconstructing from database...`);
       const entry = await db.ContestEntry.findOne({
         where: { draft_room_id: roomId, status: 'drafting' },
         include: [{ model: db.Contest, attributes: ['id', 'type'] }]
       });
       if (!entry) {
-        console.log((`❌ No drafting entries found for room ${roomId}, cannot complete`);
+        console.log(`❌ No drafting entries found for room ${roomId}, cannot complete`);
         return;
       }
       draft = {
@@ -2093,9 +2093,9 @@ class ContestService {
       this.activeDrafts.set(roomId, draft);
     }
 
-    console.log((`\n============================================================`);
-    console.log((`COMPLETING DRAFT FOR ROOM ${roomId}`);
-    console.log((`============================================================`);
+    console.log(`\n============================================================`);
+    console.log(`COMPLETING DRAFT FOR ROOM ${roomId}`);
+    console.log(`============================================================`);
 
     const draftState = await draftService.getDraft(roomId);
 
@@ -2113,7 +2113,7 @@ class ContestService {
       }]
     });
 
-    console.log((`Found ${entries.length} entries to complete`);
+    console.log(`Found ${entries.length} entries to complete`);
 
     const rosterMap = new Map();
     if (draftState && draftState.teams) {
@@ -2123,11 +2123,11 @@ class ContestService {
         }
       }
     }
-    console.log((`Built roster map for ${rosterMap.size} users`);
+    console.log(`Built roster map for ${rosterMap.size} users`);
 
-    console.log((`\n============================================================`);
-    console.log((`SAVING LINEUPS TO DATABASE`);
-    console.log((`============================================================`);
+    console.log(`\n============================================================`);
+    console.log(`SAVING LINEUPS TO DATABASE`);
+    console.log(`============================================================`);
 
     let successCount = 0;
     let failCount = 0;
@@ -2153,9 +2153,9 @@ class ContestService {
           }
         });
 
-        console.log((`\n💾 Saving ${entry.User?.username} (${userId}):`);
-        console.log((`   Players: ${playerCount}`);
-        console.log((`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
+        console.log(`\n💾 Saving ${entry.User?.username} (${userId}):`);
+        console.log(`   Players: ${playerCount}`);
+        console.log(`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
 
         await entry.update({
           status: 'completed',
@@ -2164,7 +2164,7 @@ class ContestService {
         });
 
         if (playerCount === 0) {
-          console.log((`   ⚠️ No players in roster - entry marked completed but no lineup created`);
+          console.log(`   ⚠️ No players in roster - entry marked completed but no lineup created`);
           successCount++;
           continue;
         }
@@ -2174,14 +2174,14 @@ class ContestService {
         });
 
         if (existingLineup) {
-          console.log((`   ⚠️ Updating existing lineup ${existingLineup.id}`);
+          console.log(`   ⚠️ Updating existing lineup ${existingLineup.id}`);
           await existingLineup.update({
             roster: cleanRoster,
             status: 'drafted',
             updated_at: new Date()
           });
         } else {
-          console.log((`   Creating new lineup...`);
+          console.log(`   Creating new lineup...`);
           const { v4: uuidv4 } = require('uuid');
           
           const lineup = await db.Lineup.create({
@@ -2197,7 +2197,7 @@ class ContestService {
             updated_at: new Date()
           });
           
-          console.log((`   ✅ CREATED lineup ${lineup.id} with ${playerCount} players`);
+          console.log(`   ✅ CREATED lineup ${lineup.id} with ${playerCount} players`);
         }
 
         successCount++;
@@ -2208,13 +2208,13 @@ class ContestService {
       }
     }
 
-    console.log((`\n============================================================`);
-    console.log((`LINEUP SAVE RESULTS: ${successCount} succeeded, ${failCount} failed`);
-    console.log((`============================================================`);
+    console.log(`\n============================================================`);
+    console.log(`LINEUP SAVE RESULTS: ${successCount} succeeded, ${failCount} failed`);
+    console.log(`============================================================`);
 
-    console.log((`\n============================================================`);
-    console.log((`AWARDING DRAFT COMPLETION TICKETS`);
-    console.log((`============================================================`);
+    console.log(`\n============================================================`);
+    console.log(`AWARDING DRAFT COMPLETION TICKETS`);
+    console.log(`============================================================`);
 
     const ticketService = require('./ticketService');
 
@@ -2227,7 +2227,7 @@ class ContestService {
           );
           
           if (result.success) {
-            console.log((`🎟️ Awarded 1 ticket to ${entry.User.username}. New balance: ${result.newBalance}`);
+            console.log(`🎟️ Awarded 1 ticket to ${entry.User.username}. New balance: ${result.newBalance}`);
             
             if (this.io) {
               this.io.emit('tickets-updated', {
@@ -2237,7 +2237,7 @@ class ContestService {
               });
             }
           } else {
-            console.log((`⚠️ Ticket already awarded to ${entry.User.username} for this contest`);
+            console.log(`⚠️ Ticket already awarded to ${entry.User.username} for this contest`);
           }
         } catch (error) {
           console.error(`❌ Error awarding ticket to ${entry.User.username}:`, error.message);
@@ -2275,11 +2275,11 @@ class ContestService {
         { current_entries: actualCount },
         { where: { id: draft.contestId } }
       );
-      console.log((`📊 Synced entry count for contest ${draft.contestId}: ${actualCount}`);
+      console.log(`📊 Synced entry count for contest ${draft.contestId}: ${actualCount}`);
     }
 
-    console.log((`✅ Draft completed for room ${roomId}`);
-    console.log((`============================================================\n`);
+    console.log(`✅ Draft completed for room ${roomId}`);
+    console.log(`============================================================\n`);
   }
 
   async saveDraftPick(entryId, pickData) {
@@ -2322,7 +2322,7 @@ class ContestService {
       await entry.update({ lineup }, { transaction });
       await transaction.commit();
 
-      console.log((`✅ Saved pick for entry ${entryId}: ${pickData.player.name} to ${pickData.rosterSlot}`);
+      console.log(`✅ Saved pick for entry ${entryId}: ${pickData.player.name} to ${pickData.rosterSlot}`);
       return true;
 
     } catch (error) {
@@ -2431,7 +2431,7 @@ class ContestService {
       const turnData = await this.redis.get(turnKey);
       
       if (!turnData) {
-        console.log((`⏱️ No timer info found for room ${roomId}`);
+        console.log(`⏱️ No timer info found for room ${roomId}`);
         return null;
       }
       
@@ -2439,7 +2439,7 @@ class ContestService {
       const elapsed = Math.floor((Date.now() - turnStartedAt) / 1000);
       const timeRemaining = Math.max(0, (timeLimit || 30) - elapsed);
       
-      console.log((`⏱️ Timer info for ${roomId}: ${timeRemaining}s remaining (limit: ${timeLimit}s, elapsed: ${elapsed}s)`);
+      console.log(`⏱️ Timer info for ${roomId}: ${timeRemaining}s remaining (limit: ${timeLimit}s, elapsed: ${elapsed}s)`);
       
       return {
         timeRemaining,
@@ -2502,7 +2502,7 @@ class ContestService {
       this.draftTimers.clear();
       
       await this.redis.quit();
-      console.log(('ContestService cleanup completed');
+      console.log('ContestService cleanup completed');
     } catch (error) {
       console.error('Error during cleanup:', error);
     }
