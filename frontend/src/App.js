@@ -24,6 +24,7 @@ import ToastContainer from './components/Toast/ToastContainer';
 import MarketMoverPage from './components/MarketMover/MarketMoverPage';
 import RulesPage from './components/Rules/RulesPage';
 import PoolsPage from './components/Pools/PoolsPage';
+import DepositPage from './components/Wallet/DepositPage';
 
 // Helper to check if user is admin (handles both role and is_admin flag)
 const isUserAdmin = (user) => {
@@ -290,6 +291,13 @@ const AppContent = () => {
           <Route path="/pools" element={
             <ProtectedRoute>
               <PoolsPage />
+            </ProtectedRoute>
+          } />
+
+          {/* Deposit page */}
+          <Route path="/deposit" element={
+            <ProtectedRoute>
+              <DepositPage />
             </ProtectedRoute>
           } />
           
