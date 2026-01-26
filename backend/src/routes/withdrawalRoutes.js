@@ -2,8 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const withdrawalService = require('../services/withdrawalService');
-const authMiddleware = require('../middleware/authMiddleware');
-const adminMiddleware = require('../middleware/adminMiddleware');
+const authMiddleware = require('../middleware/auth');
+const { adminMiddleware } = require('../middleware/admin');
 
 // All routes require authentication
 router.use(authMiddleware);
