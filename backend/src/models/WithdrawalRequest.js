@@ -1,8 +1,22 @@
 // backend/src/models/WithdrawalRequest.js
-// Model for tracking withdrawal requests
+'use strict';
+const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
-  const WithdrawalRequest = sequelize.define('WithdrawalRequest', {
+  class WithdrawalRequest extends Model {
+    static associate(models) {
+      WithdrawalRequest.belongsTo(models.User, {
+        foreignKey: 'user_id',
+        as: 'user'
+      });
+      WithdrawalRequest.belongsTo(models.User, {
+        foreignKey: 'reviewed_by',
+        as: 'reviewer'
+      });
+    }
+  }
+
+  WithdrawalRequest.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -19,27 +33,20 @@ module.exports = (sequelize, DataTypes) => {
     },
     amount: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      validate: {
-        min: 0.01
-      }
+      allowNull: false
     },
     status: {
-      type: DataTypes.ENUM(
-        'pending',      // Awaiting admin review
-        'approved',     // Approved, awaiting processing
-        'processing',   // Being processed
-        'completed',    // Successfully paid out
-        'rejected',     // Rejected by admin
-        'cancelled',    // Cancelled by user
-        'failed'        // Payment provider failure
-      ),
-      defaultValue: 'pending'
+      type: DataTypes.STRING(20),
+      defaultValue: 'pending',
+      allowNull: false
+      // pending, approved, processing, completed, rejected, cancelled, failed
     },
     payout_method: {
       type: DataTypes.STRING(50),
-      defaultValue: 'bank_transfer'
+      defaultValue: 'bank_ach'
+      // bank_ach, paypal, venmo
     },
+    // Stripe-related fields
     stripe_payout_id: {
       type: DataTypes.STRING(255),
       allowNull: true
@@ -48,14 +55,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(255),
       allowNull: true
     },
-    rejection_reason: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
-    admin_notes: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
+    // Admin review
     reviewed_by: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -68,43 +68,49 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true
     },
+    rejection_reason: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    admin_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     completed_at: {
       type: DataTypes.DATE,
       allowNull: true
     },
+    // Extra data
     metadata: {
       type: DataTypes.JSONB,
       allowNull: true,
       defaultValue: {}
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false
     }
   }, {
+    sequelize,
+    modelName: 'WithdrawalRequest',
     tableName: 'withdrawal_requests',
-    timestamps: true,
     underscored: true,
+    timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     indexes: [
       { fields: ['user_id'] },
       { fields: ['status'] },
-      { fields: ['created_at'] }
+      { fields: ['created_at'] },
+      { fields: ['payout_method'] }
     ]
   });
-
-  WithdrawalRequest.associate = function(models) {
-    WithdrawalRequest.belongsTo(models.User, {
-      foreignKey: 'user_id',
-      as: 'user'
-    });
-    WithdrawalRequest.belongsTo(models.User, {
-      foreignKey: 'reviewed_by',
-      as: 'reviewer'
-    });
-  };
-
-  // Instance method to check if cancellable
-  WithdrawalRequest.prototype.canBeCancelled = function() {
-    return this.status === 'pending';
-  };
 
   return WithdrawalRequest;
 };
