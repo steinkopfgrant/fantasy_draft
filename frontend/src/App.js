@@ -25,6 +25,7 @@ import MarketMoverPage from './components/MarketMover/MarketMoverPage';
 import RulesPage from './components/Rules/RulesPage';
 import PoolsPage from './components/Pools/PoolsPage';
 import DepositPage from './components/Wallet/DepositPage';
+import WithdrawalPage from './components/Wallet/WithdrawalPage';
 
 // Helper to check if user is admin (handles both role and is_admin flag)
 const isUserAdmin = (user) => {
@@ -298,6 +299,13 @@ const AppContent = () => {
           <Route path="/deposit" element={
             <ProtectedRoute>
               <DepositPage />
+            </ProtectedRoute>
+          } />
+
+          {/* Withdrawal page */}
+          <Route path="/withdraw" element={
+            <ProtectedRoute>
+              <WithdrawalPage />
             </ProtectedRoute>
           } />
           
