@@ -89,56 +89,86 @@
   border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.user-stats {
+/* User Stats Bar with Add Funds Button */
+.user-stats-bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+  border: 1px solid rgba(100, 255, 218, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.balance {
-  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+/* Green + Add Funds Button */
+.add-funds-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-funds-btn:hover {
+  background: linear-gradient(135deg, #34d399, #10b981);
+}
+
+.add-funds-btn:active {
+  transform: scale(0.95);
+}
+
+/* Balance inside stats bar */
+.user-stats-bar .balance {
+  padding: 0.5rem 0.75rem;
   color: #4ade80;
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: transparent;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.balance:hover {
-  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
-  border-color: rgba(74, 222, 128, 0.6);
+.user-stats-bar .balance:hover {
+  color: #86efac;
+  background: rgba(74, 222, 128, 0.1);
 }
 
-.tickets-display {
+/* Tickets display inside stats bar */
+.user-stats-bar .tickets-display {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: transparent;
+  border: none;
 }
 
-.tickets-display:hover {
-  background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
-  border-color: rgba(251, 191, 36, 0.6);
+.user-stats-bar .tickets-display:hover {
+  background: rgba(251, 191, 36, 0.1);
 }
 
-.tickets-icon {
+.user-stats-bar .tickets-icon {
   font-size: 1rem;
 }
 
-.tickets-count {
+.user-stats-bar .tickets-count {
   color: #fbbf24;
   font-weight: 700;
   font-size: 0.95rem;
 }
 
+/* Username */
 .username {
   color: #e2e8f0;
   font-weight: 500;
@@ -204,8 +234,15 @@
     font-size: 0.8rem;
   }
   
-  .balance, .tickets-display {
-    padding: 0.3rem 0.5rem;
+  .add-funds-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
+  }
+  
+  .user-stats-bar .balance,
+  .user-stats-bar .tickets-display {
+    padding: 0.4rem 0.5rem;
     font-size: 0.85rem;
   }
   
@@ -213,86 +250,3 @@
     display: none;
   }
 }
-/* =============================================
-   ADD THESE STYLES TO YOUR EXISTING Header.css
-   ============================================= */
-
-/* Updated user stats bar with add funds button */
-.user-stats-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  background: rgba(30, 47, 74, 0.6);
-  border: 1px solid rgba(100, 255, 218, 0.15);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-/* Green + button */
-.add-funds-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  background: linear-gradient(135deg, #10b981, #059669);
-  border: none;
-  color: white;
-  font-size: 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
-}
-
-.add-funds-btn:hover {
-  background: linear-gradient(135deg, #34d399, #10b981);
-  transform: scale(1.05);
-}
-
-.add-funds-btn:active {
-  transform: scale(0.98);
-}
-
-/* Adjust balance styling within the bar */
-.user-stats-bar .balance {
-  padding: 8px 12px;
-  color: #4ade80;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: color 0.2s;
-  border: none;
-  background: transparent;
-  border-right: 1px solid rgba(100, 255, 218, 0.1);
-}
-
-.user-stats-bar .balance:hover {
-  color: #86efac;
-}
-
-/* Adjust tickets display within the bar */
-.user-stats-bar .tickets-display {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.user-stats-bar .tickets-display:hover {
-  opacity: 0.8;
-}
-
-.user-stats-bar .tickets-icon {
-  font-size: 1rem;
-}
-
-.user-stats-bar .tickets-count {
-  color: #fbbf24;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-/* If you had a separate .user-stats class, you can remove it or keep both */

@@ -1,0 +1,669 @@
+/* frontend/src/components/Wallet/DepositPage.css */
+
+.deposit-page {
+  min-height: calc(100vh - 70px);
+  background: linear-gradient(135deg, #0a192f 0%, #112240 50%, #0a192f 100%);
+  padding: 40px 20px;
+}
+
+.deposit-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Header */
+.deposit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.back-btn {
+  background: rgba(100, 255, 218, 0.1);
+  border: 1px solid rgba(100, 255, 218, 0.3);
+  color: #64ffda;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: rgba(100, 255, 218, 0.2);
+}
+
+.deposit-header h1 {
+  color: #ccd6f6;
+  font-size: 2rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.current-balance {
+  color: #8892b0;
+  font-size: 1rem;
+}
+
+.current-balance span {
+  color: #64ffda;
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+/* Layout */
+.deposit-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 40px;
+}
+
+@media (max-width: 900px) {
+  .deposit-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .deposit-sidebar {
+    order: -1;
+  }
+}
+
+/* Main Content */
+.deposit-main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.deposit-section {
+  background: rgba(17, 34, 64, 0.6);
+  border: 1px solid rgba(100, 255, 218, 0.1);
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.section-label {
+  display: block;
+  color: #ccd6f6;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+/* Amount Input */
+.amount-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 24px;
+  color: #64ffda;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.amount-input {
+  width: 100%;
+  padding: 24px 24px 24px 60px;
+  background: rgba(10, 25, 47, 0.8);
+  border: 2px solid rgba(100, 255, 218, 0.2);
+  border-radius: 12px;
+  color: #ccd6f6;
+  font-size: 2.5rem;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+
+.amount-input:focus {
+  outline: none;
+  border-color: #64ffda;
+  box-shadow: 0 0 0 4px rgba(100, 255, 218, 0.1);
+}
+
+.amount-input::placeholder {
+  color: #3a4a6a;
+}
+
+/* Quick Amounts */
+.quick-amounts {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .quick-amounts {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.quick-btn {
+  padding: 14px;
+  background: rgba(30, 47, 74, 0.6);
+  border: 2px solid rgba(100, 255, 218, 0.15);
+  border-radius: 10px;
+  color: #8892b0;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-btn:hover:not(:disabled) {
+  background: rgba(100, 255, 218, 0.1);
+  border-color: rgba(100, 255, 218, 0.4);
+  color: #64ffda;
+}
+
+.quick-btn.active {
+  background: rgba(100, 255, 218, 0.15);
+  border-color: #64ffda;
+  color: #64ffda;
+}
+
+.quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Method Cards */
+.method-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.method-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: rgba(30, 47, 74, 0.4);
+  border: 2px solid rgba(100, 255, 218, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  position: relative;
+}
+
+.method-card:hover {
+  background: rgba(30, 47, 74, 0.7);
+  border-color: rgba(100, 255, 218, 0.3);
+}
+
+.method-card.active {
+  background: rgba(100, 255, 218, 0.08);
+  border-color: #64ffda;
+}
+
+.method-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(100, 255, 218, 0.1);
+  border-radius: 12px;
+}
+
+.method-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.method-name {
+  color: #ccd6f6;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.method-detail {
+  color: #8892b0;
+  font-size: 0.9rem;
+}
+
+.best-value-badge {
+  position: absolute;
+  top: -8px;
+  right: 16px;
+  background: linear-gradient(135deg, #64ffda, #00d4aa);
+  color: #0a192f;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* Form Elements */
+.input-label {
+  display: block;
+  color: #8892b0;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-element-wrapper {
+  padding: 20px;
+  background: rgba(10, 25, 47, 0.8);
+  border: 2px solid rgba(100, 255, 218, 0.2);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #64ffda, #00d4aa);
+  border: none;
+  border-radius: 12px;
+  color: #0a192f;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(100, 255, 218, 0.3);
+}
+
+.submit-btn:disabled {
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  color: #8892b0;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ACH Form */
+.ach-form {
+  text-align: center;
+}
+
+.ach-description {
+  color: #8892b0;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* Solana Section */
+.solana-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.solana-wallet {
+  background: rgba(10, 25, 47, 0.5);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.wallet-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wallet-address {
+  flex: 1;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(100, 255, 218, 0.2);
+  border-radius: 8px;
+  color: #64ffda;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-btn {
+  padding: 16px 24px;
+  background: rgba(100, 255, 218, 0.15);
+  border: 1px solid rgba(100, 255, 218, 0.3);
+  border-radius: 8px;
+  color: #64ffda;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.copy-btn:hover {
+  background: rgba(100, 255, 218, 0.25);
+}
+
+.network-info {
+  margin: 0;
+}
+
+.solana-badge {
+  background: rgba(153, 69, 255, 0.2);
+  color: #b794f6;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.solana-verify {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tx-input {
+  width: 100%;
+  padding: 16px;
+  background: rgba(10, 25, 47, 0.8);
+  border: 2px solid rgba(100, 255, 218, 0.2);
+  border-radius: 10px;
+  color: #ccd6f6;
+  font-size: 1rem;
+  font-family: monospace;
+  box-sizing: border-box;
+}
+
+.tx-input:focus {
+  outline: none;
+  border-color: #64ffda;
+}
+
+.verify-btn {
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #64ffda, #00d4aa);
+  border: none;
+  border-radius: 10px;
+  color: #0a192f;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.verify-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(100, 255, 218, 0.3);
+}
+
+.verify-btn:disabled {
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  color: #8892b0;
+  cursor: not-allowed;
+}
+
+/* Bonus Tiers */
+.bonus-tiers {
+  background: rgba(100, 255, 218, 0.05);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .tiers-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.tier {
+  text-align: center;
+  padding: 12px 8px;
+  background: rgba(30, 47, 74, 0.5);
+  border: 1px solid rgba(100, 255, 218, 0.1);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.tier.active {
+  background: rgba(100, 255, 218, 0.15);
+  border-color: #64ffda;
+}
+
+.tier-range {
+  display: block;
+  color: #8892b0;
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.tier-reward {
+  display: block;
+  color: #64ffda;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Coming Soon */
+.coming-soon {
+  text-align: center;
+  padding: 40px;
+}
+
+.coming-soon p {
+  color: #ccd6f6;
+  font-size: 1.2rem;
+  margin: 0 0 8px;
+}
+
+.coming-soon .subtext {
+  color: #8892b0;
+  font-size: 0.95rem;
+}
+
+/* Error Banner */
+.error-banner {
+  padding: 16px 20px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 10px;
+  color: #ff8c8c;
+  font-size: 0.95rem;
+}
+
+/* Sidebar */
+.deposit-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.summary-card {
+  background: rgba(17, 34, 64, 0.8);
+  border: 1px solid rgba(100, 255, 218, 0.15);
+  border-radius: 16px;
+  padding: 28px;
+  position: sticky;
+  top: 100px;
+}
+
+.summary-card h3 {
+  color: #ccd6f6;
+  font-size: 1.2rem;
+  margin: 0 0 24px;
+  font-weight: 600;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  color: #8892b0;
+  font-size: 1rem;
+}
+
+.summary-row.fee {
+  color: #ff8c8c;
+}
+
+.summary-row.total {
+  color: #ccd6f6;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.summary-row.total span:last-child {
+  color: #64ffda;
+}
+
+.summary-row.bonus {
+  color: #64ffda;
+}
+
+.summary-row.bonus span:last-child {
+  background: rgba(100, 255, 218, 0.15);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.summary-divider {
+  height: 1px;
+  background: rgba(100, 255, 218, 0.1);
+  margin: 8px 0;
+}
+
+.summary-note {
+  text-align: center;
+  color: #8892b0;
+  font-size: 0.9rem;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(100, 255, 218, 0.1);
+}
+
+/* Trust Badges */
+.trust-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trust-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: rgba(17, 34, 64, 0.5);
+  border: 1px solid rgba(100, 255, 218, 0.08);
+  border-radius: 10px;
+  color: #8892b0;
+  font-size: 0.9rem;
+}
+
+/* Success View */
+.deposit-success-view {
+  text-align: center;
+  padding: 60px 40px;
+  background: rgba(17, 34, 64, 0.6);
+  border: 1px solid rgba(100, 255, 218, 0.15);
+  border-radius: 20px;
+  max-width: 500px;
+  margin: 60px auto;
+}
+
+.success-icon {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #64ffda, #00d4aa);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  color: #0a192f;
+  margin: 0 auto 30px;
+  animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+.deposit-success-view h2 {
+  color: #64ffda;
+  font-size: 1.8rem;
+  margin: 0 0 16px;
+}
+
+.success-amount {
+  color: #ccd6f6;
+  font-size: 3rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+
+.success-bonus {
+  color: #64ffda;
+  font-size: 1.3rem;
+  background: rgba(100, 255, 218, 0.1);
+  padding: 12px 24px;
+  border-radius: 10px;
+  display: inline-block;
+  margin-bottom: 24px;
+}
+
+.success-note {
+  color: #8892b0;
+  font-size: 1rem;
+  margin-bottom: 32px;
+}
+
+.success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-primary {
+  padding: 16px 32px;
+  background: linear-gradient(135deg, #64ffda, #00d4aa);
+  border: none;
+  border-radius: 10px;
+  color: #0a192f;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(100, 255, 218, 0.3);
+}
+
+.btn-secondary {
+  padding: 14px 28px;
+  background: transparent;
+  border: 2px solid rgba(100, 255, 218, 0.3);
+  border-radius: 10px;
+  color: #64ffda;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: rgba(100, 255, 218, 0.1);
+}
