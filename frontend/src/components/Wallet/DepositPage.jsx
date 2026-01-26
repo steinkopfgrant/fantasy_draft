@@ -142,6 +142,7 @@ const DepositPage = () => {
     }
   };
 
+  // Success View
   if (success) {
     return (
       <div className="deposit-page">
@@ -181,9 +182,14 @@ const DepositPage = () => {
           <button className="back-btn" onClick={() => navigate(-1)}>
             ← Back
           </button>
-          <h1>Add Funds</h1>
+          <div className="header-center">
+            <h1>Add Funds</h1>
+            <button className="withdraw-link" onClick={() => navigate('/withdraw')}>
+              Need to withdraw? →
+            </button>
+          </div>
           <div className="current-balance">
-            Balance: <span>${Number(balance).toFixed(2)}</span>
+            Balance: <span className="balance-amount">${Number(balance).toFixed(2)}</span>
           </div>
         </div>
 
@@ -226,6 +232,7 @@ const DepositPage = () => {
             <div className="deposit-section">
               <label className="section-label">Payment Method</label>
               <div className="method-cards">
+                {/* Credit/Debit Card */}
                 <button
                   className={`method-card ${method === 'card' ? 'active' : ''}`}
                   onClick={() => setMethod('card')}
@@ -237,6 +244,7 @@ const DepositPage = () => {
                   </div>
                 </button>
                 
+                {/* Bank Transfer */}
                 <button
                   className={`method-card ${method === 'ach' ? 'active' : ''}`}
                   onClick={() => setMethod('ach')}
@@ -248,6 +256,7 @@ const DepositPage = () => {
                   </div>
                 </button>
                 
+                {/* Crypto */}
                 <button
                   className={`method-card ${method === 'solana' ? 'active' : ''}`}
                   onClick={() => setMethod('solana')}
@@ -262,7 +271,7 @@ const DepositPage = () => {
               </div>
             </div>
 
-            {/* Method-specific content */}
+            {/* Method-specific Forms */}
             <div className="deposit-section">
               {method === 'card' && (
                 <Elements stripe={stripePromise}>
@@ -292,72 +301,23 @@ const DepositPage = () => {
               )}
 
               {method === 'solana' && (
-                <div className="solana-section">
-                  {solanaInfo ? (
-                    <>
-                      <div className="solana-wallet">
-                        <label className="input-label">Send USDC or USDT (Solana) to:</label>
-                        <div className="wallet-row">
-                          <code className="wallet-address">{solanaInfo.wallet}</code>
-                          <button className="copy-btn" onClick={copyAddress}>
-                            {copied ? '✓ Copied!' : 'Copy'}
-                          </button>
-                        </div>
-                        <p className="network-info">
-                          <span className="solana-badge">Solana Network Only</span>
-                        </p>
-                      </div>
-
-                      <div className="solana-verify">
-                        <label className="input-label">After sending, paste transaction signature:</label>
-                        <input
-                          type="text"
-                          value={txSignature}
-                          onChange={(e) => setTxSignature(e.target.value)}
-                          placeholder="e.g., 5K7Hj..."
-                          className="tx-input"
-                          disabled={verifying}
-                        />
-                        <button
-                          className="verify-btn"
-                          onClick={handleVerifySolana}
-                          disabled={verifying || !txSignature.trim()}
-                        >
-                          {verifying ? 'Verifying...' : 'Verify & Credit Balance'}
-                        </button>
-                      </div>
-
-                      <div className="bonus-tiers">
-                        <label className="input-label">🎟️ Bonus Ticket Tiers</label>
-                        <div className="tiers-grid">
-                          {BONUS_TIERS.map((tier, i) => (
-                            <div
-                              key={i}
-                              className={`tier ${numAmount >= tier.min && numAmount <= tier.max ? 'active' : ''}`}
-                            >
-                              <span className="tier-range">
-                                ${tier.min}{tier.max === Infinity ? '+' : `-$${tier.max}`}
-                              </span>
-                              <span className="tier-reward">+{tier.tickets} 🎟️</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="coming-soon">
-                      <p>Crypto deposits coming soon!</p>
-                      <p className="subtext">We're setting up our Solana wallet. Check back shortly.</p>
-                    </div>
-                  )}
-                </div>
+                <SolanaDepositForm
+                  solanaInfo={solanaInfo}
+                  txSignature={txSignature}
+                  setTxSignature={setTxSignature}
+                  verifying={verifying}
+                  numAmount={numAmount}
+                  copied={copied}
+                  copyAddress={copyAddress}
+                  handleVerifySolana={handleVerifySolana}
+                />
               )}
             </div>
 
             {error && <div className="error-banner">{error}</div>}
           </div>
 
-          {/* Right: Summary */}
+          {/* Right: Summary Sidebar */}
           <div className="deposit-sidebar">
             <div className="summary-card">
               <h3>Summary</h3>
@@ -378,13 +338,13 @@ const DepositPage = () => {
               
               <div className="summary-row total">
                 <span>You Receive</span>
-                <span>${netAmount.toFixed(2)}</span>
+                <span className="total-amount">${netAmount.toFixed(2)}</span>
               </div>
               
               {bonusTickets > 0 && (
                 <div className="summary-row bonus">
                   <span>Bonus Tickets</span>
-                  <span>+{bonusTickets} 🎟️</span>
+                  <span className="bonus-amount">+{bonusTickets} 🎟️</span>
                 </div>
               )}
 
@@ -407,7 +367,9 @@ const DepositPage = () => {
   );
 };
 
-// Card Deposit Form
+// ============================================
+// CARD DEPOSIT FORM
+// ============================================
 const CardDepositForm = ({ amount, netAmount, loading, setLoading, setSuccess, setError, dispatch }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -476,7 +438,9 @@ const CardDepositForm = ({ amount, netAmount, loading, setLoading, setSuccess, s
   );
 };
 
-// ACH Deposit Form
+// ============================================
+// ACH DEPOSIT FORM
+// ============================================
 const ACHDepositForm = ({ amount, loading, setLoading, setSuccess, setError, dispatch }) => {
   const stripe = useStripe();
 
@@ -546,6 +510,83 @@ const ACHDepositForm = ({ amount, loading, setLoading, setSuccess, setError, dis
       >
         {loading ? 'Connecting...' : `Connect Bank & Deposit $${amount || '0'}`}
       </button>
+    </div>
+  );
+};
+
+// ============================================
+// SOLANA DEPOSIT FORM
+// ============================================
+const SolanaDepositForm = ({ 
+  solanaInfo, 
+  txSignature, 
+  setTxSignature, 
+  verifying, 
+  numAmount,
+  copied,
+  copyAddress,
+  handleVerifySolana 
+}) => {
+  if (!solanaInfo) {
+    return (
+      <div className="coming-soon">
+        <p>Crypto deposits coming soon!</p>
+        <p className="subtext">We're setting up our Solana wallet. Check back shortly.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="solana-form">
+      {/* Wallet Address */}
+      <div className="solana-wallet">
+        <label className="input-label">Send USDC or USDT (Solana) to:</label>
+        <div className="wallet-row">
+          <code className="wallet-address">{solanaInfo.wallet}</code>
+          <button className="copy-btn" onClick={copyAddress}>
+            {copied ? '✓ Copied!' : 'Copy'}
+          </button>
+        </div>
+        <span className="solana-badge">Solana Network Only</span>
+      </div>
+
+      {/* Transaction Verification */}
+      <div className="solana-verify">
+        <label className="input-label">After sending, paste transaction signature:</label>
+        <input
+          type="text"
+          value={txSignature}
+          onChange={(e) => setTxSignature(e.target.value)}
+          placeholder="e.g., 5K7Hj..."
+          className="tx-input"
+          disabled={verifying}
+        />
+        <button
+          className="submit-btn"
+          onClick={handleVerifySolana}
+          disabled={verifying || !txSignature.trim()}
+        >
+          {verifying ? 'Verifying...' : 'Verify & Credit Balance'}
+        </button>
+      </div>
+
+      {/* Bonus Tiers */}
+      <div className="bonus-tiers">
+        <label className="input-label">🎟️ Bonus Ticket Tiers</label>
+        <div className="tiers-grid">
+          {BONUS_TIERS.map((tier, i) => (
+            <div
+              key={i}
+              className={`tier ${numAmount >= tier.min && numAmount <= tier.max ? 'active' : ''}`}
+            >
+              <span className="tier-range">
+                ${tier.min}{tier.max === Infinity ? '+' : `-$${tier.max}`}
+              </span>
+              <span className="tier-reward">+{tier.tickets} 🎟️</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
