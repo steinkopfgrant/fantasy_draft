@@ -29,7 +29,7 @@ const debugRoutes = require('./routes/debugRoutes');
 const poolsRoutes = require('./routes/pools');
 
 // Payment routes (with graceful fallback)
-let paymentRoutes, webhookRoutes;
+let paymentRoutes, webhookRoutes, withdrawalRoutes;
 try {
   paymentRoutes = require('./routes/paymentRoutes');
   webhookRoutes = require('./routes/webhookRoutes');
@@ -38,6 +38,15 @@ try {
   console.log('⚠️ Payment routes not found:', error.message);
   paymentRoutes = express.Router();
   webhookRoutes = express.Router();
+}
+
+// Withdrawal routes
+try {
+  withdrawalRoutes = require('./routes/withdrawalRoutes');
+  console.log('✅ Withdrawal routes loaded');
+} catch (error) {
+  console.log('⚠️ Withdrawal routes not found:', error.message);
+  withdrawalRoutes = express.Router();
 }
 
 // MarketMover routes
@@ -332,6 +341,9 @@ app.use('/api/pools', poolsRoutes);
 // Payment routes (requires auth)
 app.use('/api/payments', authMiddleware, paymentRoutes);
 
+// Withdrawal routes (requires auth)
+app.use('/api/withdrawals', authMiddleware, withdrawalRoutes);
+
 // Admin routes (requires auth + admin)
 app.use('/api/debug', authMiddleware, adminMiddleware, debugRoutes);
 app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
@@ -372,6 +384,13 @@ app.get('/api', (req, res) => {
         solanaVerify: 'POST /api/payments/solana/verify',
         balance: 'GET /api/payments/balance',
         transactions: 'GET /api/payments/transactions'
+      },
+      withdrawals: {
+        info: 'GET /api/withdrawals/info',
+        request: 'POST /api/withdrawals/request',
+        history: 'GET /api/withdrawals/history',
+        cancel: 'POST /api/withdrawals/:id/cancel',
+        w9: 'POST /api/withdrawals/w9'
       },
       marketMover: { status: 'GET /api/market-mover/status', vote: 'POST /api/market-mover/vote' }
     }
