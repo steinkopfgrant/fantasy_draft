@@ -62,8 +62,25 @@ module.exports = (sequelize, DataTypes) => {
     // Balance BEFORE this transaction (nullable for legacy transactions)
     balance_before: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: true  // IMPORTANT: Must be nullable for existing data
+      allowNull: true
     },
+    // ============================================
+    // PAYMENT STATUS & TRACKING
+    // ============================================
+    status: {
+      type: DataTypes.STRING(20),
+      defaultValue: 'completed',
+      allowNull: false
+    },
+    stripe_payment_intent_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    stripe_charge_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    // ============================================
     // Reference to related entity
     reference_type: {
       type: DataTypes.STRING(50),
@@ -122,9 +139,11 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       { fields: ['user_id'] },
       { fields: ['type'] },
+      { fields: ['status'] },
       { fields: ['contest_id'] },
       { fields: ['reference_type', 'reference_id'] },
-      { fields: ['created_at'] }
+      { fields: ['created_at'] },
+      { fields: ['stripe_payment_intent_id'] }
     ]
   });
 
