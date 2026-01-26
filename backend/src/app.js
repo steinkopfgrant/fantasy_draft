@@ -21,6 +21,21 @@ const teamRoutes = require('./routes/teamRoutes');
 const debugRoutes = require('./routes/debugRoutes');
 const poolsRoutes = require('./routes/pools');
 
+// ===========================================
+// PAYMENT ROUTES
+// ===========================================
+let paymentRoutes;
+let webhookRoutes;
+try {
+  paymentRoutes = require('./routes/paymentRoutes');
+  webhookRoutes = require('./routes/webhookRoutes');
+  console.log('✅ Payment routes loaded');
+} catch (error) {
+  console.log('⚠️ Payment routes not found:', error.message);
+  paymentRoutes = express.Router();
+  webhookRoutes = express.Router();
+}
+
 // Import or create marketMoverRoutes
 let marketMoverRoutes;
 try {
@@ -184,7 +199,11 @@ if (!contestService.ensureCashGameAvailable) {
 const socketHandler = new SocketHandler(io);
 socketHandler.initialize();
 
-// Middleware
+// ============================================
+// MIDDLEWARE ORDER IS CRITICAL!
+// ============================================
+
+// CORS - must be first
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
@@ -209,6 +228,13 @@ app.use(cors({
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
+// ===========================================
+// STRIPE WEBHOOK - MUST BE BEFORE express.json()!
+// Stripe needs raw body for signature verification
+// ===========================================
+app.use('/api/webhooks', webhookRoutes);
+
+// Now add JSON parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -250,7 +276,8 @@ app.get('/api/health', async (req, res) => {
         socketio: !!io,
         socketConnections: socketHandler.getOnlineUsersCount(),
         settlement: !!app.get('settlementService'),
-        injurySwap: !!injurySwapService
+        injurySwap: !!injurySwapService,
+        payments: !!process.env.STRIPE_SECRET_KEY
       }
     });
   } catch (error) {
@@ -264,16 +291,14 @@ app.get('/api/health', async (req, res) => {
 
 // ============================================
 // RESOURCE MONITORING (for load testing)
-// Add this right after your app.get('/api/health', ...) route
 // ============================================
 
 app.get('/api/debug/resources', (req, res) => {
   const used = process.memoryUsage();
   const heapUsedMB = Math.round(used.heapUsed / 1024 / 1024);
   const rssMB = Math.round(used.rss / 1024 / 1024);
-  const memoryLimitMB = 512; // Free Railway tier estimate
+  const memoryLimitMB = 512;
   
-  // Socket stats
   let socketCount = 0;
   let draftRooms = [];
   try {
@@ -288,7 +313,6 @@ app.get('/api/debug/resources', (req, res) => {
     }
   } catch (e) { /* ignore */ }
   
-  // Draft handler stats
   let activeDrafts = 0;
   let activeTimers = 0;
   try {
@@ -322,7 +346,6 @@ app.get('/api/debug/resources', (req, res) => {
   });
 });
 
-// Quick live stats endpoint (for polling during load test)
 app.get('/api/debug/live', (req, res) => {
   const used = process.memoryUsage();
   res.json({
@@ -334,7 +357,9 @@ app.get('/api/debug/live', (req, res) => {
   });
 });
 
-// API Routes
+// ============================================
+// API ROUTES
+// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contests', contestRoutes);
@@ -343,13 +368,18 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/market-mover', marketMoverRoutes);
 app.use('/api/debug', authMiddleware, adminMiddleware, debugRoutes);
 
-// PROTECTED ADMIN ROUTES - require authentication and admin role
+// ===========================================
+// PAYMENT ROUTES (requires auth)
+// ===========================================
+app.use('/api/payments', authMiddleware, paymentRoutes);
+
+// PROTECTED ADMIN ROUTES
 app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
 app.use('/api/admin', authMiddleware, adminMiddleware, injuryRoutes);
 
 app.use('/api/pools', poolsRoutes);
 
-// Placeholder routes for other missing functionality
+// Placeholder routes
 app.use('/api/tickets', (req, res) => {
   res.json({ 
     message: 'Ticket routes not implemented yet',
@@ -404,6 +434,17 @@ app.get('/api', (req, res) => {
       },
       pools: {
         list: 'GET /api/pools'
+      },
+      payments: {
+        depositOptions: 'GET /api/payments/deposit-options',
+        cardDeposit: 'POST /api/payments/card/create-intent',
+        achDeposit: 'POST /api/payments/ach/create-intent',
+        solanaInfo: 'GET /api/payments/solana/deposit-info',
+        solanaVerify: 'POST /api/payments/solana/verify',
+        balance: 'GET /api/payments/balance',
+        transactions: 'GET /api/payments/transactions',
+        withdrawRequest: 'POST /api/payments/withdraw/request',
+        withdrawStatus: 'GET /api/payments/withdraw/status'
       },
       marketMover: {
         status: 'GET /api/market-mover/status',
@@ -486,8 +527,7 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
-// SETTLEMENT ADMIN ROUTES (must be before 404 handler)
-// PROTECTED - require authentication and admin role
+// SETTLEMENT ADMIN ROUTES
 // ============================================
 const { router: settlementRouter, initializeRouter: initSettlementRouter } = require('./routes/admin/settlement');
 app.use('/api/admin/settlement', authMiddleware, adminMiddleware, settlementRouter);
@@ -525,12 +565,10 @@ async function startServer() {
       const payoutService = new PayoutService(db, db.sequelize);
       const settlementService = new SettlementService(db, db.sequelize);
       
-      // Store services on app for global access
       app.set('scoringService', scoringService);
       app.set('payoutService', payoutService);
       app.set('settlementService', settlementService);
       
-      // Initialize the already-mounted settlement routes with services
       initSettlementRouter({ 
         settlementService, 
         scoringService 
@@ -549,7 +587,6 @@ async function startServer() {
         injurySwapService.setRedis(contestService.redis);
         await injurySwapService.rescheduleAllSwaps();
         
-        // Store service on app for global access
         app.set('injurySwapService', injurySwapService);
         
         console.log('✅ Injury swap service initialized');
@@ -586,6 +623,21 @@ async function startServer() {
       console.log('⚠️  MarketMover service not available:', error.message);
     }
 
+    // ============================================
+    // LOG PAYMENT CONFIG STATUS
+    // ============================================
+    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_REPLACE_ME') {
+      console.log('✅ Stripe payments configured');
+    } else {
+      console.log('⚠️ Stripe not configured - add STRIPE_SECRET_KEY to .env');
+    }
+    
+    if (process.env.SOLANA_DEPOSIT_WALLET && process.env.SOLANA_DEPOSIT_WALLET !== 'REPLACE_WITH_YOUR_SOLANA_ADDRESS') {
+      console.log('✅ Solana deposits configured');
+    } else {
+      console.log('⚠️ Solana not configured - add SOLANA_DEPOSIT_WALLET to .env');
+    }
+
     // Start server
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
@@ -600,13 +652,12 @@ async function startServer() {
       console.log('   - Redis: Connected');
       console.log('   - Contest Service: Initialized');
       console.log('   - Settlement Service: Initialized');
+      console.log('   - Payment Routes: Loaded');
       console.log('   - Injury Swap Service: ' + (injurySwapService ? 'Initialized' : 'Not Available'));
-      console.log('   - Debug Routes: Enabled');
-      console.log('   - Sim Routes: Enabled (Admin Protected)');
       console.log('📡 API Documentation: GET /api');
     });
 
-    // Periodic cleanup tasks - with error handling
+    // Periodic cleanup tasks
     const cleanupInterval = setInterval(async () => {
       try {
         if (contestService.cleanupRoomBoards) {
@@ -618,9 +669,8 @@ async function startServer() {
       } catch (error) {
         console.error('Cleanup task error:', error);
       }
-    }, 3600000); // Run every hour
+    }, 3600000);
 
-    // Store interval for cleanup
     app.set('cleanupInterval', cleanupInterval);
 
     // Graceful shutdown handling
@@ -638,29 +688,24 @@ async function gracefulShutdown(signal) {
   console.log(`\n${signal} received. Starting graceful shutdown...`);
   
   try {
-    // Clear cleanup interval
     const cleanupInterval = app.get('cleanupInterval');
     if (cleanupInterval) {
       clearInterval(cleanupInterval);
     }
 
-    // Stop accepting new connections
     server.close(() => {
       console.log('✅ HTTP server closed');
     });
 
-    // Close Socket.IO connections
     io.close(() => {
       console.log('✅ Socket.IO connections closed');
     });
 
-    // Cleanup contest service
     if (contestService.cleanup) {
       await contestService.cleanup();
       console.log('✅ Contest service cleaned up');
     }
 
-    // Close database connection
     await db.sequelize.close();
     console.log('✅ Database connection closed');
 
@@ -675,7 +720,6 @@ async function gracefulShutdown(signal) {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
-  // Don't call gracefulShutdown for every error - only for critical ones
   if (error.message?.includes('EADDRINUSE') || error.message?.includes('ECONNREFUSED')) {
     gracefulShutdown('uncaughtException');
   } else {
@@ -685,7 +729,6 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  // Log but don't crash for unhandled rejections
 });
 
 // Start the server

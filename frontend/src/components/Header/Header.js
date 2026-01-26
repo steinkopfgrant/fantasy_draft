@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { selectAuthUser, selectIsAuthenticated, logout } from '../../store/slices/authSlice';
 import { showToast } from '../../store/slices/uiSlice';
+import DepositModal from '../Wallet/DepositModal';
 import axios from 'axios';
 import './Header.css';
 
@@ -19,6 +20,9 @@ const Header = () => {
     balance: 0,
     tickets: 0
   });
+  
+  // Deposit modal state
+  const [showDeposit, setShowDeposit] = useState(false);
   
   // Fetch balance and tickets directly
   useEffect(() => {
@@ -96,6 +100,27 @@ const Header = () => {
     }
   };
 
+  // Refresh balance when deposit modal closes (in case of successful deposit)
+  const handleDepositClose = () => {
+    setShowDeposit(false);
+    // Refresh balance after closing modal
+    setTimeout(() => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        axios.get('/api/users/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(response => {
+          if (response.data.user) {
+            setUserData({
+              balance: response.data.user.balance || 0,
+              tickets: response.data.user.tickets || 0
+            });
+          }
+        }).catch(err => console.error('Error refreshing after deposit:', err));
+      }
+    }, 500);
+  };
+
   // Check if current path matches
   const isActive = (path) => location.pathname === path;
 
@@ -142,7 +167,14 @@ const Header = () => {
                 </Link>
               )}
               <div className="user-info">
-                <div className="user-stats">
+                <div className="user-stats-bar">
+                  <button 
+                    className="add-funds-btn"
+                    onClick={() => setShowDeposit(true)}
+                    title="Add Funds"
+                  >
+                    +
+                  </button>
                   <span 
                     className="balance" 
                     onClick={refreshBalance}
@@ -173,6 +205,12 @@ const Header = () => {
           )}
         </nav>
       </div>
+      
+      {/* Deposit Modal */}
+      <DepositModal 
+        isOpen={showDeposit} 
+        onClose={handleDepositClose} 
+      />
     </header>
   );
 };
