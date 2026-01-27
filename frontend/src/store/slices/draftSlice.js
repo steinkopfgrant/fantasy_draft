@@ -397,12 +397,44 @@ export const skipTurn = createAsyncThunk(
   }
 );
 
-// ENHANCED Draft slice with better roster preservation
+// ENHANCED Draft slice with better roster preservation and cross-room bleeding fix
 const draftSlice = createSlice({
   name: 'draft',
   initialState,
   reducers: {
     updateDraftState: (state, action) => {
+      // ============================================
+      // CRITICAL FIX: Detect room change and clear stale data
+      // This prevents cross-room state bleeding in Market Mover
+      // ============================================
+      const incomingRoomId = action.payload.roomId || action.payload.contestId;
+      const currentRoomId = state.roomId || state.contestId;
+      
+      if (incomingRoomId && currentRoomId && incomingRoomId !== currentRoomId) {
+        console.log('🔄 ROOM CHANGED - Clearing stale data to prevent cross-room bleeding', {
+          from: currentRoomId,
+          to: incomingRoomId
+        });
+        
+        // Clear all room-specific state
+        state.teams = [];
+        state.playerBoard = [];
+        state.picks = [];
+        state.currentTurn = 0;
+        state.currentPick = 0;
+        state.draftOrder = [];
+        state.currentDrafter = null;
+        state.isMyTurn = false;
+        state.timeRemaining = 30;
+        state.status = 'loading';
+      }
+      
+      // Update roomId early so subsequent logic uses correct room
+      if (incomingRoomId) {
+        state.roomId = incomingRoomId;
+      }
+      // ============================================
+      
       console.log('🔄 updateDraftState called with:', {
         hasTeams: !!action.payload.teams,
         teamsLength: action.payload.teams?.length,
@@ -460,94 +492,123 @@ const draftSlice = createSlice({
               console.log('✅ Using pre-processed teams from DraftScreen');
               state.teams = action.payload.teams;
             } else {
-              console.log('🔄 Processing and merging teams');
+              console.log('🔄 Processing teams (strict userId matching only)');
               
-              // Process new teams and merge with existing data
+              // Process new teams with STRICT userId matching only
               state.teams = action.payload.teams.map((newTeam, index) => {
-                // Find corresponding existing team
+                // ============================================
+                // CRITICAL FIX: STRICT MATCHING - Only find existing team by exact userId match
+                // No fallbacks - this prevents cross-room data bleeding
+                // ============================================
                 const existingTeam = state.teams?.find(t => 
-                  (t.userId && newTeam.userId && t.userId === newTeam.userId) ||
-                  (t.name && newTeam.name && t.name === newTeam.name) ||
-                  index < state.teams.length
-                ) || {};
-
-                // Merge roster data intelligently
-                const mergedRoster = mergeRosterData(existingTeam.roster, newTeam.roster || newTeam.picks);
-
-                // CRITICAL FIX: Budget preservation logic with 0 protection
-                let finalBudget = 15; // Default budget
+                  t.userId && newTeam.userId && t.userId === newTeam.userId
+                );
                 
-                // FIRST: Always preserve budget of 0
-                if (existingTeam.budget === 0) {
-                  finalBudget = 0;
-                  console.log('💰 Preserving budget at $0 (was already 0)');
+                // Only merge if we found an exact userId match, otherwise start fresh
+                let finalRoster = {};
+                if (existingTeam && Object.keys(existingTeam.roster || {}).length > 0) {
+                  finalRoster = mergeRosterData(existingTeam.roster, newTeam.roster || newTeam.picks);
+                  console.log(`🔄 Merged roster for ${newTeam.name || newTeam.username} (found existing by userId)`);
                 } else {
-                  // Calculate expected budget based on roster
-                  const rosterSpend = Object.values(mergedRoster).reduce((total, player) => {
-                    if (player && player.price !== undefined) {
-                      return total + player.price;
-                    }
-                    return total;
-                  }, 0);
-                  
-                  const calculatedBudget = Math.max(0, 15 - rosterSpend);
-                  
-                  // Trust the server budget ONLY if it makes sense with the roster
-                  if (newTeam.budget !== undefined && typeof newTeam.budget === 'number') {
-                    const serverBudget = newTeam.budget;
-                    
-                    // CRITICAL: Never allow reset from 0 to positive
-                    if (existingTeam.budget === 0 && serverBudget > 0) {
-                      finalBudget = 0;
-                      console.log('💰 Rejecting server attempt to reset from $0 to $' + serverBudget);
-                    } else {
-                      const budgetDiff = Math.abs(serverBudget - calculatedBudget);
-                      
-                      // If server budget is close to calculated (within $1), use server
-                      // This handles rounding or bonus money
-                      if (budgetDiff <= 1 || newTeam.bonus > 0) {
-                        finalBudget = serverBudget;
-                        console.log('💰 Using server budget:', serverBudget);
-                      } else {
-                        // Server budget doesn't match roster - use calculated
-                        finalBudget = calculatedBudget;
-                        console.log('💰 Server budget mismatch, using calculated:', {
-                          serverBudget,
-                          calculatedBudget,
-                          rosterSpend,
-                          diff: budgetDiff
-                        });
-                      }
-                    }
-                  } else if (existingTeam.budget !== undefined) {
-                    // No server budget, preserve existing if it makes sense
-                    const existingBudgetValid = Math.abs(existingTeam.budget - calculatedBudget) <= 1;
-                    finalBudget = existingBudgetValid ? existingTeam.budget : calculatedBudget;
-                  } else {
-                    // No budget info, calculate from roster
-                    finalBudget = calculatedBudget;
-                  }
-
-                  // FINAL CHECK: If we calculated 15 but roster shows money was spent, something is wrong
-                  if (finalBudget === 15 && rosterSpend > 0) {
-                    finalBudget = Math.max(0, 15 - rosterSpend);
-                    console.log('💰 Correcting budget from $15 to $' + finalBudget + ' (spent: $' + rosterSpend + ')');
-                  }
+                  finalRoster = processRosterData(newTeam.roster || newTeam.picks || {});
+                  console.log(`📝 Fresh roster for ${newTeam.name || newTeam.username} (no existing match)`);
                 }
 
-                // Ensure budget never goes negative
+                // ULTRA-ROBUST BUDGET CALCULATION - NEVER RESET FROM $0
+                let finalBudget = 15; // Default budget
+                let finalBonus = newTeam.bonus || existingTeam?.bonus || 0;
+                
+                // Calculate roster spend
+                const rosterSpend = Object.values(finalRoster).reduce((total, player) => {
+                  if (player && typeof player === 'object' && player.price !== undefined) {
+                    return total + (player.price || 0);
+                  }
+                  return total;
+                }, 0);
+                
+                const calculatedBudget = Math.max(0, 15 - rosterSpend);
+                
+                // ABSOLUTE PRIORITY: Preserve $0 budgets at all costs
+                if (existingTeam?.budget === 0) {
+                  finalBudget = 0;
+                  console.log(`💰 ${newTeam.name}: ABSOLUTE $0 PROTECTION`);
+                } 
+                // HIGH PRIORITY: If roster shows full spend, force $0
+                else if (rosterSpend >= 15) {
+                  finalBudget = 0;
+                  console.log(`💰 ${newTeam.name}: FORCED $0 (spent $${rosterSpend})`);
+                }
+                // MEDIUM PRIORITY: Server budget (with protection)
+                else if (newTeam.budget !== undefined && typeof newTeam.budget === 'number') {
+                  const serverBudget = newTeam.budget;
+                  
+                  // NEVER allow reset from $0 to positive
+                  if (existingTeam?.budget === 0 && serverBudget > 0) {
+                    finalBudget = 0;
+                    console.log(`💰 ${newTeam.name}: BLOCKED server reset from $0 to $${serverBudget}`);
+                  }
+                  // Accept reasonable server budgets
+                  else if (Math.abs(serverBudget - calculatedBudget) <= 1 || finalBonus > 0) {
+                    finalBudget = Math.max(0, serverBudget);
+                    console.log(`💰 ${newTeam.name}: Server budget $${serverBudget}`);
+                  }
+                  // Server budget is wrong
+                  else {
+                    finalBudget = calculatedBudget;
+                    console.log(`💰 ${newTeam.name}: Server wrong, calculated $${calculatedBudget}`);
+                  }
+                }
+                // LOW PRIORITY: Existing budget
+                else if (existingTeam?.budget !== undefined) {
+                  const existingBudget = existingTeam.budget;
+                  
+                  if (existingBudget === 0 || (existingBudget < 1 && rosterSpend > 0)) {
+                    finalBudget = 0;
+                    console.log(`💰 ${newTeam.name}: Preserving low budget $${existingBudget}`);
+                  } else if (Math.abs(existingBudget - calculatedBudget) <= 1) {
+                    finalBudget = Math.max(0, existingBudget);
+                    console.log(`💰 ${newTeam.name}: Keeping existing $${existingBudget}`);
+                  } else {
+                    finalBudget = calculatedBudget;
+                    console.log(`💰 ${newTeam.name}: Existing wrong, calculated $${calculatedBudget}`);
+                  }
+                }
+                // FALLBACK: Calculate from roster
+                else {
+                  finalBudget = calculatedBudget;
+                  console.log(`💰 ${newTeam.name}: Fresh calculation $${calculatedBudget}`);
+                }
+                
+                // FINAL SAFETY CHECKS
                 finalBudget = Math.max(0, finalBudget);
-
+                
+                // Emergency correction if $15 with roster
+                if (finalBudget === 15 && rosterSpend > 0) {
+                  finalBudget = Math.max(0, 15 - rosterSpend);
+                  console.log(`💰 ${newTeam.name}: EMERGENCY fix $15→$${finalBudget}`);
+                }
+                
+                // Additional safety for high player counts
+                const playerCount = Object.values(finalRoster).filter(p => p?.name).length;
+                if (playerCount >= 4 && finalBudget > 5 && rosterSpend > 10) {
+                  const correctedBudget = Math.max(0, 15 - rosterSpend);
+                  if (correctedBudget < finalBudget) {
+                    finalBudget = correctedBudget;
+                    console.log(`💰 ${newTeam.name}: Multi-player correction $${finalBudget}`);
+                  }
+                }
+                
                 return {
-                  ...existingTeam,
                   ...newTeam,
-                  roster: mergedRoster,
-                  userId: newTeam.userId || existingTeam.userId,
-                  name: newTeam.name || existingTeam.name || `Team ${index + 1}`,
+                  userId: newTeam.userId || newTeam.user_id,
+                  entryId: newTeam.entryId || newTeam.entry_id || newTeam.id,
+                  name: newTeam.name || newTeam.username || newTeam.teamName || `Team ${index + 1}`,
+                  roster: finalRoster,
                   budget: finalBudget,
-                  bonus: newTeam.bonus || existingTeam.bonus || 0,
-                  color: newTeam.color || existingTeam.color || 
-                         ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
+                  bonus: finalBonus,
+                  color: newTeam.color || existingTeam?.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5],
+                  draftPosition: newTeam.draftPosition !== undefined ? newTeam.draftPosition : 
+                                existingTeam?.draftPosition !== undefined ? existingTeam.draftPosition : index
                 };
               });
             }
@@ -586,7 +647,6 @@ const draftSlice = createSlice({
       if (action.payload.countdownTime !== undefined) state.countdownTime = action.payload.countdownTime;
       if (action.payload.currentDrafter !== undefined) state.currentDrafter = action.payload.currentDrafter;
       if (action.payload.isMyTurn !== undefined) state.isMyTurn = action.payload.isMyTurn;
-      if (action.payload.roomId !== undefined) state.roomId = action.payload.roomId;
       if (action.payload.contestId !== undefined) state.contestId = action.payload.contestId;
       if (action.payload.contestType !== undefined) state.contestType = action.payload.contestType;
       if (action.payload.connectedPlayers !== undefined) state.connectedPlayers = action.payload.connectedPlayers;
