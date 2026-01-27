@@ -1692,12 +1692,34 @@ class ContestService {
     const capturedUsername = currentPlayer.username;
     const capturedTimerKey = existingTimerKey;
 
+const GRACE_PERIOD_MS = 3000; // 3 second hidden grace period for laggy picks
+    
     const timerId = setTimeout(async () => {
-      console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId}`);
+      console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId} - starting ${GRACE_PERIOD_MS/1000}s grace period`);
       
       this.draftTimers.delete(capturedTimerKey);
       
+      // Store the turn number when timer fired
+      const turnWhenTimerFired = draftState.currentTurn;
+      
+      // Grace period - wait before auto-picking to allow laggy manual picks
+      await new Promise(resolve => setTimeout(resolve, GRACE_PERIOD_MS));
+      
       try {
+        // Check if a manual pick arrived during grace period
+        const currentDraftState = await draftService.getDraft(capturedRoomId);
+        
+        if (!currentDraftState) {
+          console.log(`⏰ Grace period: Draft ${capturedRoomId} no longer exists, skipping auto-pick`);
+          return;
+        }
+        
+        if (currentDraftState.currentTurn !== turnWhenTimerFired) {
+          console.log(`⏰ Grace period: Manual pick arrived for ${capturedUsername} (turn advanced ${turnWhenTimerFired} → ${currentDraftState.currentTurn}), skipping auto-pick`);
+          return;
+        }
+        
+        console.log(`⏰ Grace period expired, no manual pick received - auto-picking for ${capturedUsername}`);
         await this.handleAutoPick(capturedRoomId, capturedUserId);
       } catch (error) {
         console.error(`❌ Timer callback error for ${capturedRoomId}:`, error);
