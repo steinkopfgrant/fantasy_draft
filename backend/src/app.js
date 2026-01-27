@@ -16,6 +16,7 @@ const db = require('./models');
 // Import middleware
 const authMiddleware = require('./middleware/auth');
 const { adminMiddleware } = require('./middleware/admin');
+const { authLimiter, paymentLimiter, apiLimiter, draftLimiter } = require('./middleware/rateLimiter');
 
 // ============================================
 // IMPORT ROUTES
@@ -324,25 +325,25 @@ app.get('/api/debug/live', (req, res) => {
 });
 
 // ============================================
-// API ROUTES
+// API ROUTES (with rate limiting)
 // ============================================
 
-// Public routes
-app.use('/api/auth', authRoutes);
+// Public routes (with auth rate limiting)
+app.use('/api/auth', authLimiter, authRoutes);
 
-// Protected routes
-app.use('/api/users', userRoutes);
-app.use('/api/contests', contestRoutes);
-app.use('/api/drafts', draftRoutes);
-app.use('/api/teams', teamRoutes);
-app.use('/api/market-mover', marketMoverRoutes);
-app.use('/api/pools', poolsRoutes);
+// Protected routes (with general API rate limiting)
+app.use('/api/users', apiLimiter, userRoutes);
+app.use('/api/contests', apiLimiter, contestRoutes);
+app.use('/api/drafts', draftLimiter, draftRoutes);
+app.use('/api/teams', apiLimiter, teamRoutes);
+app.use('/api/market-mover', apiLimiter, marketMoverRoutes);
+app.use('/api/pools', apiLimiter, poolsRoutes);
 
-// Payment routes (requires auth)
-app.use('/api/payments', authMiddleware, paymentRoutes);
+// Payment routes (requires auth + payment rate limiting)
+app.use('/api/payments', paymentLimiter, authMiddleware, paymentRoutes);
 
-// Withdrawal routes (requires auth)
-app.use('/api/withdrawals', authMiddleware, withdrawalRoutes);
+// Withdrawal routes (requires auth + payment rate limiting)
+app.use('/api/withdrawals', paymentLimiter, authMiddleware, withdrawalRoutes);
 
 // Admin routes (requires auth + admin)
 app.use('/api/debug', authMiddleware, adminMiddleware, debugRoutes);
@@ -511,6 +512,8 @@ async function startServer() {
     } else {
       console.log('⚠️ Solana not configured - add SOLANA_DEPOSIT_WALLET to .env');
     }
+
+    console.log('✅ Rate limiting enabled');
 
     // Start server
     const PORT = process.env.PORT || 5000;
