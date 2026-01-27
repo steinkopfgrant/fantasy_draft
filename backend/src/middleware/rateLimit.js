@@ -1,4 +1,4 @@
-// backend/src/middleware/rateLimiter.js
+// backend/src/middleware/rateLimit.js
 const rateLimit = require('express-rate-limit');
 
 // Auth routes - prevent brute force login attempts

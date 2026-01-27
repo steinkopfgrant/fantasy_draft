@@ -16,7 +16,7 @@ const db = require('./models');
 // Import middleware
 const authMiddleware = require('./middleware/auth');
 const { adminMiddleware } = require('./middleware/admin');
-const { authLimiter, paymentLimiter, apiLimiter, draftLimiter } = require('./middleware/rateLimiter');
+const { authLimiter, paymentLimiter, apiLimiter, draftLimiter } = require('./middleware/rateLimit');
 
 // ============================================
 // IMPORT ROUTES
