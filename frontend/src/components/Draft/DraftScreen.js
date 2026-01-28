@@ -31,6 +31,14 @@ import {
 import { selectAuthUser } from '../../store/slices/authSlice';
 import socketService from '../../services/socket';
 import './DraftScreen.css';
+import './DraftScreen.mobile.css';
+import {
+  AutoDraftBar,
+  MobileConfirmModal,
+  MobileRosterBar,
+  useIsMobile,
+  useMobileSelection,
+} from './DraftScreen.mobile.jsx';
 
 // Module-level tracking to survive React remounts
 let moduleInitializedRoomId = null;
@@ -49,6 +57,17 @@ const DraftScreen = ({ showToast }) => {
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
+
+  // ==================== MOBILE SUPPORT ====================
+  const isMobile = useIsMobile();
+  const {
+    mobileSelectedPlayer,
+    showConfirmModal,
+    selectPlayer: mobileSelectPlayer,
+    dismissModal,
+    clearSelection,
+  } = useMobileSelection();
+  // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
   // These refs track server time for accurate timer synchronization
@@ -1549,6 +1568,15 @@ const DraftScreen = ({ showToast }) => {
     
     console.log(`🤖 Timer expired - triggering auto-pick for ${myTeam.name}`);
     
+    // MOBILE: If user tapped a player (even if modal was dismissed), use that player
+    if (isMobile && mobileSelectedPlayer) {
+      console.log(`🤖 Mobile: Auto-drafting user selection: ${mobileSelectedPlayer.name}`);
+      selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
+      clearSelection();
+      return;
+    }
+    
+    // Desktop / no mobile selection: Use algorithm
     const autoPick = findAutoPick(myTeam, playerBoard);
     
     if (autoPick) {
@@ -1558,13 +1586,59 @@ const DraftScreen = ({ showToast }) => {
       console.log(`🤖 No valid auto-pick available, skipping turn`);
       dispatch(skipTurn({ roomId, reason: 'no_valid_autopick' }));
     }
-  }, [actualIsMyTurn, isPicking, myTeam, playerBoard, findAutoPick, selectPlayer, dispatch, roomId]);
+  }, [actualIsMyTurn, isPicking, myTeam, playerBoard, findAutoPick, selectPlayer, dispatch, roomId, isMobile, mobileSelectedPlayer, clearSelection]);
 
   // Handle skip turn
   const handleSkipTurn = useCallback(() => {
     if (!actualIsMyTurn || isPicking) return;
     dispatch(skipTurn({ roomId, reason: 'manual_skip' }));
   }, [actualIsMyTurn, roomId, dispatch, isPicking]);
+
+  // ==================== MOBILE HANDLERS ====================
+  
+  // Clear mobile selection when turn changes
+  useEffect(() => {
+    if (!actualIsMyTurn) {
+      clearSelection();
+    }
+  }, [actualIsMyTurn, clearSelection]);
+
+  // Handle mobile player tap - opens confirmation modal
+  const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
+    if (player.drafted || !actualIsMyTurn || isPicking) return;
+    
+    // Get matchup info for the modal
+    const playerWithMeta = {
+      ...player,
+      row: rowIndex,
+      col: colIndex,
+      matchup: player.matchup || null
+    };
+    
+    mobileSelectPlayer(playerWithMeta, rowIndex, colIndex);
+  }, [actualIsMyTurn, isPicking, mobileSelectPlayer]);
+
+  // Handle mobile draft confirmation
+  const handleMobileConfirm = useCallback((player) => {
+    if (!player || isPicking) return;
+    
+    dismissModal();
+    selectPlayer(player.row, player.col);
+    // Don't clear selection - let it stay for auto-draft safety
+  }, [isPicking, dismissModal, selectPlayer]);
+
+  // Handle player card click (desktop vs mobile)
+  const handlePlayerCardClick = useCallback((player, rowIndex, colIndex) => {
+    if (player.drafted || !actualIsMyTurn || isPicking) return;
+    
+    if (isMobile) {
+      handleMobilePlayerTap(player, rowIndex, colIndex);
+    } else {
+      selectPlayer(rowIndex, colIndex);
+    }
+  }, [isMobile, actualIsMyTurn, isPicking, handleMobilePlayerTap, selectPlayer]);
+  
+  // ===========================================================
 
   // Handle return to lobby
   const handleReturnToLobby = useCallback(() => {
@@ -1906,6 +1980,14 @@ const DraftScreen = ({ showToast }) => {
         </div>
       )}
 
+      {/* MOBILE: Auto-draft bar shows selected player */}
+      {isMobile && (
+        <AutoDraftBar 
+          selectedPlayer={mobileSelectedPlayer}
+          visible={!!mobileSelectedPlayer && actualIsMyTurn}
+        />
+      )}
+
       {/* LIVE DRAFT FEED - Replaces old DebugDraftOrder */}
       <LiveDraftFeed 
         teams={teams}
@@ -1966,6 +2048,11 @@ const DraftScreen = ({ showToast }) => {
                   ? teamColors[player.draftedBy] 
                   : null;
                 
+                // Check if this is the mobile-selected player
+                const isMobileSelected = isMobile && 
+                  mobileSelectedPlayer?.row === rowIndex && 
+                  mobileSelectedPlayer?.col === colIndex;
+                
                 return (
                   <div
                     key={`${rowIndex}-${colIndex}`}
@@ -1975,12 +2062,9 @@ const DraftScreen = ({ showToast }) => {
                       ${isAutoSuggestion ? 'auto-suggestion' : ''}
                       ${actualIsMyTurn && !player.drafted && !isPicking ? 'clickable' : ''}
                       ${isPicking ? 'disabled' : ''}
+                      ${isMobileSelected ? 'mobile-selected' : ''}
                     `}
-                    onClick={() => {
-                      if (!isPicking && !player.drafted && actualIsMyTurn) {
-                        selectPlayer(rowIndex, colIndex);
-                      }
-                    }}
+                    onClick={() => handlePlayerCardClick(player, rowIndex, colIndex)}
                     style={{ 
                       cursor: actualIsMyTurn && !player.drafted && !isPicking ? 'pointer' : 'default',
                       position: 'relative'
@@ -2029,79 +2113,101 @@ const DraftScreen = ({ showToast }) => {
 
       {/* MY TEAM SECTION */}
       <div className="my-team-section">
-        <div className="my-team-container">
-          {safeMyTeam ? (
-            <div className="team-card my-team">
-              <div className="team-header">
-                <h3>Your Team - {safeMyTeam.name}</h3>
-                <div className="budget-info">
-                  <span className="budget">Budget: ${safeMyTeam.budget || 15}</span>
-                  {(safeMyTeam.bonus || 0) > 0 && <span className="bonus">Bonus: +${safeMyTeam.bonus}</span>}
-                  <span className="total">Total: ${(safeMyTeam.budget || 15) + (safeMyTeam.bonus || 0)}</span>
+        {/* Mobile: Compact roster bar */}
+        {isMobile ? (
+          <MobileRosterBar 
+            roster={safeMyTeam?.roster}
+            budget={safeMyTeam?.budget}
+            bonus={safeMyTeam?.bonus}
+          />
+        ) : (
+          /* Desktop: Full team view */
+          <>
+            <div className="my-team-container">
+              {safeMyTeam ? (
+                <div className="team-card my-team">
+                  <div className="team-header">
+                    <h3>Your Team - {safeMyTeam.name}</h3>
+                    <div className="budget-info">
+                      <span className="budget">Budget: ${safeMyTeam.budget || 15}</span>
+                      {(safeMyTeam.bonus || 0) > 0 && <span className="bonus">Bonus: +${safeMyTeam.bonus}</span>}
+                      <span className="total">Total: ${(safeMyTeam.budget || 15) + (safeMyTeam.bonus || 0)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="roster">
+                    {['QB', 'RB', 'WR', 'TE', 'FLEX'].map(slot => (
+                      <RosterSlot 
+                        key={slot} 
+                        slot={slot} 
+                        myTeamRoster={safeMyTeam.roster || {}} 
+                      />
+                    ))}
+                  </div>
+                  
+                  <div className="team-summary">
+                    <div className="summary-item">
+                      <span>Spent:</span>
+                      <span>${15 - (safeMyTeam.budget || 15)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span>Remaining:</span>
+                      <span>${(safeMyTeam.budget || 15) + (safeMyTeam.bonus || 0)}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span>Roster Slots:</span>
+                      <span>{Object.keys(safeMyTeam.roster || {}).length}/5</span>
+                    </div>
+                    <div className="summary-item">
+                      <span>Valid Players:</span>
+                      <span>{Object.values(safeMyTeam.roster || {}).filter(p => p && p.name).length}/5</span>
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <div className="loading-team">
+                  <p>Loading your team...</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Current drafter info */}
+            {currentDrafter && (
+              <div className="current-drafter-info">
+                <p>Currently drafting: <strong>{currentDrafter.username || currentDrafter.name || 'Unknown'}</strong></p>
               </div>
-              
-              <div className="roster">
-                {['QB', 'RB', 'WR', 'TE', 'FLEX'].map(slot => (
-                  <RosterSlot 
-                    key={slot} 
-                    slot={slot} 
-                    myTeamRoster={safeMyTeam.roster || {}} 
-                  />
-                ))}
-              </div>
-              
-              <div className="team-summary">
-                <div className="summary-item">
-                  <span>Spent:</span>
-                  <span>${15 - (safeMyTeam.budget || 15)}</span>
-                </div>
-                <div className="summary-item">
-                  <span>Remaining:</span>
-                  <span>${(safeMyTeam.budget || 15) + (safeMyTeam.bonus || 0)}</span>
-                </div>
-                <div className="summary-item">
-                  <span>Roster Slots:</span>
-                  <span>{Object.keys(safeMyTeam.roster || {}).length}/5</span>
-                </div>
-                <div className="summary-item">
-                  <span>Valid Players:</span>
-                  <span>{Object.values(safeMyTeam.roster || {}).filter(p => p && p.name).length}/5</span>
-                </div>
+            )}
+            
+            {/* Team legend */}
+            <div className="team-legend">
+              <p>Team Colors:</p>
+              <div className="legend-items">
+                {teams && teams.map((team, index) => {
+                  const isMe = getUserId(team) === currentUserId;
+                  return (
+                    <div key={index} className="legend-item">
+                      <div className={`legend-piece ${team.color}`}></div>
+                      <span className="legend-text">
+                        {team.name} {isMe && '(You)'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ) : (
-            <div className="loading-team">
-              <p>Loading your team...</p>
-            </div>
-          )}
-        </div>
-        
-        {/* Current drafter info */}
-        {currentDrafter && (
-          <div className="current-drafter-info">
-            <p>Currently drafting: <strong>{currentDrafter.username || currentDrafter.name || 'Unknown'}</strong></p>
-          </div>
+          </>
         )}
-        
-        {/* Team legend */}
-        <div className="team-legend">
-          <p>Team Colors:</p>
-          <div className="legend-items">
-            {teams && teams.map((team, index) => {
-              const isMe = getUserId(team) === currentUserId;
-              return (
-                <div key={index} className="legend-item">
-                  <div className={`legend-piece ${team.color}`}></div>
-                  <span className="legend-text">
-                    {team.name} {isMe && '(You)'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
+
+      {/* MOBILE: Confirmation modal */}
+      {isMobile && (
+        <MobileConfirmModal
+          player={mobileSelectedPlayer}
+          visible={showConfirmModal}
+          onConfirm={handleMobileConfirm}
+          onDismiss={dismissModal}
+        />
+      )}
 
       {/* Picking overlay */}
       {isPicking && (

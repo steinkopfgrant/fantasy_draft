@@ -1,0 +1,584 @@
+/* DraftScreen.mobile.css */
+/* Mobile-specific styles for draft screen */
+/* Loaded conditionally or via media query wrapper */
+
+/* ===========================================
+   MOBILE BREAKPOINT: max-width 768px
+   =========================================== */
+
+@media (max-width: 768px) {
+  
+  /* -----------------------------------------
+     MAIN CONTAINER
+     ----------------------------------------- */
+  .draft-container {
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* -----------------------------------------
+     HEADER - Compact single row
+     ----------------------------------------- */
+  .draft-header {
+    background: #1a1f2e;
+    padding: 10px 12px;
+    margin-bottom: 0;
+    border-radius: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2a2f3e;
+    flex-shrink: 0;
+  }
+
+  .timer-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .timer {
+    font-size: 22px;
+    min-width: auto;
+  }
+
+  .turn-indicator {
+    padding: 5px 10px;
+    border-radius: 14px;
+    font-size: 11px;
+  }
+
+  .draft-info {
+    display: none; /* Hide on mobile - info shown elsewhere */
+  }
+
+  .controls {
+    display: none; /* Hide auto-pick toggles on mobile */
+  }
+
+  /* Budget display in header */
+  .mobile-budget {
+    color: #44ff44;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  /* -----------------------------------------
+     AUTO-DRAFT BAR - Shows selected player
+     ----------------------------------------- */
+  .auto-draft-bar {
+    background: linear-gradient(90deg, #ffaa44, #ff8844);
+    color: #0a0e1b;
+    text-align: center;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    display: none; /* Hidden by default, shown when player selected */
+    flex-shrink: 0;
+  }
+
+  .auto-draft-bar.visible {
+    display: block;
+  }
+
+  /* -----------------------------------------
+     PLAYER BOARD - Compact grid
+     ----------------------------------------- */
+  .player-board {
+    background: #0a0e1b;
+    border-radius: 0;
+    padding: 6px;
+    margin-bottom: 0;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .player-board.low-time-warning {
+    border: none;
+  }
+
+  .player-board.low-time-warning::before {
+    display: none;
+  }
+
+  /* -----------------------------------------
+     PRICE ROWS - 6 column grid
+     ----------------------------------------- */
+  .price-row {
+    display: grid;
+    grid-template-columns: 28px repeat(5, 1fr);
+    gap: 5px;
+    margin-bottom: 6px;
+    align-items: stretch;
+  }
+
+  /* -----------------------------------------
+     PRICE LABELS
+     ----------------------------------------- */
+  .price-label {
+    background: #00d4ff;
+    color: #0a0e1b;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 11px;
+    min-height: auto;
+    padding: 4px 0;
+  }
+
+  .price-label.wildcards {
+    font-size: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: unset;
+  }
+
+  /* -----------------------------------------
+     PLAYER CARDS - Compact touch targets
+     ----------------------------------------- */
+  .player-card {
+    background: #2a2f3e;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 8px 6px;
+    min-height: 70px;
+    height: auto;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.1s;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Remove hover effects - we use tap */
+  .player-card:hover:not(.drafted):not(.disabled) {
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+  }
+
+  /* Active tap state */
+  .player-card:active:not(.drafted):not(.disabled) {
+    transform: scale(0.95);
+    background: #3a4f5e;
+  }
+
+  /* Drafted state */
+  .player-card.drafted {
+    background: #151820;
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .player-card.drafted::after {
+    display: none; /* Remove "DRAFTED" overlay text on mobile */
+  }
+
+  /* Drafted by team colors - left border */
+  .player-card.drafted-by-green { border-left: 3px solid #10B981; }
+  .player-card.drafted-by-red { border-left: 3px solid #EF4444; }
+  .player-card.drafted-by-blue { border-left: 3px solid #3B82F6; }
+  .player-card.drafted-by-yellow { border-left: 3px solid #F59E0B; }
+  .player-card.drafted-by-purple { border-left: 3px solid #8B5CF6; }
+
+  /* Selected state (tapped, modal open or dismissed) */
+  .player-card.mobile-selected {
+    border-color: #44ff44;
+    background: rgba(68, 255, 68, 0.15);
+    box-shadow: 0 0 12px rgba(68, 255, 68, 0.3);
+  }
+
+  /* Auto-suggestion on mobile */
+  .player-card.auto-suggestion {
+    border: 2px solid #44ff44 !important;
+    background-color: rgba(68, 255, 68, 0.08);
+  }
+
+  .suggestion-indicator {
+    display: none; /* Hide "Best Pick" badge on mobile - too cluttered */
+  }
+
+  /* -----------------------------------------
+     PLAYER CARD CONTENT - Compact text
+     ----------------------------------------- */
+  .player-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .player-team {
+    font-size: 9px;
+    color: #888;
+  }
+
+  /* Hide matchup on card - shown in modal */
+  .player-matchup {
+    display: none;
+  }
+
+  /* -----------------------------------------
+     POSITION BADGES - Compact
+     ----------------------------------------- */
+  .position-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    padding: 2px 5px;
+    border-radius: 6px;
+    font-size: 8px;
+    font-weight: bold;
+  }
+
+  .actual-position-badge {
+    display: none; /* Hide secondary badge on mobile */
+  }
+
+  /* -----------------------------------------
+     GAME PIECE (draft order indicator)
+     ----------------------------------------- */
+  .game-piece {
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+  }
+
+  .game-piece .piece-inner {
+    font-size: 9px;
+  }
+
+  /* -----------------------------------------
+     MY TEAM SECTION - Compact footer
+     ----------------------------------------- */
+  .my-team-section {
+    background: #1a1f2e;
+    padding: 8px 10px;
+    border-top: 2px solid #2a2f3e;
+    flex-shrink: 0;
+  }
+
+  .my-team-container {
+    display: none; /* Hide full team card */
+  }
+
+  .current-drafter-info {
+    display: none; /* Hide on mobile */
+  }
+
+  .team-legend {
+    display: none; /* Hide legend on mobile */
+  }
+
+  /* -----------------------------------------
+     MOBILE ROSTER BAR - New compact design
+     ----------------------------------------- */
+  .mobile-roster-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-roster-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+  }
+
+  .mobile-roster-header .label {
+    color: #888;
+  }
+
+  .mobile-roster-header .status {
+    color: #44ff44;
+  }
+
+  .mobile-roster-slots {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mobile-roster-slot {
+    flex: 1;
+    background: #2a2f3e;
+    border: 1px solid #3a3f4e;
+    border-radius: 5px;
+    padding: 6px 2px;
+    text-align: center;
+  }
+
+  .mobile-roster-slot.filled {
+    background: rgba(68, 255, 68, 0.1);
+    border-color: #44ff44;
+  }
+
+  .mobile-roster-slot .pos {
+    color: #666;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .mobile-roster-slot.filled .pos {
+    color: #44ff44;
+  }
+
+  .mobile-roster-slot .player-mini {
+    color: #fff;
+    font-size: 8px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* -----------------------------------------
+     CONFIRMATION MODAL
+     ----------------------------------------- */
+  .mobile-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, visibility 0.15s;
+  }
+
+  .mobile-confirm-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .mobile-confirm-modal {
+    width: 290px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #0a0e1b 100%);
+    border: 2px solid #00d4ff;
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.15s;
+  }
+
+  .mobile-confirm-overlay.visible .mobile-confirm-modal {
+    transform: scale(1);
+  }
+
+  .mobile-confirm-price {
+    display: inline-block;
+    background: #00d4ff;
+    color: #0a0e1b;
+    padding: 6px 24px;
+    border-radius: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 14px;
+  }
+
+  .mobile-confirm-name {
+    color: #fff;
+    font-size: 26px;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+
+  .mobile-confirm-details {
+    color: #888;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  .mobile-confirm-matchup {
+    color: #60a5fa;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .mobile-confirm-btn {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, #44ff44 0%, #22cc22 100%);
+    color: #0a0e1b;
+    border: none;
+    border-radius: 12px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .mobile-confirm-btn:active {
+    transform: scale(0.98);
+  }
+
+  .mobile-confirm-hint {
+    color: #666;
+    font-size: 11px;
+    margin-top: 14px;
+  }
+
+  /* -----------------------------------------
+     LOW TIME WARNING - Mobile version
+     ----------------------------------------- */
+  .draft-container.low-time-warning .draft-header {
+    background: linear-gradient(90deg, #ff444420, #1a1f2e, #ff444420);
+  }
+
+  .draft-container.low-time-warning::before {
+    display: none; /* Remove full-screen pulse on mobile */
+  }
+
+  .timer.warning,
+  .timer.my-turn.warning {
+    color: #ff4444;
+    animation: mobile-timer-pulse 0.5s infinite;
+  }
+
+  @keyframes mobile-timer-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  /* -----------------------------------------
+     PICKING OVERLAY - Mobile
+     ----------------------------------------- */
+  .picking-overlay {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .picking-overlay p {
+    font-size: 16px;
+  }
+
+  /* -----------------------------------------
+     COUNTDOWN OVERLAY - Mobile
+     ----------------------------------------- */
+  .countdown-overlay {
+    background: rgba(0, 0, 0, 0.9);
+  }
+
+  .countdown-modal {
+    padding: 30px 40px;
+    border-radius: 16px;
+  }
+
+  .countdown-modal h2 {
+    font-size: 24px;
+  }
+
+  .countdown-modal .countdown-number {
+    font-size: 80px;
+  }
+
+  /* -----------------------------------------
+     LIVE DRAFT FEED - Hidden on mobile
+     (or could show minimal version)
+     ----------------------------------------- */
+  .live-draft-feed {
+    display: none;
+  }
+
+  /* -----------------------------------------
+     HIDE DESKTOP-ONLY ELEMENTS
+     ----------------------------------------- */
+  .draft-board-filters {
+    display: none;
+  }
+
+  .draft-board-legend {
+    display: none;
+  }
+
+  .keyboard-shortcuts {
+    display: none;
+  }
+
+  .player-tooltip {
+    display: none !important;
+  }
+
+  .position-selector {
+    display: none; /* No position selector - auto-assigned */
+  }
+
+}
+
+/* ===========================================
+   SMALLER PHONES (iPhone SE, etc)
+   =========================================== */
+
+@media (max-width: 375px) {
+  .player-card {
+    min-height: 65px;
+    padding: 6px 4px;
+  }
+
+  .player-name {
+    font-size: 10px;
+  }
+
+  .price-label {
+    font-size: 10px;
+  }
+
+  .price-row {
+    gap: 4px;
+    margin-bottom: 5px;
+  }
+}
+
+/* ===========================================
+   LANDSCAPE MOBILE - Not ideal for drafting
+   =========================================== */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .player-card {
+    min-height: 50px;
+    padding: 4px;
+  }
+
+  .player-name {
+    font-size: 9px;
+  }
+
+  .player-team {
+    display: none;
+  }
+
+  .price-row {
+    margin-bottom: 4px;
+    gap: 3px;
+  }
+
+  .draft-header {
+    padding: 6px 10px;
+  }
+
+  .my-team-section {
+    padding: 6px 8px;
+  }
+}
