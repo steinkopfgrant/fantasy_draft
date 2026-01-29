@@ -168,7 +168,7 @@ class DraftService {
     const draftState = {
       contestId,
       playerBoard: processedBoard,
-      entries,
+      entries: shuffledEntries, // FIXED: Store SHUFFLED entries to preserve draft order on recovery
       currentTurn: 0,
       draftOrder: this.createSnakeDraftOrder(shuffledEntries.length),
       picks: [],
