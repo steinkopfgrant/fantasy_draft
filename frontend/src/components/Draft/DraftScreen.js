@@ -67,7 +67,7 @@ const DraftScreen = ({ showToast }) => {
     dismissModal,
     clearSelection,
   } = useMobileSelection();
-  const autoPickTriggeredRef = useRef(false); // Prevent double auto-pick
+  const autoPickTriggeredRef = useRef(0); // Timestamp debounce for auto-pick
   // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
@@ -434,78 +434,73 @@ const DraftScreen = ({ showToast }) => {
       return null;
     }
     
-    // Priority order: TE first, then others
-    const slotPriority = ['TE', 'QB', 'RB', 'WR', 'FLEX'];
+    // CORRECT PRIORITY: QB → RB → WR → TE → FLEX (matching server logic)
+    const slotPriority = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
     const prioritizedSlots = slotPriority.filter(slot => availableSlots.includes(slot));
     
     console.log(`🎯 Prioritized slots:`, prioritizedSlots);
     
-    let bestPick = null;
-    let lowestPrice = Infinity;
-    
-    // Scan player board for eligible players
-    for (let row = 0; row < playerBoard.length; row++) {
-      for (let col = 0; col < playerBoard[row].length; col++) {
-        const player = playerBoard[row][col];
-        
-        // Skip if player is invalid or already drafted
-        if (!player || !player.name || player.drafted || !player.position) {
-          continue;
-        }
-        
-        // Skip if player is too expensive
-        if (player.price > totalBudget) {
-          continue;
-        }
-        
-        const playerPosition = standardizeSlotName(player.position);
-        
-        // Check if player can fill any of our prioritized slots
-        const canFillSlot = prioritizedSlots.some(slot => {
-          if (slot === playerPosition) return true;
-          if (slot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) return true;
-          return false;
-        });
-        
-        if (!canFillSlot) {
-          continue;
-        }
-        
-        // Find the highest priority slot this player can fill
-        const targetSlot = prioritizedSlots.find(slot => {
-          if (slot === playerPosition) return true;
-          if (slot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) return true;
-          return false;
-        });
-        
-        // Prioritize TE, then by lowest price
-        const isTE = playerPosition === 'TE';
-        const isBetterPick = !bestPick || 
-          (isTE && standardizeSlotName(bestPick.player.position) !== 'TE') ||
-          (isTE === (standardizeSlotName(bestPick.player.position) === 'TE') && player.price < lowestPrice);
-        
-        if (isBetterPick) {
-          bestPick = {
-            row,
-            col,
-            player,
-            targetSlot,
-            price: player.price
-          };
-          lowestPrice = player.price;
+    // For each priority slot, find the MOST EXPENSIVE affordable player
+    for (const targetSlot of prioritizedSlots) {
+      let bestPlayer = null;
+      let bestRow = -1;
+      let bestCol = -1;
+      let highestPrice = -1;
+      
+      // Scan player board for eligible players for this slot
+      for (let row = 0; row < playerBoard.length; row++) {
+        for (let col = 0; col < playerBoard[row].length; col++) {
+          const player = playerBoard[row][col];
           
-          console.log(`🎯 New best auto-pick: ${player.name} (${playerPosition}) for ${targetSlot} - $${player.price}`);
+          // Skip if player is invalid or already drafted
+          if (!player || !player.name || player.drafted || !player.position) {
+            continue;
+          }
+          
+          // Skip if player is too expensive
+          if (player.price > totalBudget) {
+            continue;
+          }
+          
+          const playerPosition = standardizeSlotName(player.position);
+          
+          // Check if player can fill this specific slot
+          let canFillSlot = false;
+          if (targetSlot === playerPosition) {
+            canFillSlot = true;
+          } else if (targetSlot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) {
+            canFillSlot = true;
+          }
+          
+          if (!canFillSlot) {
+            continue;
+          }
+          
+          // Pick the MOST EXPENSIVE player for this slot
+          if (player.price > highestPrice) {
+            bestPlayer = player;
+            bestRow = row;
+            bestCol = col;
+            highestPrice = player.price;
+          }
         }
+      }
+      
+      // If we found a player for this slot, return it
+      if (bestPlayer) {
+        console.log(`✅ Auto-pick selected: ${bestPlayer.name} (${bestPlayer.position}) -> ${targetSlot} for $${highestPrice}`);
+        return {
+          row: bestRow,
+          col: bestCol,
+          player: bestPlayer,
+          targetSlot,
+          price: highestPrice
+        };
       }
     }
     
-    if (bestPick) {
-      console.log(`✅ Auto-pick selected: ${bestPick.player.name} (${bestPick.player.position}) -> ${bestPick.targetSlot} for $${bestPick.price}`);
-    } else {
-      console.log(`❌ No eligible auto-pick found`);
-    }
-    
-    return bestPick;
+    console.log(`❌ No eligible auto-pick found`);
+    return null;
   }, [standardizeSlotName]);
 
   // SNAKE DRAFT: Get expected next drafter
@@ -1569,16 +1564,25 @@ const DraftScreen = ({ showToast }) => {
     
     console.log(`🤖 Timer expired - triggering auto-pick for ${myTeam.name}`);
     
-    // MOBILE: If user tapped a player (even if modal was dismissed), use that player
+    // MOBILE: Check if user has a pre-selected player
     if (isMobile && mobileSelectedPlayer) {
-      const playerToSelect = mobileSelectedPlayer;
-      console.log(`🤖 Mobile: Auto-drafting user selection: ${playerToSelect.name}`);
-      clearSelection(); // Clear BEFORE picking to prevent double-pick
-      selectPlayer(playerToSelect.row, playerToSelect.col);
-      return;
+      const currentPlayerState = playerBoard[mobileSelectedPlayer.row]?.[mobileSelectedPlayer.col];
+      
+      // If player was drafted by someone else, clear selection immediately
+      if (!currentPlayerState || currentPlayerState.drafted) {
+        console.log(`🤖 Mobile: Pre-selected player ${mobileSelectedPlayer.name} was already drafted, clearing and using algorithm`);
+        clearSelection();
+        // DON'T return - fall through to algorithm
+      } else {
+        // Player is still available - draft them
+        console.log(`🤖 Mobile: Auto-drafting user selection: ${mobileSelectedPlayer.name}`);
+        clearSelection();
+        selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
+        return;
+      }
     }
     
-    // Desktop / no mobile selection: Use algorithm
+    // Desktop / no mobile selection / pre-selection was invalid: Use algorithm
     const autoPick = findAutoPick(myTeam, playerBoard);
     
     if (autoPick) {
@@ -1598,18 +1602,30 @@ const DraftScreen = ({ showToast }) => {
 
   // ==================== MOBILE HANDLERS ====================
   
-  // Clear mobile selection when a pick is completed (not on turn change)
-  // This allows pre-selection to persist until the user actually drafts
+  // Clear mobile selection when the selected player gets drafted by someone else
   useEffect(() => {
-    // Clear selection if the selected player gets drafted by someone else
-    if (mobileSelectedPlayer && playerBoard) {
-      const player = playerBoard[mobileSelectedPlayer.row]?.[mobileSelectedPlayer.col];
-      if (player?.drafted) {
-        console.log('📱 Pre-selected player was drafted, clearing selection');
-        clearSelection();
-      }
+    if (!mobileSelectedPlayer || !playerBoard) return;
+    
+    const { row, col } = mobileSelectedPlayer;
+    const currentPlayerState = playerBoard[row]?.[col];
+    
+    if (currentPlayerState?.drafted) {
+      console.log('📱 Pre-selected player was drafted by someone else, clearing selection');
+      clearSelection();
     }
   }, [playerBoard, mobileSelectedPlayer, clearSelection]);
+
+  // Also clear selection when picks array changes (backup check)
+  useEffect(() => {
+    if (!mobileSelectedPlayer || !picks || picks.length === 0) return;
+    
+    // Check if the most recent pick matches our selection
+    const lastPick = picks[picks.length - 1];
+    if (lastPick?.player?.name === mobileSelectedPlayer.name) {
+      console.log('📱 Pre-selected player appears in picks, clearing selection');
+      clearSelection();
+    }
+  }, [picks, mobileSelectedPlayer, clearSelection]);
 
   // Handle mobile player tap - opens confirmation modal
   // Allow tapping anytime for preview/pre-selection, not just on turn
@@ -1736,25 +1752,21 @@ const DraftScreen = ({ showToast }) => {
   }, [status, countdownTime, dispatch]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
-  // Uses ref to prevent double-firing
+  // Uses isPicking as primary guard, ref as debounce for rapid re-renders
   useEffect(() => {
     if (actualIsMyTurn && status === 'active' && timeRemaining === 0 && !isPicking) {
-      // Prevent double auto-pick for the same turn
-      if (autoPickTriggeredRef.current) {
-        console.log('⏰ Auto-pick already triggered for this turn, skipping');
+      // Debounce: Don't fire if we just fired in the last 500ms
+      const now = Date.now();
+      if (autoPickTriggeredRef.current > now - 500) {
+        console.log(`⏰ Auto-pick debounced (fired ${now - autoPickTriggeredRef.current}ms ago)`);
         return;
       }
       
-      autoPickTriggeredRef.current = true;
-      console.log('⏰ Timer expired, triggering auto-pick');
+      console.log(`⏰ Timer expired at turn ${currentTurn}, triggering auto-pick`);
+      autoPickTriggeredRef.current = now;
       handleAutoPick();
     }
-  }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick]);
-
-  // Reset auto-pick flag when turn changes
-  useEffect(() => {
-    autoPickTriggeredRef.current = false;
-  }, [currentTurn]);
+  }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick, currentTurn]);
 
   // SNAKE DRAFT: Draft order validation effect
   useEffect(() => {
@@ -2028,7 +2040,7 @@ const DraftScreen = ({ showToast }) => {
       <div className="draft-header">
         <div className="timer-section">
           <div className={`timer ${actualIsMyTurn ? 'my-turn' : ''} ${timeRemaining <= 10 ? 'warning' : ''}`}>
-            Time: <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{timeRemaining || 30}s</span>
+            Time: <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{Math.max(0, timeRemaining ?? 30)}s</span>
           </div>
           {actualIsMyTurn && <div className="turn-indicator">Your Turn!</div>}
         </div>

@@ -1692,7 +1692,8 @@ class ContestService {
     const capturedUsername = currentPlayer.username;
     const capturedTimerKey = existingTimerKey;
 
-const GRACE_PERIOD_MS = 3000; // 3 second hidden grace period for laggy picks
+    // CHANGE 1: Reduced from 3000 to 1000
+    const GRACE_PERIOD_MS = 1000; // 1 second hidden grace period for laggy picks
     
     const timerId = setTimeout(async () => {
       console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId} - starting ${GRACE_PERIOD_MS/1000}s grace period`);
@@ -1787,8 +1788,14 @@ const GRACE_PERIOD_MS = 3000; // 3 second hidden grace period for laggy picks
         
         const timeLimitMs = timeLimit * 1000;
         
-        if (currentTurn === draftState.currentTurn && elapsed > timeLimitMs) {
-          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (limit: ${timeLimit}s) - auto-picking now`);
+        // CHANGE 2: Add grace period + buffer before considering stalled
+        // This prevents the stalled checker from interfering with the normal timer's grace period
+        const GRACE_PERIOD_MS = 1000;
+        const STALL_BUFFER_MS = 1000;
+        const STALL_THRESHOLD_MS = timeLimitMs + GRACE_PERIOD_MS + STALL_BUFFER_MS;
+        
+        if (currentTurn === draftState.currentTurn && elapsed > STALL_THRESHOLD_MS) {
+          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (threshold: ${STALL_THRESHOLD_MS/1000}s) - auto-picking now`);
           
           if (!this.activeDrafts.has(roomId)) {
             const entry = await db.ContestEntry.findOne({
@@ -1829,7 +1836,7 @@ const GRACE_PERIOD_MS = 3000; // 3 second hidden grace period for laggy picks
           if (this.io) {
             this.io.to(`room_${roomId}`).emit('timer-sync', {
               roomId,
-              timeRemaining: Math.round(remaining / 1000),
+              timeRemaining: Math.max(0, Math.round(remaining / 1000)),
               turnStartedAt: turnStartedAt,
               serverTime: Date.now(),
               timeLimit: timeLimit,
