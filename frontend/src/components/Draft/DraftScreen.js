@@ -1658,7 +1658,18 @@ const DraftScreen = ({ showToast }) => {
   // Handle mobile player tap - opens confirmation modal
   // Allow tapping anytime for preview/pre-selection, not just on turn
   const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
-    if (player.drafted || isPicking) return;
+    console.log('📱 handleMobilePlayerTap called:', { 
+      playerName: player?.name, 
+      drafted: player?.drafted, 
+      isPicking,
+      roomId,
+      currentUserId 
+    });
+    
+    if (player.drafted || isPicking) {
+      console.log('📱 Tap blocked - drafted or picking');
+      return;
+    }
     
     // Get matchup info for the modal
     const playerWithMeta = {
@@ -1672,7 +1683,7 @@ const DraftScreen = ({ showToast }) => {
     
     // EMIT PRE-SELECTION TO SERVER for persistence across disconnect
     if (roomId && currentUserId) {
-      socketService.emit('pre-select', {
+      const preSelectData = {
         roomId,
         userId: currentUserId,
         player: {
@@ -1683,8 +1694,12 @@ const DraftScreen = ({ showToast }) => {
           row: rowIndex,
           col: colIndex
         }
-      });
+      };
+      console.log('📱 Emitting pre-select:', preSelectData);
+      socketService.emit('pre-select', preSelectData);
       console.log('📱 Emitted pre-select to server:', player.name);
+    } else {
+      console.log('📱 CANNOT emit pre-select - missing:', { roomId, currentUserId });
     }
   }, [isPicking, mobileSelectPlayer, roomId, currentUserId]);
 
@@ -1700,12 +1715,22 @@ const DraftScreen = ({ showToast }) => {
 
   // Handle player card click (desktop vs mobile)
   const handlePlayerCardClick = useCallback((player, rowIndex, colIndex) => {
+    console.log('🖱️ handlePlayerCardClick:', { 
+      isMobile, 
+      playerName: player?.name,
+      drafted: player?.drafted, 
+      isPicking, 
+      actualIsMyTurn 
+    });
+    
     if (player.drafted || isPicking) return;
     
     if (isMobile) {
+      console.log('🖱️ Taking MOBILE path');
       // Mobile: Always allow tap for preview/pre-selection
       handleMobilePlayerTap(player, rowIndex, colIndex);
     } else {
+      console.log('🖱️ Taking DESKTOP path');
       // Desktop: Only allow on your turn
       if (actualIsMyTurn) {
         selectPlayer(rowIndex, colIndex);

@@ -645,7 +645,7 @@ class DraftService {
   // ============================================
   // UPDATED: autoPick with pre-selection support and graceful lock handling
   // ============================================
-  async autoPick(contestId, userId) {
+  async autoPick(contestId, userId, preSelection = null) {
     try {
       const draft = await this.getDraft(contestId);
       if (!draft) {
@@ -688,83 +688,48 @@ class DraftService {
       console.log(`🤖 AutoPick for ${currentTeam.username}: Budget $${budget}, Empty slots: ${emptySlots.join(', ')}`);
       
       // ==========================================
-      // CHECK FOR PRE-SELECTION FIRST
+      // CHECK FOR PRE-SELECTION FIRST (passed from contestService)
       // ==========================================
-      // Note: Pre-selection is stored with ffsale: prefix in contestService.redis
-      // We need to access it without the draft: prefix
-      const preSelectKey = `ffsale:preselect:${contestId}:${userId}`;
-      let preSelectData = null;
-      
-      try {
-        // Create a separate redis connection without prefix for this lookup
-        const Redis = require('ioredis');
-        let redisUrl = process.env.REDIS_URL;
-        let tempRedis;
+      if (preSelection) {
+        const { row, col, name, position } = preSelection;
+        console.log(`🎯 Checking pre-selection: ${name} at [${row}][${col}]`);
         
-        if (redisUrl) {
-          tempRedis = new Redis(redisUrl);
-        } else {
-          tempRedis = new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: process.env.REDIS_PORT || 6379
-          });
-        }
-        
-        preSelectData = await tempRedis.get(preSelectKey);
-        
-        if (preSelectData) {
-          const preSelect = JSON.parse(preSelectData);
-          const { row, col, name, position } = preSelect;
+        // Verify player is still available on the board
+        if (draft.playerBoard && 
+            draft.playerBoard[row] && 
+            draft.playerBoard[row][col] && 
+            !draft.playerBoard[row][col].drafted) {
           
-          // Verify player is still available on the board
-          if (draft.playerBoard && 
-              draft.playerBoard[row] && 
-              draft.playerBoard[row][col] && 
-              !draft.playerBoard[row][col].drafted) {
+          const boardPlayer = draft.playerBoard[row][col];
+          
+          // Check if player is within budget
+          if (boardPlayer.price <= budget) {
+            // Find the best roster slot for this player
+            const targetSlot = this.findBestSlotForPlayer(boardPlayer, currentTeam.roster || {});
             
-            const boardPlayer = draft.playerBoard[row][col];
-            
-            // Check if player is within budget
-            if (boardPlayer.price <= budget) {
-              // Find the best roster slot for this player
-              const targetSlot = this.findBestSlotForPlayer(boardPlayer, currentTeam.roster || {});
+            if (targetSlot && emptySlots.includes(targetSlot)) {
+              console.log(`🎯 AUTO-PICK using pre-selected player for ${currentTeam.username}: ${name} -> ${targetSlot}`);
               
-              if (targetSlot && emptySlots.includes(targetSlot)) {
-                console.log(`🎯 AUTO-PICK using pre-selected player for ${currentTeam.username}: ${name} -> ${targetSlot}`);
-                
-                // Clear the pre-selection immediately
-                await tempRedis.del(preSelectKey);
-                await tempRedis.quit();
-                
-                // Make the pick with the pre-selected player
-                const pick = {
-                  player: boardPlayer,
-                  rosterSlot: targetSlot,
-                  row,
-                  col,
-                  isAutoPick: true,
-                  wasPreSelected: true
-                };
-                
-                return await this.makePick(contestId, userId, pick);
-              } else {
-                console.log(`⚠️ Pre-selected player ${name} has no valid slot (need: ${position}, empty: ${emptySlots.join(',')}), falling back to algorithm`);
-              }
+              // Make the pick with the pre-selected player
+              const pick = {
+                player: boardPlayer,
+                rosterSlot: targetSlot,
+                row,
+                col,
+                isAutoPick: true,
+                wasPreSelected: true
+              };
+              
+              return await this.makePick(contestId, userId, pick);
             } else {
-              console.log(`⚠️ Pre-selected player ${name} ($${boardPlayer.price}) exceeds budget ($${budget}), falling back to algorithm`);
+              console.log(`⚠️ Pre-selected player ${name} has no valid slot (need: ${position}, available: ${emptySlots.join(',')}), falling back to algorithm`);
             }
           } else {
-            console.log(`⚠️ Pre-selected player ${name} at [${row}][${col}] no longer available, falling back to algorithm`);
+            console.log(`⚠️ Pre-selected player ${name} ($${boardPlayer.price}) exceeds budget ($${budget}), falling back to algorithm`);
           }
-          
-          // Clear invalid pre-selection
-          await tempRedis.del(preSelectKey);
+        } else {
+          console.log(`⚠️ Pre-selected player ${name} at [${row}][${col}] no longer available, falling back to algorithm`);
         }
-        
-        await tempRedis.quit();
-      } catch (preSelectError) {
-        console.error('Error checking pre-selection:', preSelectError);
-        // Continue with normal auto-pick algorithm
       }
       // ==========================================
       // END PRE-SELECTION CHECK

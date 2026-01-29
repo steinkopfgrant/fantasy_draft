@@ -2029,7 +2029,26 @@ class ContestService {
     }
     
     try {
-      const updatedDraft = await draftService.autoPick(roomId, userId);
+      // ==========================================
+      // CHECK FOR PRE-SELECTION FIRST
+      // ==========================================
+      let preSelection = null;
+      try {
+        const preSelectKey = `preselect:${roomId}:${userId}`;
+        const preSelectData = await this.redis.get(preSelectKey);
+        
+        if (preSelectData) {
+          preSelection = JSON.parse(preSelectData);
+          console.log(`📱 Found pre-selection for ${userId}: ${preSelection.name}`);
+          // Clear it immediately so it's not used twice
+          await this.redis.del(preSelectKey);
+        }
+      } catch (preSelectError) {
+        console.error('Error checking pre-selection:', preSelectError);
+      }
+      // ==========================================
+      
+      const updatedDraft = await draftService.autoPick(roomId, userId, preSelection);
       
       if (updatedDraft && this.io) {
         const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
@@ -2069,6 +2088,7 @@ class ContestService {
             currentPick: updatedDraft.currentTurn + 1,
             picks: updatedDraft.picks,
             isAutoPick: true,
+            wasPreSelected: lastPick.wasPreSelected || false,
             turnStartedAt: Date.now(),
             serverTime: Date.now()
           });
@@ -2080,7 +2100,7 @@ class ContestService {
             serverTime: Date.now()
           });
           
-          console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}`);
+          console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}${lastPick.wasPreSelected ? ' (PRE-SELECTED)' : ''}`);
         }
       }
     } catch (error) {
