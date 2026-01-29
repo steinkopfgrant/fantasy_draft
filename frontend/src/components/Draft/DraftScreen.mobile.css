@@ -163,6 +163,8 @@
     text-align: center;
     position: relative;
     overflow: visible; /* Allow position badge to overflow */
+    /* MOBILE: Always allow clicks for pre-selection */
+    pointer-events: auto !important;
   }
 
   /* Remove hover effects - we use tap */
@@ -172,17 +174,17 @@
     border-color: transparent;
   }
 
-  /* Active tap state */
-  .player-card:active:not(.drafted):not(.disabled) {
+  /* Active tap state - allow even when not your turn for pre-selection */
+  .player-card:active:not(.drafted) {
     transform: scale(0.95);
     background: #3a4f5e;
   }
 
-  /* Drafted state */
+  /* Drafted state - only these are truly disabled */
   .player-card.drafted {
     background: #151820;
     opacity: 0.4;
-    pointer-events: none;
+    pointer-events: none !important;
   }
 
   .player-card.drafted::after {
@@ -214,7 +216,7 @@
   }
 
   /* -----------------------------------------
-     PLAYER CARD CONTENT - Stacked names
+     PLAYER CARD CONTENT - Stacked names, constrained
      ----------------------------------------- */
   .player-name {
     display: flex;
@@ -222,6 +224,8 @@
     align-items: center;
     justify-content: center;
     line-height: 1.1;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   /* First name - smaller, above */
@@ -229,6 +233,10 @@
     font-size: 8px;
     font-weight: 500;
     color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /* Last name - larger, primary */
@@ -236,16 +244,26 @@
     font-size: 11px;
     font-weight: 700;
     color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .player-team {
     font-size: 7px;
     color: #888;
     margin-top: 2px;
+    white-space: nowrap;
   }
 
   /* Hide matchup on card - shown in modal */
   .player-matchup {
+    display: none;
+  }
+
+  /* Hide actual position badge on mobile - redundant */
+  .actual-position-badge {
     display: none;
   }
 
