@@ -67,6 +67,7 @@ const DraftScreen = ({ showToast }) => {
     dismissModal,
     clearSelection,
   } = useMobileSelection();
+  const autoPickTriggeredRef = useRef(false); // Prevent double auto-pick
   // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
@@ -1570,9 +1571,10 @@ const DraftScreen = ({ showToast }) => {
     
     // MOBILE: If user tapped a player (even if modal was dismissed), use that player
     if (isMobile && mobileSelectedPlayer) {
-      console.log(`🤖 Mobile: Auto-drafting user selection: ${mobileSelectedPlayer.name}`);
-      selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
-      clearSelection();
+      const playerToSelect = mobileSelectedPlayer;
+      console.log(`🤖 Mobile: Auto-drafting user selection: ${playerToSelect.name}`);
+      clearSelection(); // Clear BEFORE picking to prevent double-pick
+      selectPlayer(playerToSelect.row, playerToSelect.col);
       return;
     }
     
@@ -1596,16 +1598,23 @@ const DraftScreen = ({ showToast }) => {
 
   // ==================== MOBILE HANDLERS ====================
   
-  // Clear mobile selection when turn changes
+  // Clear mobile selection when a pick is completed (not on turn change)
+  // This allows pre-selection to persist until the user actually drafts
   useEffect(() => {
-    if (!actualIsMyTurn) {
-      clearSelection();
+    // Clear selection if the selected player gets drafted by someone else
+    if (mobileSelectedPlayer && playerBoard) {
+      const player = playerBoard[mobileSelectedPlayer.row]?.[mobileSelectedPlayer.col];
+      if (player?.drafted) {
+        console.log('📱 Pre-selected player was drafted, clearing selection');
+        clearSelection();
+      }
     }
-  }, [actualIsMyTurn, clearSelection]);
+  }, [playerBoard, mobileSelectedPlayer, clearSelection]);
 
   // Handle mobile player tap - opens confirmation modal
+  // Allow tapping anytime for preview/pre-selection, not just on turn
   const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
-    if (player.drafted || !actualIsMyTurn || isPicking) return;
+    if (player.drafted || isPicking) return;
     
     // Get matchup info for the modal
     const playerWithMeta = {
@@ -1616,25 +1625,30 @@ const DraftScreen = ({ showToast }) => {
     };
     
     mobileSelectPlayer(playerWithMeta, rowIndex, colIndex);
-  }, [actualIsMyTurn, isPicking, mobileSelectPlayer]);
+  }, [isPicking, mobileSelectPlayer]);
 
   // Handle mobile draft confirmation
   const handleMobileConfirm = useCallback((player) => {
-    if (!player || isPicking) return;
+    if (!player || isPicking || !actualIsMyTurn) return;
     
+    console.log('📱 Mobile confirm - drafting:', player.name);
+    clearSelection(); // Clear BEFORE pick to prevent race conditions
     dismissModal();
     selectPlayer(player.row, player.col);
-    // Don't clear selection - let it stay for auto-draft safety
-  }, [isPicking, dismissModal, selectPlayer]);
+  }, [isPicking, actualIsMyTurn, dismissModal, selectPlayer, clearSelection]);
 
   // Handle player card click (desktop vs mobile)
   const handlePlayerCardClick = useCallback((player, rowIndex, colIndex) => {
-    if (player.drafted || !actualIsMyTurn || isPicking) return;
+    if (player.drafted || isPicking) return;
     
     if (isMobile) {
+      // Mobile: Always allow tap for preview/pre-selection
       handleMobilePlayerTap(player, rowIndex, colIndex);
     } else {
-      selectPlayer(rowIndex, colIndex);
+      // Desktop: Only allow on your turn
+      if (actualIsMyTurn) {
+        selectPlayer(rowIndex, colIndex);
+      }
     }
   }, [isMobile, actualIsMyTurn, isPicking, handleMobilePlayerTap, selectPlayer]);
   
@@ -1722,12 +1736,25 @@ const DraftScreen = ({ showToast }) => {
   }, [status, countdownTime, dispatch]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
+  // Uses ref to prevent double-firing
   useEffect(() => {
     if (actualIsMyTurn && status === 'active' && timeRemaining === 0 && !isPicking) {
+      // Prevent double auto-pick for the same turn
+      if (autoPickTriggeredRef.current) {
+        console.log('⏰ Auto-pick already triggered for this turn, skipping');
+        return;
+      }
+      
+      autoPickTriggeredRef.current = true;
       console.log('⏰ Timer expired, triggering auto-pick');
       handleAutoPick();
     }
   }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick]);
+
+  // Reset auto-pick flag when turn changes
+  useEffect(() => {
+    autoPickTriggeredRef.current = false;
+  }, [currentTurn]);
 
   // SNAKE DRAFT: Draft order validation effect
   useEffect(() => {
@@ -1984,7 +2011,8 @@ const DraftScreen = ({ showToast }) => {
       {isMobile && (
         <AutoDraftBar 
           selectedPlayer={mobileSelectedPlayer}
-          visible={!!mobileSelectedPlayer && actualIsMyTurn}
+          visible={!!mobileSelectedPlayer}
+          isMyTurn={actualIsMyTurn}
         />
       )}
 
@@ -2066,14 +2094,23 @@ const DraftScreen = ({ showToast }) => {
                     `}
                     onClick={() => handlePlayerCardClick(player, rowIndex, colIndex)}
                     style={{ 
-                      cursor: actualIsMyTurn && !player.drafted && !isPicking ? 'pointer' : 'default',
+                      cursor: (!player.drafted && !isPicking && (isMobile || actualIsMyTurn)) ? 'pointer' : 'default',
                       position: 'relative'
                     }}
                   >
                     <div className={`position-badge ${standardizeSlotName(player.position)}`}>
                       {standardizeSlotName(player.position)}
                     </div>
-                    <div className="player-name">{player.name}</div>
+                    <div className="player-name">
+                      {isMobile ? (
+                        <>
+                          <span className="first-name">{player.name.split(' ')[0]}</span>
+                          <span className="last-name">{player.name.split(' ').slice(1).join(' ') || player.name.split(' ')[0]}</span>
+                        </>
+                      ) : (
+                        player.name
+                      )}
+                    </div>
                     <div className="player-team">{player.team} - ${player.price}</div>
                     <div className="actual-position-badge">
                       {standardizeSlotName(player.originalPosition || player.position)}
@@ -2206,6 +2243,8 @@ const DraftScreen = ({ showToast }) => {
           visible={showConfirmModal}
           onConfirm={handleMobileConfirm}
           onDismiss={dismissModal}
+          isMyTurn={actualIsMyTurn}
+          timeRemaining={timeRemaining}
         />
       )}
 

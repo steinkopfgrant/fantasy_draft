@@ -6,13 +6,17 @@ import React from 'react';
 /**
  * Auto-draft bar shown when a player is selected
  * Displays which player will be auto-drafted if time runs out
+ * Or shows pre-selection when not your turn
  */
-export const AutoDraftBar = ({ selectedPlayer, visible }) => {
+export const AutoDraftBar = ({ selectedPlayer, visible, isMyTurn }) => {
   if (!visible || !selectedPlayer) return null;
   
   return (
-    <div className="auto-draft-bar visible">
-      ⚡ AUTO-DRAFT: {selectedPlayer.name} (${selectedPlayer.price})
+    <div className={`auto-draft-bar visible ${!isMyTurn ? 'pre-selected' : ''}`}>
+      {isMyTurn 
+        ? `⚡ AUTO-DRAFT: ${selectedPlayer.name} ($${selectedPlayer.price})`
+        : `✓ QUEUED: ${selectedPlayer.name} ($${selectedPlayer.price})`
+      }
     </div>
   );
 };
@@ -21,12 +25,15 @@ export const AutoDraftBar = ({ selectedPlayer, visible }) => {
  * Confirmation modal for drafting a player
  * Shows player details and big DRAFT button
  * Tap outside to dismiss (doesn't clear selection)
+ * Can be opened anytime for preview, but DRAFT only works on your turn
  */
 export const MobileConfirmModal = ({ 
   player, 
   visible, 
   onConfirm, 
-  onDismiss 
+  onDismiss,
+  isMyTurn = false,
+  timeRemaining = 30
 }) => {
   if (!player) return null;
 
@@ -38,15 +45,19 @@ export const MobileConfirmModal = ({
   };
 
   const handleConfirm = () => {
-    onConfirm(player);
+    if (isMyTurn) {
+      onConfirm(player);
+    }
   };
+
+  const isLowTime = isMyTurn && timeRemaining <= 10;
 
   return (
     <div 
       className={`mobile-confirm-overlay ${visible ? 'visible' : ''}`}
       onClick={handleOverlayClick}
     >
-      <div className="mobile-confirm-modal">
+      <div className={`mobile-confirm-modal ${isLowTime ? 'low-time' : ''}`}>
         <div className="mobile-confirm-price">${player.price}</div>
         <div className="mobile-confirm-name">{player.name}</div>
         <div className="mobile-confirm-details">
@@ -56,15 +67,24 @@ export const MobileConfirmModal = ({
           <div className="mobile-confirm-matchup">{player.matchup}</div>
         )}
         
+        {isLowTime && (
+          <div className="mobile-confirm-timer-warning">
+            ⏰ {timeRemaining}s - Tap now!
+          </div>
+        )}
+        
         <button 
-          className="mobile-confirm-btn"
+          className={`mobile-confirm-btn ${!isMyTurn ? 'not-my-turn' : ''}`}
           onClick={handleConfirm}
+          disabled={!isMyTurn}
         >
-          DRAFT
+          {isMyTurn ? 'DRAFT' : 'READY'}
         </button>
         
         <div className="mobile-confirm-hint">
-          Tap anywhere outside to cancel
+          {isMyTurn 
+            ? 'Tap anywhere outside to cancel' 
+            : 'Pre-selected • Will auto-draft if timer expires'}
         </div>
       </div>
     </div>

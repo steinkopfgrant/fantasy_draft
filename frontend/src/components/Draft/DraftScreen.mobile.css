@@ -83,6 +83,10 @@
     display: block;
   }
 
+  .auto-draft-bar.pre-selected {
+    background: linear-gradient(90deg, #3B82F6, #2563EB);
+  }
+
   /* -----------------------------------------
      PLAYER BOARD - Compact grid
      ----------------------------------------- */
@@ -141,15 +145,15 @@
   }
 
   /* -----------------------------------------
-     PLAYER CARDS - Compact touch targets
+     PLAYER CARDS - Uniform size, compact touch targets
      ----------------------------------------- */
   .player-card {
     background: #2a2f3e;
     border: 2px solid transparent;
     border-radius: 8px;
-    padding: 8px 6px;
-    min-height: 70px;
-    height: auto;
+    padding: 6px 4px;
+    min-height: 65px;
+    height: 65px; /* FIXED height for uniform cards */
     cursor: pointer;
     transition: transform 0.1s, background 0.1s;
     display: flex;
@@ -210,23 +214,34 @@
   }
 
   /* -----------------------------------------
-     PLAYER CARD CONTENT - Compact text
+     PLAYER CARD CONTENT - Stacked names
      ----------------------------------------- */
   .player-name {
-    font-size: 9px;
-    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+  }
+
+  /* First name - smaller, above */
+  .player-name .first-name {
+    font-size: 8px;
+    font-weight: 500;
+    color: #aaa;
+  }
+
+  /* Last name - larger, primary */
+  .player-name .last-name {
+    font-size: 11px;
+    font-weight: 700;
     color: #fff;
-    line-height: 1.2;
-    margin-bottom: 1px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
   }
 
   .player-team {
     font-size: 7px;
     color: #888;
+    margin-top: 2px;
   }
 
   /* Hide matchup on card - shown in modal */
@@ -383,11 +398,23 @@
     text-align: center;
     box-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
     transform: scale(0.9);
-    transition: transform 0.15s;
+    transition: transform 0.15s, border-color 0.3s, box-shadow 0.3s;
   }
 
   .mobile-confirm-overlay.visible .mobile-confirm-modal {
     transform: scale(1);
+  }
+
+  /* Low time warning on modal */
+  .mobile-confirm-modal.low-time {
+    border-color: #ff4444;
+    box-shadow: 0 0 40px rgba(255, 68, 68, 0.5);
+    animation: modal-pulse 0.5s ease-in-out infinite;
+  }
+
+  @keyframes modal-pulse {
+    0%, 100% { box-shadow: 0 0 40px rgba(255, 68, 68, 0.5); }
+    50% { box-shadow: 0 0 60px rgba(255, 68, 68, 0.8); }
   }
 
   .mobile-confirm-price {
@@ -420,6 +447,22 @@
     margin-bottom: 20px;
   }
 
+  .mobile-confirm-timer-warning {
+    background: linear-gradient(90deg, #ff4444, #cc0000);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 12px;
+    animation: timer-flash 0.5s ease-in-out infinite;
+  }
+
+  @keyframes timer-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
   .mobile-confirm-btn {
     width: 100%;
     padding: 18px;
@@ -435,6 +478,15 @@
 
   .mobile-confirm-btn:active {
     transform: scale(0.98);
+  }
+
+  .mobile-confirm-btn.not-my-turn {
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    cursor: default;
+  }
+
+  .mobile-confirm-btn:disabled {
+    opacity: 0.9;
   }
 
   .mobile-confirm-hint {
@@ -535,12 +587,17 @@
 
 @media (max-width: 375px) {
   .player-card {
-    min-height: 65px;
-    padding: 6px 4px;
+    min-height: 60px;
+    height: 60px;
+    padding: 5px 3px;
   }
 
-  .player-name {
-    font-size: 8px;
+  .player-name .first-name {
+    font-size: 7px;
+  }
+
+  .player-name .last-name {
+    font-size: 10px;
   }
 
   .player-team {
