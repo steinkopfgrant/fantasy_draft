@@ -68,6 +68,7 @@ const DraftScreen = ({ showToast }) => {
     clearSelection,
   } = useMobileSelection();
   const autoPickTriggeredRef = useRef(0); // Timestamp debounce for auto-pick
+  const mobileSelectedPlayerPrevRef = useRef(null); // Track previous selection for server sync
   // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
@@ -146,6 +147,17 @@ const DraftScreen = ({ showToast }) => {
   const myTeam = Array.isArray(teams) ? teams.find(team => {
     return getUserId(team) === currentUserId;
   }) : null;
+
+  // SORTED TEAMS: Always sort by draftPosition for consistent display
+  // This prevents visual bugs when disconnect/reconnect events reorder the teams array
+  const sortedTeams = useMemo(() => {
+    if (!teams || teams.length === 0) return [];
+    return [...teams].sort((a, b) => {
+      const posA = a.draftPosition ?? 999;
+      const posB = b.draftPosition ?? 999;
+      return posA - posB;
+    });
+  }, [teams]);
 
   // FIXED: Standardize slot names to uppercase
   const standardizeSlotName = useCallback((slot) => {
@@ -1627,6 +1639,22 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [picks, mobileSelectedPlayer, clearSelection]);
 
+  // SYNC PRE-SELECTION STATE TO SERVER
+  // When selection changes, emit to server so autoPick can use it if user disconnects
+  useEffect(() => {
+    const wasSelected = mobileSelectedPlayerPrevRef.current;
+    mobileSelectedPlayerPrevRef.current = mobileSelectedPlayer;
+    
+    // If we HAD a selection and now we don't, clear on server
+    if (wasSelected && !mobileSelectedPlayer && roomId && currentUserId) {
+      socketService.emit('clear-pre-select', {
+        roomId,
+        userId: currentUserId
+      });
+      console.log('📱 Emitted clear-pre-select to server');
+    }
+  }, [mobileSelectedPlayer, roomId, currentUserId]);
+
   // Handle mobile player tap - opens confirmation modal
   // Allow tapping anytime for preview/pre-selection, not just on turn
   const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
@@ -1641,7 +1669,24 @@ const DraftScreen = ({ showToast }) => {
     };
     
     mobileSelectPlayer(playerWithMeta, rowIndex, colIndex);
-  }, [isPicking, mobileSelectPlayer]);
+    
+    // EMIT PRE-SELECTION TO SERVER for persistence across disconnect
+    if (roomId && currentUserId) {
+      socketService.emit('pre-select', {
+        roomId,
+        userId: currentUserId,
+        player: {
+          name: player.name,
+          team: player.team,
+          position: player.position,
+          price: player.price,
+          row: rowIndex,
+          col: colIndex
+        }
+      });
+      console.log('📱 Emitted pre-select to server:', player.name);
+    }
+  }, [isPicking, mobileSelectPlayer, roomId, currentUserId]);
 
   // Handle mobile draft confirmation
   const handleMobileConfirm = useCallback((player) => {
@@ -1832,12 +1877,13 @@ const DraftScreen = ({ showToast }) => {
 
   // SNAKE DRAFT: Display current draft order info
   const DraftOrderInfo = () => {
-    if (!teams || teams.length === 0) return null;
+    // Use sortedTeams to ensure consistent display regardless of disconnect/reconnect order
+    if (!sortedTeams || sortedTeams.length === 0) return null;
     
     const pickNumber = (currentTurn || 0) + 1;
-    const round = Math.ceil(pickNumber / teams.length);
-    const expectedTeamIndex = getTeamForPick(pickNumber, teams.length);
-    const expectedTeam = teams[expectedTeamIndex];
+    const round = Math.ceil(pickNumber / sortedTeams.length);
+    const expectedTeamIndex = getTeamForPick(pickNumber, sortedTeams.length);
+    const expectedTeam = sortedTeams[expectedTeamIndex];
     
     return (
       <div className="draft-order-info">
@@ -1856,9 +1902,9 @@ const DraftScreen = ({ showToast }) => {
           <span>Upcoming:</span>
           {[1, 2, 3].map(offset => {
             const upcomingPick = pickNumber + offset;
-            if (upcomingPick > teams.length * 5) return null; // Don't show picks beyond the draft
-            const upcomingTeamIndex = getTeamForPick(upcomingPick, teams.length);
-            const upcomingTeam = teams[upcomingTeamIndex];
+            if (upcomingPick > sortedTeams.length * 5) return null; // Don't show picks beyond the draft
+            const upcomingTeamIndex = getTeamForPick(upcomingPick, sortedTeams.length);
+            const upcomingTeam = sortedTeams[upcomingTeamIndex];
             return (
               <span key={offset} className="upcoming-pick">
                 {upcomingPick}: {upcomingTeam?.name || '?'}

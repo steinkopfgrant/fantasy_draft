@@ -89,6 +89,22 @@ class SocketHandler {
         await this.handleCheckActiveDrafts(socket);
       });
 
+      // ==========================================
+      // PRE-SELECTION HANDLERS FOR MOBILE
+      // ==========================================
+      
+      // Handle pre-selection for persistence across disconnect
+      socket.on('pre-select', async (data) => {
+        await this.handlePreSelect(socket, data);
+      });
+
+      // Handle clearing pre-selection
+      socket.on('clear-pre-select', async (data) => {
+        await this.handleClearPreSelect(socket, data);
+      });
+
+      // ==========================================
+
       // Handle disconnection
       socket.on('disconnect', () => {
         this.handleDisconnect(socket);
@@ -126,6 +142,59 @@ class SocketHandler {
       }
     }, 60000); // Every minute
   }
+
+  // ==========================================
+  // PRE-SELECTION HANDLERS
+  // ==========================================
+
+  async handlePreSelect(socket, data) {
+    const { roomId, userId, player } = data;
+    
+    if (!roomId || !userId || !player) {
+      console.log('⚠️ pre-select missing required data');
+      return;
+    }
+    
+    // Verify socket user matches request
+    if (socket.userId && socket.userId !== userId) {
+      console.log('⚠️ pre-select user mismatch');
+      return;
+    }
+    
+    try {
+      // Store in Redis via contestService (which has the redis instance)
+      const preSelectKey = `preselect:${roomId}:${userId}`;
+      await contestService.redis.set(preSelectKey, JSON.stringify(player), 'EX', 120); // 2 min expiry
+      console.log(`📱 Stored pre-select for user ${userId} in room ${roomId}: ${player.name}`);
+    } catch (error) {
+      console.error('Error storing pre-select:', error);
+    }
+  }
+
+  async handleClearPreSelect(socket, data) {
+    const { roomId, userId } = data;
+    
+    if (!roomId || !userId) {
+      console.log('⚠️ clear-pre-select missing required data');
+      return;
+    }
+    
+    // Verify socket user matches request
+    if (socket.userId && socket.userId !== userId) {
+      console.log('⚠️ clear-pre-select user mismatch');
+      return;
+    }
+    
+    try {
+      const preSelectKey = `preselect:${roomId}:${userId}`;
+      await contestService.redis.del(preSelectKey);
+      console.log(`📱 Cleared pre-select for user ${userId} in room ${roomId}`);
+    } catch (error) {
+      console.error('Error clearing pre-select:', error);
+    }
+  }
+
+  // ==========================================
 
   async handleAuthentication(socket, data) {
     try {
@@ -305,6 +374,14 @@ class SocketHandler {
       const socketRoomId = `room_${roomId}`;
       socket.leave(socketRoomId);
       
+      // Clear any pre-selection for this user
+      try {
+        const preSelectKey = `preselect:${roomId}:${userId}`;
+        await contestService.redis.del(preSelectKey);
+      } catch (e) {
+        // Ignore pre-select cleanup errors
+      }
+      
       // Send confirmation
       socket.emit('contest-left', {
         contestId,
@@ -483,6 +560,14 @@ class SocketHandler {
       this.roomParticipants.get(roomId).delete(userId);
     }
 
+    // Clear any pre-selection for this user
+    try {
+      const preSelectKey = `preselect:${roomId}:${userId}`;
+      contestService.redis.del(preSelectKey).catch(() => {});
+    } catch (e) {
+      // Ignore pre-select cleanup errors
+    }
+
     socket.to(socketRoom).emit('user-left-room', {
       userId,
       roomId
@@ -535,6 +620,14 @@ class SocketHandler {
       const rosterSlot = roster_slot || slot || position;
       
       console.log(`🎯 Pick attempt - User: ${socket.username}, Player: ${playerId}, Roster Slot: ${rosterSlot}, Row: ${row}, Col: ${col}`);
+      
+      // Clear any pre-selection since user is making a manual pick
+      try {
+        const preSelectKey = `preselect:${roomId}:${userId}`;
+        await contestService.redis.del(preSelectKey);
+      } catch (e) {
+        // Ignore pre-select cleanup errors
+      }
       
       // Process pick through contest service - PASS ROW AND COL PROPERLY
       const pickData = playerData || { id: playerId };
