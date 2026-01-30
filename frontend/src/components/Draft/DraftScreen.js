@@ -927,6 +927,9 @@ const DraftScreen = ({ showToast }) => {
     const handleReconnection = (data) => {
       console.log('🔄 Socket reconnected, refreshing draft state...', data);
       
+      // CRITICAL: Reset socket handlers ref so they get re-registered
+      socketHandlersRef.current = false;
+      
       // Small delay to ensure socket is fully re-authenticated
       setTimeout(() => {
         if (hasJoinedRef.current && mountedRef.current) {
@@ -941,13 +944,22 @@ const DraftScreen = ({ showToast }) => {
       }, 500);
     };
     
-    // Listen for socket reconnection event
+    // Handle disconnect - reset handlers ref so they re-register on reconnect
+    const handleDisconnect = (reason) => {
+      console.log('📴 Socket disconnected, will re-register handlers on reconnect:', reason);
+      socketHandlersRef.current = false;
+    };
+    
+    // Listen for socket events
     socketService.on('reconnect', handleReconnection);
+    socketService.on('disconnect', handleDisconnect);
     
     // Also listen for the authenticated event after reconnection
     const handleReauthenticated = (data) => {
       console.log('🔐 Re-authenticated after reconnect, refreshing draft...', data);
       if (hasJoinedRef.current && mountedRef.current) {
+        // Reset handlers ref in case it wasn't reset
+        socketHandlersRef.current = false;
         setTimeout(() => {
           requestDraftState();
         }, 300);
@@ -958,6 +970,7 @@ const DraftScreen = ({ showToast }) => {
     
     return () => {
       socketService.off('reconnect', handleReconnection);
+      socketService.off('disconnect', handleDisconnect);
       socketService.off('authenticated', handleReauthenticated);
     };
   }, [roomId, requestDraftState]);
@@ -1324,6 +1337,22 @@ const DraftScreen = ({ showToast }) => {
         syncTimerFromServer(data);
       }
       // ====================================================
+      
+      // CRITICAL: Add a skip marker to the picks array so LiveDraftFeed knows this turn was skipped
+      const skippedPickNumber = data.skippedTurn !== undefined ? data.skippedTurn + 1 : 
+                                data.currentTurn !== undefined ? data.currentTurn : 
+                                (picks?.length || 0) + 1;
+      
+      dispatch(addPick({
+        pickNumber: skippedPickNumber,
+        turn: data.skippedTurn || (data.currentTurn - 1),
+        skipped: true,
+        isSkipped: true,
+        reason: data.reason || 'no_budget',
+        userId: data.userId || data.skippedUserId,
+        teamIndex: data.teamIndex,
+        timestamp: new Date().toISOString()
+      }));
       
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,

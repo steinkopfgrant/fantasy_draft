@@ -43,13 +43,15 @@ const LiveDraftFeed = ({
       const round = Math.ceil(pickNum / totalTeams);
       
       // Determine if this pick has been made (pickNum is 1-indexed, currentTurn is 0-indexed)
-      const isPicked = pickNum <= currentTurn;
+      // NOTE: A turn might be "past" but skipped (no actual pick made)
+      const turnHasPassed = pickNum <= currentTurn;
       
       // CRITICAL FIX: Get player info from the PICKS ARRAY by pickNumber
       // This preserves the actual chronological order of picks!
       let playerInfo = null;
+      let wasSkipped = false;
       
-      if (isPicked) {
+      if (turnHasPassed) {
         // First try: Find the exact pick in the picks array
         // picks array may use pickNumber (1-indexed) or be 0-indexed
         const pickData = picks?.find(p => {
@@ -59,20 +61,26 @@ const LiveDraftFeed = ({
                  p.turn === pickNum - 1;
         });
         
-        if (pickData && pickData.player) {
-          playerInfo = {
-            name: pickData.player.name,
-            position: pickData.player.originalPosition || pickData.player.position,
-            slot: pickData.rosterSlot || pickData.slot || pickData.player.position,
-            price: pickData.player.price || pickData.player.value,
-            team: pickData.player.team
-          };
-          console.log(`✅ Pick ${pickNum}: Found in picks array - ${playerInfo.name} to ${playerInfo.slot}`);
+        if (pickData) {
+          // Check if this was a skipped turn
+          if (pickData.skipped || pickData.isSkipped) {
+            wasSkipped = true;
+            console.log(`⏭️ Pick ${pickNum}: Was skipped (no budget)`);
+          } else if (pickData.player) {
+            playerInfo = {
+              name: pickData.player.name,
+              position: pickData.player.originalPosition || pickData.player.position,
+              slot: pickData.rosterSlot || pickData.slot || pickData.player.position,
+              price: pickData.player.price || pickData.player.value,
+              team: pickData.player.team
+            };
+            console.log(`✅ Pick ${pickNum}: Found in picks array - ${playerInfo.name} to ${playerInfo.slot}`);
+          }
         }
         
         // Fallback: If no picks array data, try to reconstruct from roster
         // BUT use the picks array to determine order, not roster object order
-        if (!playerInfo && team?.roster) {
+        if (!playerInfo && !wasSkipped && team?.roster) {
           // Count how many picks this team has made up to this point
           let teamPickCount = 0;
           for (let p = 1; p <= pickNum; p++) {
@@ -83,6 +91,7 @@ const LiveDraftFeed = ({
           
           // Get all picks for this team from the picks array to find the Nth pick
           const teamPicks = picks?.filter(p => {
+            if (p.skipped || p.isSkipped) return false; // Don't count skipped turns
             const pickTeamIndex = getTeamForPick(p.pickNumber || (p.turn + 1));
             return pickTeamIndex === teamIndex;
           }).sort((a, b) => (a.pickNumber || a.turn) - (b.pickNumber || b.turn));
@@ -133,7 +142,8 @@ const LiveDraftFeed = ({
         round,
         teamIndex,
         team,
-        isPicked,
+        isPicked: turnHasPassed && (playerInfo !== null || wasSkipped),
+        wasSkipped,
         isCurrent: pickNum === currentTurn + 1,
         isMyPick: team && getUserId && getUserId(team) === currentUserId,
         playerInfo
@@ -253,6 +263,7 @@ const LiveDraftFeed = ({
               key={pick.pickNumber}
               className={`pick-slot 
                 ${pick.isPicked ? 'picked' : ''} 
+                ${pick.wasSkipped ? 'skipped' : ''}
                 ${pick.isCurrent ? 'current' : ''}
                 ${pick.isMyPick ? 'my-pick' : ''}
                 ${getTeamColorClass(pick.teamIndex)}
@@ -266,7 +277,12 @@ const LiveDraftFeed = ({
                 {pick.team?.name?.substring(0, 3).toUpperCase() || `T${pick.teamIndex + 1}`}
               </div>
               
-              {pick.isPicked && pick.playerInfo ? (
+              {pick.wasSkipped ? (
+                <div className="skipped-pick">
+                  <span className="skip-icon">⏭️</span>
+                  <span>SKIPPED</span>
+                </div>
+              ) : pick.isPicked && pick.playerInfo ? (
                 <div className="picked-player">
                   <span className="player-position">{pick.playerInfo.slot || pick.playerInfo.position}</span>
                   <span className="player-name">{pick.playerInfo.name}</span>
