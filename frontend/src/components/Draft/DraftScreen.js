@@ -916,9 +916,38 @@ const DraftScreen = ({ showToast }) => {
       
       setTimeout(() => {
         socketService.emit('get-draft-state', { roomId });
+        
+        // RESTORE PRE-SELECTION from localStorage on initial join
+        try {
+          const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
+          if (savedPreSelect && currentUserId) {
+            const player = JSON.parse(savedPreSelect);
+            console.log('📱 Found saved pre-selection on init:', player.name);
+            
+            // Re-emit to server to ensure it's stored
+            socketService.emit('pre-select', {
+              roomId,
+              userId: currentUserId,
+              player
+            });
+            console.log('📱 Re-emitted pre-select to server on init');
+            
+            // Restore UI selection on mobile after a brief delay (wait for playerBoard)
+            if (isMobile) {
+              setTimeout(() => {
+                if (mobileSelectPlayer) {
+                  mobileSelectPlayer(player, player.row, player.col);
+                  console.log('📱 Restored mobile selection UI on init');
+                }
+              }, 1000);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to restore pre-selection on init:', e);
+        }
       }, 500);
     }
-  }, [socketConnected, status, contestData, entryId, roomId, dispatch]);
+  }, [socketConnected, status, contestData, entryId, roomId, dispatch, currentUserId, isMobile, mobileSelectPlayer]);
 
   // Request draft state when socket connects and we're ready
   useEffect(() => {
@@ -948,6 +977,31 @@ const DraftScreen = ({ showToast }) => {
           
           // Request fresh draft state
           requestDraftState();
+          
+          // RESTORE PRE-SELECTION from localStorage if we had one
+          try {
+            const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
+            if (savedPreSelect && currentUserId) {
+              const player = JSON.parse(savedPreSelect);
+              console.log('📱 Restoring pre-selection from localStorage:', player.name);
+              
+              // Re-emit to server
+              socketService.emit('pre-select', {
+                roomId,
+                userId: currentUserId,
+                player
+              });
+              console.log('📱 Re-emitted pre-select to server after reconnect');
+              
+              // Also restore the UI selection if we're on mobile
+              if (isMobile && mobileSelectPlayer) {
+                mobileSelectPlayer(player, player.row, player.col);
+                console.log('📱 Restored mobile selection UI');
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to restore pre-selection from localStorage:', e);
+          }
         }
       }, 500);
     };
@@ -981,7 +1035,7 @@ const DraftScreen = ({ showToast }) => {
       socketService.off('disconnect', handleDisconnect);
       socketService.off('authenticated', handleReauthenticated);
     };
-  }, [roomId, requestDraftState]);
+  }, [roomId, requestDraftState, currentUserId, isMobile, mobileSelectPlayer]);
 
   // FIXED: Enhanced Socket event handlers with better roster preservation and TIMER SYNC
   useEffect(() => {
@@ -1795,6 +1849,14 @@ const DraftScreen = ({ showToast }) => {
     
     // If we HAD a selection and now we don't, check if we should clear on server
     if (wasSelected && !mobileSelectedPlayer && roomId && currentUserId) {
+      // Also clear localStorage
+      try {
+        localStorage.removeItem(`preselect_${roomId}`);
+        console.log('📱 Cleared pre-select from localStorage');
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      
       // Only emit clear-pre-select if user intentionally cleared (not because player was drafted)
       if (wasPlayerDraftedRef.current) {
         console.log('📱 Skipping clear-pre-select - player was drafted, backend handles cleanup');
@@ -1852,6 +1914,14 @@ const DraftScreen = ({ showToast }) => {
       console.log('📱 Emitting pre-select:', preSelectData);
       socketService.emit('pre-select', preSelectData);
       console.log('📱 Emitted pre-select to server:', player.name);
+      
+      // ALSO save to localStorage for persistence across page refresh/reconnect
+      try {
+        localStorage.setItem(`preselect_${roomId}`, JSON.stringify(preSelectData.player));
+        console.log('📱 Saved pre-select to localStorage:', player.name);
+      } catch (e) {
+        console.warn('Failed to save pre-select to localStorage:', e);
+      }
     } else {
       console.log('📱 CANNOT emit pre-select - missing:', { roomId, currentUserId });
     }
