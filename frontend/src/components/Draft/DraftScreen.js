@@ -1774,22 +1774,41 @@ const DraftScreen = ({ showToast }) => {
     
     console.log(`🤖 Frontend auto-pick triggered for ${myTeam.name} at turn ${currentTurn}`);
     
-    // MOBILE: Check if user has a pre-selected player
-    if (isMobile && mobileSelectedPlayer) {
-      const currentPlayerState = playerBoard[mobileSelectedPlayer.row]?.[mobileSelectedPlayer.col];
+    // MOBILE: Check if user has a pre-selected player (in Redux state OR localStorage)
+    let preSelectedPlayer = mobileSelectedPlayer;
+    
+    // If no Redux state, check localStorage (for reconnect scenario)
+    if (!preSelectedPlayer && isMobile && roomId) {
+      try {
+        const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
+        if (savedPreSelect) {
+          preSelectedPlayer = JSON.parse(savedPreSelect);
+          console.log(`🤖 Mobile: Found pre-selection in localStorage: ${preSelectedPlayer.name}`);
+        }
+      } catch (e) {
+        console.warn('Failed to read pre-selection from localStorage:', e);
+      }
+    }
+    
+    if (isMobile && preSelectedPlayer) {
+      const currentPlayerState = playerBoard[preSelectedPlayer.row]?.[preSelectedPlayer.col];
       
       // If player was drafted by someone else, clear selection immediately
       if (!currentPlayerState || currentPlayerState.drafted) {
-        console.log(`🤖 Mobile: Pre-selected player ${mobileSelectedPlayer.name} was already drafted, clearing and using algorithm`);
+        console.log(`🤖 Mobile: Pre-selected player ${preSelectedPlayer.name} was already drafted, clearing and using algorithm`);
         wasPlayerDraftedRef.current = true; // Don't emit clear-pre-select, backend handles this
         clearSelection();
+        // Clear localStorage too
+        try { localStorage.removeItem(`preselect_${roomId}`); } catch (e) {}
         // DON'T return - fall through to algorithm
       } else {
         // Player is still available - draft them
-        console.log(`🤖 Mobile: Auto-drafting pre-selected player: ${mobileSelectedPlayer.name} at [${mobileSelectedPlayer.row}][${mobileSelectedPlayer.col}]`);
+        console.log(`🤖 Mobile: Auto-drafting pre-selected player: ${preSelectedPlayer.name} at [${preSelectedPlayer.row}][${preSelectedPlayer.col}]`);
         wasPlayerDraftedRef.current = true; // Don't emit clear-pre-select, we're using the pre-selection
         clearSelection();
-        selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
+        // Clear localStorage too
+        try { localStorage.removeItem(`preselect_${roomId}`); } catch (e) {}
+        selectPlayer(preSelectedPlayer.row, preSelectedPlayer.col);
         return;
       }
     }
