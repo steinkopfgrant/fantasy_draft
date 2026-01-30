@@ -168,7 +168,7 @@ class DraftService {
     const draftState = {
       contestId,
       playerBoard: processedBoard,
-      entries: shuffledEntries, // FIXED: Store SHUFFLED entries to preserve draft order on recovery
+      entries,
       currentTurn: 0,
       draftOrder: this.createSnakeDraftOrder(shuffledEntries.length),
       picks: [],
@@ -318,6 +318,15 @@ class DraftService {
       
       const currentTeamIndex = currentDraft.draftOrder[currentDraft.currentTurn];
       const currentTeam = currentDraft.teams[currentTeamIndex];
+      
+      console.log('🔍 Turn validation:', {
+        currentTurn: currentDraft.currentTurn,
+        currentTeamIndex,
+        expectedUserId: currentTeam?.userId,
+        actualUserId: userId,
+        currentTeamName: currentTeam?.username || currentTeam?.name,
+        teamsOrder: currentDraft.teams.map(t => ({ name: t.username || t.name, index: t.draftPosition, userId: t.userId?.substring(0, 8) }))
+      });
       
       if (currentTeam.userId !== userId) {
         throw new Error('Not your turn');
