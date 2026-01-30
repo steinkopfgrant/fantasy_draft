@@ -31,38 +31,100 @@ const LiveDraftFeed = ({
   };
 
   // Build the complete draft board with all picks
+  // CRITICAL FIX: Use picks array for chronological order, NOT roster object!
   const draftBoard = useMemo(() => {
     const board = [];
+    
+    console.log('📋 LiveDraftFeed building board with picks:', picks?.length || 0);
     
     for (let pickNum = 1; pickNum <= totalPicks; pickNum++) {
       const teamIndex = getTeamForPick(pickNum);
       const team = teams[teamIndex];
       const round = Math.ceil(pickNum / totalTeams);
       
-      // Find the pick data for this slot
-      const pickData = picks?.find(p => p.pickNumber === pickNum) || null;
-      
-      // Determine if this pick has been made
+      // Determine if this pick has been made (pickNum is 1-indexed, currentTurn is 0-indexed)
       const isPicked = pickNum <= currentTurn;
       
-      // Get player info from team roster if available
+      // CRITICAL FIX: Get player info from the PICKS ARRAY by pickNumber
+      // This preserves the actual chronological order of picks!
       let playerInfo = null;
-      if (isPicked && team?.roster) {
-        const rosterSize = Object.values(team.roster).filter(p => p?.name).length;
-        // Calculate which roster slot this pick filled
-        const teamPicks = [];
-        for (let p = 1; p <= pickNum; p++) {
-          if (getTeamForPick(p) === teamIndex) {
-            teamPicks.push(p);
-          }
-        }
-        const pickIndex = teamPicks.length;
+      
+      if (isPicked) {
+        // First try: Find the exact pick in the picks array
+        // picks array may use pickNumber (1-indexed) or be 0-indexed
+        const pickData = picks?.find(p => {
+          // Handle both pickNumber (1-indexed) and array index scenarios
+          return p.pickNumber === pickNum || 
+                 p.pickNumber === pickNum - 1 ||
+                 p.turn === pickNum - 1;
+        });
         
-        // Get the player at this pick index from roster
-        const rosterEntries = Object.entries(team.roster).filter(([_, p]) => p?.name);
-        if (rosterEntries[pickIndex - 1]) {
-          const [slot, player] = rosterEntries[pickIndex - 1];
-          playerInfo = { ...player, slot };
+        if (pickData && pickData.player) {
+          playerInfo = {
+            name: pickData.player.name,
+            position: pickData.player.originalPosition || pickData.player.position,
+            slot: pickData.rosterSlot || pickData.slot || pickData.player.position,
+            price: pickData.player.price || pickData.player.value,
+            team: pickData.player.team
+          };
+          console.log(`✅ Pick ${pickNum}: Found in picks array - ${playerInfo.name} to ${playerInfo.slot}`);
+        }
+        
+        // Fallback: If no picks array data, try to reconstruct from roster
+        // BUT use the picks array to determine order, not roster object order
+        if (!playerInfo && team?.roster) {
+          // Count how many picks this team has made up to this point
+          let teamPickCount = 0;
+          for (let p = 1; p <= pickNum; p++) {
+            if (getTeamForPick(p) === teamIndex) {
+              teamPickCount++;
+            }
+          }
+          
+          // Get all picks for this team from the picks array to find the Nth pick
+          const teamPicks = picks?.filter(p => {
+            const pickTeamIndex = getTeamForPick(p.pickNumber || (p.turn + 1));
+            return pickTeamIndex === teamIndex;
+          }).sort((a, b) => (a.pickNumber || a.turn) - (b.pickNumber || b.turn));
+          
+          if (teamPicks && teamPicks[teamPickCount - 1]) {
+            const thisPick = teamPicks[teamPickCount - 1];
+            if (thisPick.player) {
+              playerInfo = {
+                name: thisPick.player.name,
+                position: thisPick.player.originalPosition || thisPick.player.position,
+                slot: thisPick.rosterSlot || thisPick.slot || thisPick.player.position,
+                price: thisPick.player.price || thisPick.player.value,
+                team: thisPick.player.team
+              };
+              console.log(`✅ Pick ${pickNum}: Found via team picks filter - ${playerInfo.name}`);
+            }
+          }
+          
+          // Last resort fallback: Use roster data (may be wrong order on reconnect)
+          // Only use this if we have NO picks data at all
+          if (!playerInfo && (!picks || picks.length === 0)) {
+            const rosterSlots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+            // Try to find the Nth filled slot
+            let filledCount = 0;
+            for (const slot of rosterSlots) {
+              const player = team.roster[slot] || team.roster[slot.toLowerCase()];
+              if (player?.name) {
+                filledCount++;
+                if (filledCount === teamPickCount) {
+                  playerInfo = {
+                    name: player.name,
+                    position: player.originalPosition || player.position,
+                    slot: slot,
+                    price: player.price || player.value,
+                    team: player.team
+                  };
+                  console.log(`⚠️ Pick ${pickNum}: Fallback to roster (may be wrong order) - ${playerInfo.name}`);
+                  break;
+                }
+              }
+            }
+          }
         }
       }
       
@@ -74,7 +136,6 @@ const LiveDraftFeed = ({
         isPicked,
         isCurrent: pickNum === currentTurn + 1,
         isMyPick: team && getUserId && getUserId(team) === currentUserId,
-        pickData,
         playerInfo
       });
     }
