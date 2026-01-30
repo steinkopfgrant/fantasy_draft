@@ -148,26 +148,34 @@ class SocketHandler {
   // ==========================================
 
   async handlePreSelect(socket, data) {
+    console.log('📱 pre-select event received:', JSON.stringify(data));
+    
     const { roomId, userId, player } = data;
     
     if (!roomId || !userId || !player) {
-      console.log('⚠️ pre-select missing required data');
+      console.log('⚠️ pre-select missing required data:', { roomId: !!roomId, userId: !!userId, player: !!player });
       return;
     }
     
     // Verify socket user matches request
+    console.log('📱 pre-select user check:', { socketUserId: socket.userId, requestUserId: userId });
     if (socket.userId && socket.userId !== userId) {
-      console.log('⚠️ pre-select user mismatch');
+      console.log('⚠️ pre-select user mismatch - socket:', socket.userId, 'request:', userId);
       return;
     }
     
     try {
       // Store in Redis via contestService (which has the redis instance)
       const preSelectKey = `preselect:${roomId}:${userId}`;
+      console.log('📱 Storing pre-select with key:', preSelectKey);
       await contestService.redis.set(preSelectKey, JSON.stringify(player), 'EX', 300); // 5 min expiry
-      console.log(`📱 Stored pre-select for user ${userId} in room ${roomId}: ${player.name}`);
+      console.log(`📱 ✅ Stored pre-select for user ${userId} in room ${roomId}: ${player.name}`);
+      
+      // Verify it was stored
+      const verify = await contestService.redis.get(preSelectKey);
+      console.log('📱 Verification - stored value:', verify ? 'EXISTS' : 'NOT FOUND');
     } catch (error) {
-      console.error('Error storing pre-select:', error);
+      console.error('❌ Error storing pre-select:', error);
     }
   }
 
@@ -560,13 +568,9 @@ class SocketHandler {
       this.roomParticipants.get(roomId).delete(userId);
     }
 
-    // Clear any pre-selection for this user
-    try {
-      const preSelectKey = `preselect:${roomId}:${userId}`;
-      contestService.redis.del(preSelectKey).catch(() => {});
-    } catch (e) {
-      // Ignore pre-select cleanup errors
-    }
+    // NOTE: Do NOT clear pre-selection here!
+    // Pre-selections should survive disconnects so autopick can use them
+    // They are cleared by: autopick (after use), manual pick, or explicit clear-pre-select
 
     socket.to(socketRoom).emit('user-left-room', {
       userId,
