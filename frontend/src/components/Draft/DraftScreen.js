@@ -943,7 +943,20 @@ const DraftScreen = ({ showToast }) => {
       if (Array.isArray(teamsData) && teamsData.length > 0) {
         console.log('🔄 Processing', teamsData.length, 'teams');
         
-        processedTeams = teamsData.map((team, index) => {
+        // CRITICAL: Sort teams by draftPosition FIRST to ensure consistent ordering
+        // This prevents visual bugs when server returns teams in different order
+        const sortedTeamsData = [...teamsData].sort((a, b) => {
+          const posA = a.draftPosition ?? 999;
+          const posB = b.draftPosition ?? 999;
+          return posA - posB;
+        });
+        
+        console.log('🔄 Teams sorted by draftPosition:', sortedTeamsData.map(t => ({
+          name: t.name || t.username,
+          draftPosition: t.draftPosition
+        })));
+        
+        processedTeams = sortedTeamsData.map((team, index) => {
           const teamUserId = getUserId(team);
           const teamEntryId = team.entryId || team.entry_id || team.id;
           
