@@ -652,7 +652,8 @@ class DraftService {
   }
 
   // ============================================
-  // UPDATED: autoPick with pre-selection support and graceful lock handling
+  // UPDATED: autoPick with pre-selection support and FIXED algorithm
+  // Now finds the MOST EXPENSIVE player across ALL empty slots
   // ============================================
   async autoPick(contestId, userId, preSelection = null) {
     try {
@@ -744,7 +745,11 @@ class DraftService {
       // END PRE-SELECTION CHECK
       // ==========================================
       
-      // STANDARD AUTO-PICK ALGORITHM
+      // ==========================================
+      // FIXED AUTO-PICK ALGORITHM
+      // Find the best (most expensive) player for EACH empty slot,
+      // then pick the overall most expensive one
+      // ==========================================
       let bestPick = null;
       let bestRow = -1;
       let bestCol = -1;
@@ -752,7 +757,14 @@ class DraftService {
       const slotPriority = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
       const prioritizedSlots = slotPriority.filter(s => emptySlots.includes(s));
       
+      // Find best candidate for each slot
+      const slotCandidates = [];
+      
       for (const targetSlot of prioritizedSlots) {
+        let slotBest = null;
+        let slotBestRow = -1;
+        let slotBestCol = -1;
+        
         for (let row = 0; row < draft.playerBoard.length; row++) {
           for (let col = 0; col < draft.playerBoard[row].length; col++) {
             const player = draft.playerBoard[row][col];
@@ -777,19 +789,44 @@ class DraftService {
             }
             
             if (canFillSlot) {
-              if (!bestPick || player.price > bestPick.price) {
-                bestPick = { ...player };
-                bestRow = row;
-                bestCol = col;
-                bestPick.targetSlot = targetSlot;
+              // Find the most expensive player for THIS slot
+              if (!slotBest || player.price > slotBest.price) {
+                slotBest = { ...player };
+                slotBestRow = row;
+                slotBestCol = col;
+                slotBest.targetSlot = targetSlot;
               }
             }
           }
         }
         
-        if (bestPick) {
-          break;
+        if (slotBest) {
+          slotCandidates.push({
+            player: slotBest,
+            row: slotBestRow,
+            col: slotBestCol,
+            slot: targetSlot
+          });
         }
+      }
+      
+      // Now pick the MOST EXPENSIVE player across all slot candidates
+      if (slotCandidates.length > 0) {
+        // Sort by price descending, then by slot priority for ties
+        slotCandidates.sort((a, b) => {
+          if (b.player.price !== a.player.price) {
+            return b.player.price - a.player.price; // Higher price first
+          }
+          // For same price, prefer earlier slots in priority order
+          return slotPriority.indexOf(a.slot) - slotPriority.indexOf(b.slot);
+        });
+        
+        const best = slotCandidates[0];
+        bestPick = best.player;
+        bestRow = best.row;
+        bestCol = best.col;
+        
+        console.log(`🤖 AutoPick candidates: ${slotCandidates.map(c => `${c.player.name}($${c.player.price})->${c.slot}`).join(', ')}`);
       }
       
       if (!bestPick) {

@@ -94,8 +94,8 @@ class ContestService {
     }
     this.stalledDraftInterval = setInterval(() => {
       this.checkAllStalledDrafts();
-    }, 15000);
-    console.log('🔄 Started stalled draft checker (every 15s)');
+    }, 5000);
+    console.log('🔄 Started stalled draft checker (every 5s)');
   }
 
   setIo(io) {
@@ -1788,14 +1788,13 @@ class ContestService {
         
         const timeLimitMs = timeLimit * 1000;
         
-        // CHANGE 2: Add grace period + buffer before considering stalled
-        // This prevents the stalled checker from interfering with the normal timer's grace period
-        const GRACE_PERIOD_MS = 1000;
-        const STALL_BUFFER_MS = 1000;
-        const STALL_THRESHOLD_MS = timeLimitMs + GRACE_PERIOD_MS + STALL_BUFFER_MS;
+        // AGGRESSIVE STALL DETECTION
+        // If elapsed time exceeds the time limit by more than 2 seconds AND no timer is active,
+        // the timer must have died/been lost - don't wait for grace period + buffer
+        const STALL_THRESHOLD_MS = timeLimitMs + 2000; // Just 2 seconds past time limit
         
         if (currentTurn === draftState.currentTurn && elapsed > STALL_THRESHOLD_MS) {
-          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (threshold: ${STALL_THRESHOLD_MS/1000}s) - auto-picking now`);
+          console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (threshold: ${STALL_THRESHOLD_MS/1000}s, timeLimit: ${timeLimit}s) - auto-picking now`);
           
           if (!this.activeDrafts.has(roomId)) {
             const entry = await db.ContestEntry.findOne({
