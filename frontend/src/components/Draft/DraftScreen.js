@@ -1218,6 +1218,20 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
       
+      // CRITICAL: Prevent duplicate picks for the same turn
+      // This can happen when pre-select and auto-pick both fire
+      const incomingTurn = data.currentTurn !== undefined ? data.currentTurn : data.turn;
+      const incomingPickNumber = data.pickNumber || (incomingTurn !== undefined ? incomingTurn + 1 : null);
+      
+      if (incomingPickNumber) {
+        // Check if we already have a pick for this pickNumber
+        const existingPick = picks?.find(p => p.pickNumber === incomingPickNumber && p.player);
+        if (existingPick) {
+          console.log(`⚠️ Ignoring duplicate player-picked event for pick ${incomingPickNumber} - already have ${existingPick.player?.name}`);
+          return;
+        }
+      }
+      
       // Clear picking state
       setIsPicking(false);
       if (pickTimeoutRef.current) {
