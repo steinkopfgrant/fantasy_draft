@@ -72,6 +72,7 @@ const DraftScreen = ({ showToast }) => {
   const timerSyncedForTurnRef = useRef(null); // Track which turn the timer was last synced for
   const mobileSelectedPlayerPrevRef = useRef(null); // Track previous selection for server sync
   const wasPlayerDraftedRef = useRef(false); // Track if clear was due to player being drafted (don't emit clear-pre-select)
+  const isInitialMountRef = useRef(true); // Track initial mount to prevent false clear-pre-select
   // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
@@ -1845,7 +1846,15 @@ const DraftScreen = ({ showToast }) => {
   // SYNC PRE-SELECTION STATE TO SERVER
   // When selection changes, emit to server so autoPick can use it if user disconnects
   // BUT: Don't emit clear-pre-select if the player was drafted (backend handles cleanup)
+  // AND: Don't emit on initial mount/reconnect (would clear valid server-side pre-selection)
   useEffect(() => {
+    // Skip on initial mount - this prevents clearing server-side pre-selection on reconnect
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      mobileSelectedPlayerPrevRef.current = mobileSelectedPlayer;
+      return;
+    }
+    
     const wasSelected = mobileSelectedPlayerPrevRef.current;
     mobileSelectedPlayerPrevRef.current = mobileSelectedPlayer;
     
