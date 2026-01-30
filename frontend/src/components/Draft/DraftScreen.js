@@ -919,6 +919,48 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [socketConnected, roomId, requestDraftState]);
 
+  // CRITICAL FIX: Auto-refresh draft state on socket reconnection (mobile disconnect/reconnect)
+  useEffect(() => {
+    if (!roomId) return;
+    
+    const handleReconnection = (data) => {
+      console.log('🔄 Socket reconnected, refreshing draft state...', data);
+      
+      // Small delay to ensure socket is fully re-authenticated
+      setTimeout(() => {
+        if (hasJoinedRef.current && mountedRef.current) {
+          console.log('📡 Requesting fresh draft state after reconnection');
+          
+          // Re-join the draft room
+          socketService.emit('join-draft-room', { roomId, rejoin: true });
+          
+          // Request fresh draft state
+          requestDraftState();
+        }
+      }, 500);
+    };
+    
+    // Listen for socket reconnection event
+    socketService.on('reconnect', handleReconnection);
+    
+    // Also listen for the authenticated event after reconnection
+    const handleReauthenticated = (data) => {
+      console.log('🔐 Re-authenticated after reconnect, refreshing draft...', data);
+      if (hasJoinedRef.current && mountedRef.current) {
+        setTimeout(() => {
+          requestDraftState();
+        }, 300);
+      }
+    };
+    
+    socketService.on('authenticated', handleReauthenticated);
+    
+    return () => {
+      socketService.off('reconnect', handleReconnection);
+      socketService.off('authenticated', handleReauthenticated);
+    };
+  }, [roomId, requestDraftState]);
+
   // FIXED: Enhanced Socket event handlers with better roster preservation and TIMER SYNC
   useEffect(() => {
     if (!socketConnected || !roomId) return;
