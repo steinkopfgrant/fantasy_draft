@@ -746,9 +746,9 @@ class DraftService {
       // ==========================================
       
       // ==========================================
-      // FIXED AUTO-PICK ALGORITHM
-      // Find the best (most expensive) player for EACH empty slot,
-      // then pick the overall most expensive one
+      // PRIORITY-BASED AUTO-PICK ALGORITHM
+      // Fill slots in order: QB -> RB -> WR -> TE -> FLEX
+      // For each slot, pick the most expensive available player
       // ==========================================
       let bestPick = null;
       let bestRow = -1;
@@ -757,9 +757,7 @@ class DraftService {
       const slotPriority = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
       const prioritizedSlots = slotPriority.filter(s => emptySlots.includes(s));
       
-      // Find best candidate for each slot
-      const slotCandidates = [];
-      
+      // Go through slots in priority order, pick first one we can fill
       for (const targetSlot of prioritizedSlots) {
         let slotBest = null;
         let slotBestRow = -1;
@@ -777,7 +775,7 @@ class DraftService {
             let canFillSlot = false;
             
             if (targetSlot === 'FLEX') {
-              // FIX: QBs can NEVER go in FLEX - check both position fields explicitly
+              // QBs can NEVER go in FLEX
               const isQB = playerPos === 'QB' || player.position === 'QB';
               if (isQB) {
                 canFillSlot = false;
@@ -800,33 +798,14 @@ class DraftService {
           }
         }
         
+        // If we found a player for this slot, use them and stop looking
         if (slotBest) {
-          slotCandidates.push({
-            player: slotBest,
-            row: slotBestRow,
-            col: slotBestCol,
-            slot: targetSlot
-          });
+          bestPick = slotBest;
+          bestRow = slotBestRow;
+          bestCol = slotBestCol;
+          console.log(`🤖 AutoPick: Found ${slotBest.name} ($${slotBest.price}) for ${targetSlot} slot`);
+          break; // Stop at first slot we can fill
         }
-      }
-      
-      // Now pick the MOST EXPENSIVE player across all slot candidates
-      if (slotCandidates.length > 0) {
-        // Sort by price descending, then by slot priority for ties
-        slotCandidates.sort((a, b) => {
-          if (b.player.price !== a.player.price) {
-            return b.player.price - a.player.price; // Higher price first
-          }
-          // For same price, prefer earlier slots in priority order
-          return slotPriority.indexOf(a.slot) - slotPriority.indexOf(b.slot);
-        });
-        
-        const best = slotCandidates[0];
-        bestPick = best.player;
-        bestRow = best.row;
-        bestCol = best.col;
-        
-        console.log(`🤖 AutoPick candidates: ${slotCandidates.map(c => `${c.player.name}($${c.player.price})->${c.slot}`).join(', ')}`);
       }
       
       if (!bestPick) {
