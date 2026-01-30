@@ -1780,11 +1780,13 @@ const DraftScreen = ({ showToast }) => {
       // If player was drafted by someone else, clear selection immediately
       if (!currentPlayerState || currentPlayerState.drafted) {
         console.log(`🤖 Mobile: Pre-selected player ${mobileSelectedPlayer.name} was already drafted, clearing and using algorithm`);
+        wasPlayerDraftedRef.current = true; // Don't emit clear-pre-select, backend handles this
         clearSelection();
         // DON'T return - fall through to algorithm
       } else {
         // Player is still available - draft them
         console.log(`🤖 Mobile: Auto-drafting pre-selected player: ${mobileSelectedPlayer.name} at [${mobileSelectedPlayer.row}][${mobileSelectedPlayer.col}]`);
+        wasPlayerDraftedRef.current = true; // Don't emit clear-pre-select, we're using the pre-selection
         clearSelection();
         selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
         return;
@@ -1932,6 +1934,7 @@ const DraftScreen = ({ showToast }) => {
     if (!player || isPicking || !actualIsMyTurn) return;
     
     console.log('📱 Mobile confirm - drafting:', player.name);
+    wasPlayerDraftedRef.current = true; // Don't emit clear-pre-select, backend clears on make-pick
     clearSelection(); // Clear BEFORE pick to prevent race conditions
     dismissModal();
     selectPlayer(player.row, player.col);
