@@ -164,7 +164,7 @@ class SocketHandler {
     try {
       // Store in Redis via contestService (which has the redis instance)
       const preSelectKey = `preselect:${roomId}:${userId}`;
-      await contestService.redis.set(preSelectKey, JSON.stringify(player), 'EX', 120); // 2 min expiry
+      await contestService.redis.set(preSelectKey, JSON.stringify(player), 'EX', 300); // 5 min expiry
       console.log(`📱 Stored pre-select for user ${userId} in room ${roomId}: ${player.name}`);
     } catch (error) {
       console.error('Error storing pre-select:', error);

@@ -71,6 +71,7 @@ const DraftScreen = ({ showToast }) => {
   const autoPickTriggeredRef = useRef(0); // Timestamp debounce for auto-pick
   const timerSyncedForTurnRef = useRef(null); // Track which turn the timer was last synced for
   const mobileSelectedPlayerPrevRef = useRef(null); // Track previous selection for server sync
+  const wasPlayerDraftedRef = useRef(false); // Track if clear was due to player being drafted (don't emit clear-pre-select)
   // =========================================================
 
   // ==================== TIMER SYNC REFS ====================
@@ -1757,6 +1758,7 @@ const DraftScreen = ({ showToast }) => {
   // ==================== MOBILE HANDLERS ====================
   
   // Clear mobile selection when the selected player gets drafted by someone else
+  // NOTE: Don't emit clear-pre-select here - backend will handle its own cleanup
   useEffect(() => {
     if (!mobileSelectedPlayer || !playerBoard) return;
     
@@ -1764,36 +1766,46 @@ const DraftScreen = ({ showToast }) => {
     const currentPlayerState = playerBoard[row]?.[col];
     
     if (currentPlayerState?.drafted) {
-      console.log('📱 Pre-selected player was drafted by someone else, clearing selection');
+      console.log('📱 Pre-selected player was drafted by someone else, clearing selection (no server emit)');
+      wasPlayerDraftedRef.current = true; // Mark as drafted, don't emit clear-pre-select
       clearSelection();
     }
   }, [playerBoard, mobileSelectedPlayer, clearSelection]);
 
   // Also clear selection when picks array changes (backup check)
+  // NOTE: Don't emit clear-pre-select here - the pick succeeded, backend already used the pre-selection
   useEffect(() => {
     if (!mobileSelectedPlayer || !picks || picks.length === 0) return;
     
     // Check if the most recent pick matches our selection
     const lastPick = picks[picks.length - 1];
     if (lastPick?.player?.name === mobileSelectedPlayer.name) {
-      console.log('📱 Pre-selected player appears in picks, clearing selection');
+      console.log('📱 Pre-selected player appears in picks, clearing selection (no server emit)');
+      wasPlayerDraftedRef.current = true; // Mark as drafted, don't emit clear-pre-select
       clearSelection();
     }
   }, [picks, mobileSelectedPlayer, clearSelection]);
 
   // SYNC PRE-SELECTION STATE TO SERVER
   // When selection changes, emit to server so autoPick can use it if user disconnects
+  // BUT: Don't emit clear-pre-select if the player was drafted (backend handles cleanup)
   useEffect(() => {
     const wasSelected = mobileSelectedPlayerPrevRef.current;
     mobileSelectedPlayerPrevRef.current = mobileSelectedPlayer;
     
-    // If we HAD a selection and now we don't, clear on server
+    // If we HAD a selection and now we don't, check if we should clear on server
     if (wasSelected && !mobileSelectedPlayer && roomId && currentUserId) {
-      socketService.emit('clear-pre-select', {
-        roomId,
-        userId: currentUserId
-      });
-      console.log('📱 Emitted clear-pre-select to server');
+      // Only emit clear-pre-select if user intentionally cleared (not because player was drafted)
+      if (wasPlayerDraftedRef.current) {
+        console.log('📱 Skipping clear-pre-select - player was drafted, backend handles cleanup');
+        wasPlayerDraftedRef.current = false; // Reset for next selection
+      } else {
+        socketService.emit('clear-pre-select', {
+          roomId,
+          userId: currentUserId
+        });
+        console.log('📱 Emitted clear-pre-select to server');
+      }
     }
   }, [mobileSelectedPlayer, roomId, currentUserId]);
 
