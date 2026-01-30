@@ -1923,9 +1923,30 @@ const DraftScreen = ({ showToast }) => {
         const remaining = calculateTimeRemaining();
         dispatch(updateTimer(remaining));
         
-        // Also request fresh state from server
-        socketService.emit('get-draft-state', { roomId });
-        lastSyncTimeRef.current = Date.now();
+        // Function to request state with retry
+        const requestStateWithRetry = (retries = 3, delay = 500) => {
+          if (!socketService.isConnected()) {
+            console.log(`👁️ Socket not connected, waiting... (${retries} retries left)`);
+            if (retries > 0) {
+              setTimeout(() => requestStateWithRetry(retries - 1, delay * 1.5), delay);
+            } else {
+              console.log('👁️ Socket still not connected after retries, forcing reconnect...');
+              // Force socket reconnect
+              socketService.disconnect();
+              setTimeout(() => {
+                socketService.connect();
+              }, 500);
+            }
+            return;
+          }
+          
+          console.log('👁️ Socket connected, requesting fresh state...');
+          socketService.emit('get-draft-state', { roomId });
+          lastSyncTimeRef.current = Date.now();
+        };
+        
+        // Start request with retry logic
+        requestStateWithRetry();
       }
     };
 
@@ -1937,6 +1958,25 @@ const DraftScreen = ({ showToast }) => {
   }, [status, roomId, calculateTimeRemaining, dispatch]);
   // =====================================================================
 
+  // MOBILE STALL DETECTION: If timer shows 0 for more than 5 seconds without turn advancing, force refresh
+  useEffect(() => {
+    if (status !== 'active' || timeRemaining > 0) return;
+    
+    const stallCheckTimer = setTimeout(() => {
+      console.log('⚠️ Timer at 0 for 5+ seconds - possible UI stall, requesting fresh state...');
+      
+      if (socketService.isConnected()) {
+        socketService.emit('get-draft-state', { roomId });
+        lastSyncTimeRef.current = Date.now();
+      } else {
+        console.log('⚠️ Socket disconnected during stall check, attempting reconnect...');
+        socketService.connect();
+      }
+    }, 5000);
+    
+    return () => clearTimeout(stallCheckTimer);
+  }, [status, timeRemaining, roomId]);
+
   // Handle countdown timer decrement (5, 4, 3, 2, 1)
   useEffect(() => {
     if (status === 'countdown' && countdownTime > 0) {
@@ -1946,6 +1986,30 @@ const DraftScreen = ({ showToast }) => {
       return () => clearTimeout(timer);
     }
   }, [status, countdownTime, dispatch]);
+
+  // MOBILE HEARTBEAT: Periodic check to ensure socket is connected and state is fresh
+  useEffect(() => {
+    if (status !== 'active') return;
+    
+    const heartbeatInterval = setInterval(() => {
+      // Check socket health
+      if (!socketService.isConnected()) {
+        console.log('💓 Heartbeat: Socket disconnected, attempting reconnect...');
+        socketService.connect();
+        return;
+      }
+      
+      // If we haven't received a state update in 45 seconds, request fresh state
+      const timeSinceLastSync = Date.now() - (lastSyncTimeRef.current || 0);
+      if (timeSinceLastSync > 45000) {
+        console.log(`💓 Heartbeat: No state update in ${Math.round(timeSinceLastSync/1000)}s, requesting fresh state...`);
+        socketService.emit('get-draft-state', { roomId });
+        lastSyncTimeRef.current = Date.now();
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(heartbeatInterval);
+  }, [status, roomId]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
   // Uses isPicking as primary guard, ref as debounce for rapid re-renders
