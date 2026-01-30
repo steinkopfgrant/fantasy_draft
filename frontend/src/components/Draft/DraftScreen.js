@@ -22,6 +22,7 @@ import {
   updateTimer,
   clearSelectedPlayer,
   updatePlayerBoard,
+  addPick,
   selectDraft,
   selectCurrentTeam,
   selectMyTeam,
@@ -1218,6 +1219,19 @@ const DraftScreen = ({ showToast }) => {
       }
       // ====================================================
       
+      // CRITICAL: Add pick to picks array for LiveDraftFeed real-time updates
+      const pickNumber = data.pickNumber || data.currentTurn + 1 || (picks?.length || 0) + 1;
+      dispatch(addPick({
+        pickNumber,
+        turn: data.currentTurn,
+        player: data.player,
+        rosterSlot: data.roster_slot || data.slot || data.position,
+        teamIndex: data.teamIndex,
+        userId: data.userId || data.user_id,
+        isAutoPick: data.isAutoPick,
+        timestamp: data.timestamp || new Date().toISOString()
+      }));
+      
       // CRITICAL: Update player board to mark as drafted
       if (data.row !== undefined && data.col !== undefined) {
         dispatch(updatePlayerBoardCell({
@@ -1227,7 +1241,7 @@ const DraftScreen = ({ showToast }) => {
             drafted: true,
             draftedBy: data.teamIndex !== undefined ? data.teamIndex : data.draftPosition,
             draftedAtTurn: data.currentTurn || currentTurn,
-            pickNumber: data.pickNumber || (picks?.length || 0) + 1,
+            pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position
           }
         }));

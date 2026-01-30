@@ -730,6 +730,31 @@ const draftSlice = createSlice({
       }
     },
     
+    // NEW: Add a pick to the picks array for real-time LiveDraftFeed updates
+    addPick: (state, action) => {
+      const pick = action.payload;
+      
+      // Check if this pick already exists (by pickNumber) to avoid duplicates
+      const existingIndex = state.picks.findIndex(p => p.pickNumber === pick.pickNumber);
+      
+      if (existingIndex >= 0) {
+        // Update existing pick
+        state.picks[existingIndex] = { ...state.picks[existingIndex], ...pick };
+        console.log('📝 Updated existing pick:', pick.pickNumber);
+      } else {
+        // Add new pick
+        state.picks.push(pick);
+        console.log('📝 Added new pick to picks array:', {
+          pickNumber: pick.pickNumber,
+          player: pick.player?.name,
+          rosterSlot: pick.rosterSlot
+        });
+      }
+      
+      // Sort picks by pickNumber to ensure correct order
+      state.picks.sort((a, b) => (a.pickNumber || 0) - (b.pickNumber || 0));
+    },
+    
     setSelectedPlayer: (state, action) => {
       state.selectedPlayer = action.payload;
     },
@@ -878,6 +903,7 @@ export const {
   updateDraftState,
   updateTeamRoster,
   updatePlayerBoardCell,
+  addPick,
   setSelectedPlayer,
   clearSelectedPlayer,
   updateTimer,
