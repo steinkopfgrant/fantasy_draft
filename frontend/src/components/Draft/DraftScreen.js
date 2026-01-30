@@ -152,11 +152,25 @@ const DraftScreen = ({ showToast }) => {
   // This prevents visual bugs when disconnect/reconnect events reorder the teams array
   const sortedTeams = useMemo(() => {
     if (!teams || teams.length === 0) return [];
-    return [...teams].sort((a, b) => {
+    
+    console.log('🔢 sortedTeams input:', teams.map(t => ({
+      name: t.name || t.username,
+      draftPosition: t.draftPosition,
+      userId: t.userId?.substring(0, 8)
+    })));
+    
+    const sorted = [...teams].sort((a, b) => {
       const posA = a.draftPosition ?? 999;
       const posB = b.draftPosition ?? 999;
       return posA - posB;
     });
+    
+    console.log('🔢 sortedTeams output:', sorted.map(t => ({
+      name: t.name || t.username,
+      draftPosition: t.draftPosition
+    })));
+    
+    return sorted;
   }, [teams]);
 
   // FIXED: Standardize slot names to uppercase
