@@ -69,6 +69,7 @@ const DraftScreen = ({ showToast }) => {
     clearSelection,
   } = useMobileSelection();
   const autoPickTriggeredRef = useRef(0); // Timestamp debounce for auto-pick
+  const timerSyncedForTurnRef = useRef(null); // Track which turn the timer was last synced for
   const mobileSelectedPlayerPrevRef = useRef(null); // Track previous selection for server sync
   // =========================================================
 
@@ -286,7 +287,7 @@ const DraftScreen = ({ showToast }) => {
 
   // Update timer from server data
   const syncTimerFromServer = useCallback((data) => {
-    const { turnStartedAt, serverTime, timeLimit, timeRemaining: serverTimeRemaining } = data;
+    const { turnStartedAt, serverTime, timeLimit, timeRemaining: serverTimeRemaining, currentTurn: syncedTurn } = data;
     
     // Calculate server time offset if we have serverTime
     if (serverTime) {
@@ -310,13 +311,19 @@ const DraftScreen = ({ showToast }) => {
       console.log(`⏱️ Time limit: ${timeLimit}s`);
     }
     
+    // CRITICAL: Track which turn this timer sync is for
+    if (syncedTurn !== undefined) {
+      timerSyncedForTurnRef.current = syncedTurn;
+      console.log(`⏱️ Timer synced for turn: ${syncedTurn}`);
+    }
+    
     // Calculate and dispatch the actual time remaining
     const calculatedRemaining = calculateTimeRemaining();
     
     // Use server's timeRemaining as fallback if we don't have turnStartedAt
     const finalRemaining = turnStartedAtRef.current ? calculatedRemaining : (serverTimeRemaining || 30);
     
-    console.log(`⏱️ Timer sync: calculated=${calculatedRemaining}s, server=${serverTimeRemaining}s, using=${finalRemaining}s`);
+    console.log(`⏱️ Timer sync: calculated=${calculatedRemaining}s, server=${serverTimeRemaining}s, using=${finalRemaining}s, turn=${syncedTurn}`);
     
     dispatch(updateTimer(finalRemaining));
     lastSyncTimeRef.current = Date.now();
@@ -1003,6 +1010,10 @@ const DraftScreen = ({ showToast }) => {
       // Sync timer from server data
       if (data.turnStartedAt || data.serverTime || data.timeLimit) {
         syncTimerFromServer(data);
+      } else if (data.currentTurn !== undefined) {
+        // Even without timer fields, update the turn sync ref
+        timerSyncedForTurnRef.current = data.currentTurn;
+        console.log(`⏱️ Timer synced for turn (state update): ${data.currentTurn}`);
       }
       // ====================================================
       
@@ -1197,6 +1208,11 @@ const DraftScreen = ({ showToast }) => {
         // Fallback: reset timer to full time limit
         turnStartedAtRef.current = Date.now();
         timeLimitRef.current = data.timeLimit || data.timeRemaining || 30;
+        // CRITICAL: Also update turn sync ref in fallback
+        if (data.currentTurn !== undefined) {
+          timerSyncedForTurnRef.current = data.currentTurn;
+          console.log(`⏱️ Timer synced for turn (fallback): ${data.currentTurn}`);
+        }
       }
       // ====================================================
       
@@ -1691,7 +1707,7 @@ const DraftScreen = ({ showToast }) => {
   // AUTO-PICK: Handle auto-pick when timer expires
   const handleAutoPick = useCallback(() => {
     if (!actualIsMyTurn || isPicking) {
-      console.log(`🤖 Auto-pick cancelled: not my turn or already picking`);
+      console.log(`🤖 Auto-pick cancelled: actualIsMyTurn=${actualIsMyTurn}, isPicking=${isPicking}`);
       return;
     }
     
@@ -1700,7 +1716,7 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
     
-    console.log(`🤖 Timer expired - triggering auto-pick for ${myTeam.name}`);
+    console.log(`🤖 Frontend auto-pick triggered for ${myTeam.name} at turn ${currentTurn}`);
     
     // MOBILE: Check if user has a pre-selected player
     if (isMobile && mobileSelectedPlayer) {
@@ -1713,7 +1729,7 @@ const DraftScreen = ({ showToast }) => {
         // DON'T return - fall through to algorithm
       } else {
         // Player is still available - draft them
-        console.log(`🤖 Mobile: Auto-drafting user selection: ${mobileSelectedPlayer.name}`);
+        console.log(`🤖 Mobile: Auto-drafting pre-selected player: ${mobileSelectedPlayer.name} at [${mobileSelectedPlayer.row}][${mobileSelectedPlayer.col}]`);
         clearSelection();
         selectPlayer(mobileSelectedPlayer.row, mobileSelectedPlayer.col);
         return;
@@ -1730,7 +1746,7 @@ const DraftScreen = ({ showToast }) => {
       console.log(`🤖 No valid auto-pick available, skipping turn`);
       dispatch(skipTurn({ roomId, reason: 'no_valid_autopick' }));
     }
-  }, [actualIsMyTurn, isPicking, myTeam, playerBoard, findAutoPick, selectPlayer, dispatch, roomId, isMobile, mobileSelectedPlayer, clearSelection]);
+  }, [actualIsMyTurn, isPicking, myTeam, playerBoard, findAutoPick, selectPlayer, dispatch, roomId, isMobile, mobileSelectedPlayer, clearSelection, currentTurn]);
 
   // Handle skip turn
   const handleSkipTurn = useCallback(() => {
@@ -2015,6 +2031,13 @@ const DraftScreen = ({ showToast }) => {
   // Uses isPicking as primary guard, ref as debounce for rapid re-renders
   useEffect(() => {
     if (actualIsMyTurn && status === 'active' && timeRemaining === 0 && !isPicking) {
+      // CRITICAL: Only auto-pick if timer was synced for the CURRENT turn
+      // This prevents instant auto-picks when turn changes but timer hasn't been reset yet
+      if (timerSyncedForTurnRef.current !== currentTurn) {
+        console.log(`⏰ Skipping auto-pick - timer not synced for turn ${currentTurn} (synced for turn ${timerSyncedForTurnRef.current})`);
+        return;
+      }
+      
       // Debounce: Don't fire if we just fired in the last 500ms
       const now = Date.now();
       if (autoPickTriggeredRef.current > now - 500) {
@@ -2022,11 +2045,12 @@ const DraftScreen = ({ showToast }) => {
         return;
       }
       
-      console.log(`⏰ Timer expired at turn ${currentTurn}, triggering auto-pick`);
+      console.log(`⏰ Timer hit 0 at turn ${currentTurn}, actualIsMyTurn=${actualIsMyTurn}, triggering auto-pick`);
+      console.log(`⏰ Mobile selected player: ${mobileSelectedPlayer ? mobileSelectedPlayer.name : 'none'}`);
       autoPickTriggeredRef.current = now;
       handleAutoPick();
     }
-  }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick, currentTurn]);
+  }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick, currentTurn, mobileSelectedPlayer]);
 
   // SNAKE DRAFT: Draft order validation effect
   useEffect(() => {
