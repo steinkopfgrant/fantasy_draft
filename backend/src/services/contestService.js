@@ -2018,7 +2018,7 @@ class ContestService {
     await this.startNextPick(roomId);
   }
 
-  async handleAutoPick(roomId, userId) {
+ async handleAutoPick(roomId, userId) {
     console.log(`Auto-picking for user ${userId} in room ${roomId}`);
     
     const timerKey = `${roomId}_${userId}`;
@@ -2034,16 +2034,20 @@ class ContestService {
       let preSelection = null;
       try {
         const preSelectKey = `preselect:${roomId}:${userId}`;
+        console.log(`📱 Checking for pre-selection with key: ${preSelectKey}`);
         const preSelectData = await this.redis.get(preSelectKey);
+        console.log(`📱 Pre-selection data from Redis: ${preSelectData ? 'FOUND' : 'NOT FOUND'}`);
         
         if (preSelectData) {
           preSelection = JSON.parse(preSelectData);
-          console.log(`📱 Found pre-selection for ${userId}: ${preSelection.name}`);
+          console.log(`📱 ✅ Found pre-selection for ${userId}: ${preSelection.name} at [${preSelection.row}][${preSelection.col}]`);
           // Clear it immediately so it's not used twice
           await this.redis.del(preSelectKey);
+        } else {
+          console.log(`📱 No pre-selection found for ${userId} in room ${roomId}`);
         }
       } catch (preSelectError) {
-        console.error('Error checking pre-selection:', preSelectError);
+        console.error('❌ Error checking pre-selection:', preSelectError);
       }
       // ==========================================
       

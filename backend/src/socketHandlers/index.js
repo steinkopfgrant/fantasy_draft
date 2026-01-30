@@ -382,14 +382,6 @@ class SocketHandler {
       const socketRoomId = `room_${roomId}`;
       socket.leave(socketRoomId);
       
-      // Clear any pre-selection for this user
-      try {
-        const preSelectKey = `preselect:${roomId}:${userId}`;
-        await contestService.redis.del(preSelectKey);
-      } catch (e) {
-        // Ignore pre-select cleanup errors
-      }
-      
       // Send confirmation
       socket.emit('contest-left', {
         contestId,
