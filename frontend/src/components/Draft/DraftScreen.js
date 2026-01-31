@@ -2559,14 +2559,27 @@ const DraftScreen = ({ showToast }) => {
                   mobileSelectedPlayer?.row === rowIndex && 
                   mobileSelectedPlayer?.col === colIndex;
                 
+                // Debug: log for first cell only to avoid spam
+                if (rowIndex === 0 && colIndex === 0) {
+                  console.log('📱 [Render Debug] isMobile:', isMobile, 'mobileSelectedPlayer:', mobileSelectedPlayer, 'roomId:', roomId);
+                }
+                
                 if (isMobile && !mobileSelectedPlayer && roomId) {
                   try {
                     const saved = localStorage.getItem(`preselect_${roomId}`);
+                    if (saved && rowIndex === 0 && colIndex === 0) {
+                      console.log('📱 [Render Debug] localStorage data:', saved);
+                    }
                     if (saved) {
                       const p = JSON.parse(saved);
-                      isMobileSelected = p.row === rowIndex && p.col === colIndex;
+                      if (p.row === rowIndex && p.col === colIndex) {
+                        console.log('📱 [Render Debug] MATCH! row:', rowIndex, 'col:', colIndex);
+                        isMobileSelected = true;
+                      }
                     }
-                  } catch (e) {}
+                  } catch (e) {
+                    console.log('📱 [Render Debug] localStorage error:', e);
+                  }
                 }
                 
                 return (
