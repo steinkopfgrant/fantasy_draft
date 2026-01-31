@@ -933,14 +933,16 @@ const DraftScreen = ({ showToast }) => {
             });
             console.log('📱 Re-emitted pre-select to server on init');
             
-            // Restore UI selection on mobile after a brief delay (wait for playerBoard)
+            // Restore UI selection on mobile with retry
             if (isMobile) {
-              setTimeout(() => {
-                if (mobileSelectPlayer) {
-                  mobileSelectPlayer(player, player.row, player.col);
-                  console.log('📱 Restored mobile selection UI on init');
-                }
-              }, 1000);
+              const restoreUI = (attempt) => {
+                if (attempt > 5 || !mobileSelectPlayer) return;
+                console.log(`📱 Restoring mobile selection UI on init (attempt ${attempt})`);
+                mobileSelectPlayer(player, player.row, player.col);
+              };
+              setTimeout(() => restoreUI(1), 500);
+              setTimeout(() => restoreUI(2), 1000);
+              setTimeout(() => restoreUI(3), 2000);
             }
           }
         } catch (e) {
@@ -968,6 +970,10 @@ const DraftScreen = ({ showToast }) => {
       // CRITICAL: Reset socket handlers ref so they get re-registered
       socketHandlersRef.current = false;
       
+      // CRITICAL: Reset initial mount ref so the sync useEffect skips
+      // the next render cycle (prevents clearing server-side pre-selection)
+      isInitialMountRef.current = true;
+      
       // Small delay to ensure socket is fully re-authenticated
       setTimeout(() => {
         if (hasJoinedRef.current && mountedRef.current) {
@@ -994,10 +1000,20 @@ const DraftScreen = ({ showToast }) => {
               });
               console.log('📱 Re-emitted pre-select to server after reconnect');
               
-              // Also restore the UI selection if we're on mobile
+              // Restore UI with retry - board may not be ready yet
               if (isMobile && mobileSelectPlayer) {
-                mobileSelectPlayer(player, player.row, player.col);
-                console.log('📱 Restored mobile selection UI');
+                const restoreUI = (attempt) => {
+                  if (attempt > 5) {
+                    console.log('📱 Giving up on UI restore after 5 attempts');
+                    return;
+                  }
+                  console.log(`📱 Restoring mobile selection UI (attempt ${attempt})`);
+                  mobileSelectPlayer(player, player.row, player.col);
+                };
+                // Try immediately, then retry in case board wasn't ready
+                restoreUI(1);
+                setTimeout(() => restoreUI(2), 500);
+                setTimeout(() => restoreUI(3), 1500);
               }
             }
           } catch (e) {
