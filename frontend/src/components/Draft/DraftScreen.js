@@ -1783,6 +1783,14 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
     
+    // Synchronous ref-based debounce to prevent double picks
+    const now = Date.now();
+    if (autoPickTriggeredRef.current > now - 2000) {
+      console.log(`🤖 Auto-pick debounced (fired ${now - autoPickTriggeredRef.current}ms ago)`);
+      return;
+    }
+    autoPickTriggeredRef.current = now;
+    
     if (!myTeam || !playerBoard) {
       console.log(`🤖 Auto-pick cancelled: missing team or player board`);
       return;
@@ -1851,34 +1859,25 @@ const DraftScreen = ({ showToast }) => {
   
   // RESTORE PRE-SELECTION VISUAL from localStorage
   // If we have no visual selection but localStorage has one (e.g. after reconnect),
-  // restore the highlight. This runs whenever mobileSelectedPlayer or playerBoard changes.
+  // restore the highlight. This runs once when conditions are met.
   const preSelectRestoredRef = useRef(false);
   useEffect(() => {
-    console.log('📱 [Restore Check] isMobile:', isMobile, 'mobileSelectedPlayer:', mobileSelectedPlayer?.name || 'null', 'playerBoard:', !!playerBoard, 'roomId:', roomId);
-    
+    // Skip if not mobile or already have selection or missing data
     if (!isMobile || mobileSelectedPlayer || !playerBoard || !roomId) {
-      // Reset the restored flag when we have a selection (so it can restore again after next disconnect)
-      if (mobileSelectedPlayer) {
-        console.log('📱 [Restore] Have selection, resetting restored flag');
-        preSelectRestoredRef.current = false;
-      }
       return;
     }
     
-    // Only attempt restore once per reconnect cycle
+    // Only attempt restore once per mount
     if (preSelectRestoredRef.current) {
-      console.log('📱 [Restore] Already attempted restore this cycle, skipping');
       return;
     }
     
     try {
       const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
-      console.log('📱 [Restore] localStorage data:', savedPreSelect);
       if (!savedPreSelect) return;
       
       const player = JSON.parse(savedPreSelect);
       const boardPlayer = playerBoard[player.row]?.[player.col];
-      console.log('📱 [Restore] Board player at position:', boardPlayer?.name, 'drafted:', boardPlayer?.drafted);
       
       // Only restore if the player hasn't been drafted
       if (boardPlayer && !boardPlayer.drafted) {
@@ -1886,18 +1885,18 @@ const DraftScreen = ({ showToast }) => {
         preSelectRestoredRef.current = true;
         mobileSelectPlayer(player, player.row, player.col);
         // Dismiss the confirm modal - we just want the highlight, not the popup
-        setTimeout(() => {
-          console.log('📱 [Restore] Dismissing modal');
-          dismissModal();
-        }, 50);
-      } else {
-        // Player was drafted - don't clear localStorage here, handleAutoPick will do it
-        console.log('📱 [Restore] Player was already drafted, skipping restore');
+        setTimeout(() => dismissModal(), 50);
       }
     } catch (e) {
-      console.log('📱 [Restore] Error:', e);
+      // Ignore errors
     }
-  }, [isMobile, mobileSelectedPlayer, playerBoard, roomId, mobileSelectPlayer, dismissModal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, mobileSelectedPlayer, playerBoard, roomId]); // Intentionally exclude mobileSelectPlayer/dismissModal to prevent re-running
+  
+  // Reset restore flag when roomId changes (new draft)
+  useEffect(() => {
+    preSelectRestoredRef.current = false;
+  }, [roomId]);
 
   // Clear mobile selection when the selected player gets drafted by someone else
   // NOTE: Don't emit clear-pre-select here - backend will handle its own cleanup
@@ -2552,27 +2551,16 @@ const DraftScreen = ({ showToast }) => {
                   mobileSelectedPlayer?.row === rowIndex && 
                   mobileSelectedPlayer?.col === colIndex;
                 
-                // Debug: log for first cell only to avoid spam
-                if (rowIndex === 0 && colIndex === 0) {
-                  console.log('📱 [Render Debug] isMobile:', isMobile, 'mobileSelectedPlayer:', mobileSelectedPlayer, 'roomId:', roomId);
-                }
-                
                 if (isMobile && !mobileSelectedPlayer && roomId) {
                   try {
                     const saved = localStorage.getItem(`preselect_${roomId}`);
-                    if (saved && rowIndex === 0 && colIndex === 0) {
-                      console.log('📱 [Render Debug] localStorage data:', saved);
-                    }
                     if (saved) {
                       const p = JSON.parse(saved);
                       if (p.row === rowIndex && p.col === colIndex) {
-                        console.log('📱 [Render Debug] MATCH! row:', rowIndex, 'col:', colIndex);
                         isMobileSelected = true;
                       }
                     }
-                  } catch (e) {
-                    console.log('📱 [Render Debug] localStorage error:', e);
-                  }
+                  } catch (e) {}
                 }
                 
                 return (
