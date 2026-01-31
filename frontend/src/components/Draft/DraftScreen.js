@@ -1891,9 +1891,8 @@ const DraftScreen = ({ showToast }) => {
           dismissModal();
         }, 50);
       } else {
-        // Player was drafted, clean up localStorage
-        console.log('📱 [Restore] Player was drafted, cleaning up localStorage');
-        localStorage.removeItem(`preselect_${roomId}`);
+        // Player was drafted - don't clear localStorage here, handleAutoPick will do it
+        console.log('📱 [Restore] Player was already drafted, skipping restore');
       }
     } catch (e) {
       console.log('📱 [Restore] Error:', e);
@@ -1933,6 +1932,7 @@ const DraftScreen = ({ showToast }) => {
   // When selection changes, emit to server so autoPick can use it if user disconnects
   // BUT: Don't emit clear-pre-select if the player was drafted (backend handles cleanup)
   // AND: Don't emit on initial mount/reconnect (would clear valid server-side pre-selection)
+  // NOTE: We do NOT clear localStorage here - that happens only when pre-selection is actually used
   useEffect(() => {
     // Skip on initial mount - this prevents clearing server-side pre-selection on reconnect
     if (isInitialMountRef.current) {
@@ -1949,21 +1949,14 @@ const DraftScreen = ({ showToast }) => {
       // Only emit clear-pre-select if user intentionally cleared (not because player was drafted)
       if (wasPlayerDraftedRef.current) {
         console.log('📱 Skipping clear-pre-select - player was drafted, backend handles cleanup');
-        // Clear localStorage only when player was actually drafted
-        try {
-          localStorage.removeItem(`preselect_${roomId}`);
-        } catch (e) {}
         wasPlayerDraftedRef.current = false; // Reset for next selection
       } else {
-        // User intentionally cleared - clear both server and localStorage
+        // User intentionally cleared - clear server (localStorage cleared elsewhere when actually used)
         socketService.emit('clear-pre-select', {
           roomId,
           userId: currentUserId
         });
         console.log('📱 Emitted clear-pre-select to server');
-        try {
-          localStorage.removeItem(`preselect_${roomId}`);
-        } catch (e) {}
       }
     }
   }, [mobileSelectedPlayer, roomId, currentUserId]);

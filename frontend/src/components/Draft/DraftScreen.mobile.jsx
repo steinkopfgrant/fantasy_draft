@@ -173,7 +173,13 @@ export const MobileHeader = ({
  * Hook to detect if we're on mobile
  */
 export const useIsMobile = () => {
-  const [isMobile, setIsMobile] = React.useState(false);
+  // Initialize with actual value to avoid flash of wrong state
+  const [isMobile, setIsMobile] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 768;
+    }
+    return false;
+  });
 
   React.useEffect(() => {
     const checkMobile = () => {
