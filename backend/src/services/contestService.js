@@ -2018,7 +2018,7 @@ class ContestService {
     await this.startNextPick(roomId);
   }
 
- async handleAutoPick(roomId, userId) {
+  async handleAutoPick(roomId, userId) {
     console.log(`Auto-picking for user ${userId} in room ${roomId}`);
     
     const timerKey = `${roomId}_${userId}`;
@@ -2055,10 +2055,9 @@ class ContestService {
       
       if (updatedDraft && this.io) {
         const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
+        const socketRoom = `room_${roomId}`;
         
         if (lastPick && !lastPick.skipped) {
-          const socketRoom = `room_${roomId}`;
-          
           const entry = await db.ContestEntry.findOne({
             where: {
               draft_room_id: roomId,
@@ -2104,6 +2103,28 @@ class ContestService {
           });
           
           console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}${lastPick.wasPreSelected ? ' (PRE-SELECTED)' : ''}`);
+        } else if (lastPick && lastPick.skipped) {
+          // Emit turn-skipped event so frontend can update UI
+          this.io.to(socketRoom).emit('turn-skipped', {
+            roomId,
+            userId,
+            pickNumber: updatedDraft.picks.length,
+            reason: lastPick.reason,
+            currentTurn: updatedDraft.currentTurn,
+            picks: updatedDraft.picks,
+            teams: updatedDraft.teams,
+            turnStartedAt: Date.now(),
+            serverTime: Date.now()
+          });
+          
+          this.io.to(socketRoom).emit('draft-state', {
+            ...updatedDraft,
+            playerBoard: updatedDraft.playerBoard,
+            turnStartedAt: Date.now(),
+            serverTime: Date.now()
+          });
+          
+          console.log(`⏭️ Broadcasted TURN-SKIPPED to ${socketRoom}: ${userId} (${lastPick.reason})`);
         }
       }
     } catch (error) {
