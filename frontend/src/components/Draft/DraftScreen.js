@@ -1854,35 +1854,49 @@ const DraftScreen = ({ showToast }) => {
   // restore the highlight. This runs whenever mobileSelectedPlayer or playerBoard changes.
   const preSelectRestoredRef = useRef(false);
   useEffect(() => {
+    console.log('📱 [Restore Check] isMobile:', isMobile, 'mobileSelectedPlayer:', mobileSelectedPlayer?.name || 'null', 'playerBoard:', !!playerBoard, 'roomId:', roomId);
+    
     if (!isMobile || mobileSelectedPlayer || !playerBoard || !roomId) {
       // Reset the restored flag when we have a selection (so it can restore again after next disconnect)
-      if (mobileSelectedPlayer) preSelectRestoredRef.current = false;
+      if (mobileSelectedPlayer) {
+        console.log('📱 [Restore] Have selection, resetting restored flag');
+        preSelectRestoredRef.current = false;
+      }
       return;
     }
     
     // Only attempt restore once per reconnect cycle
-    if (preSelectRestoredRef.current) return;
+    if (preSelectRestoredRef.current) {
+      console.log('📱 [Restore] Already attempted restore this cycle, skipping');
+      return;
+    }
     
     try {
       const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
+      console.log('📱 [Restore] localStorage data:', savedPreSelect);
       if (!savedPreSelect) return;
       
       const player = JSON.parse(savedPreSelect);
       const boardPlayer = playerBoard[player.row]?.[player.col];
+      console.log('📱 [Restore] Board player at position:', boardPlayer?.name, 'drafted:', boardPlayer?.drafted);
       
       // Only restore if the player hasn't been drafted
       if (boardPlayer && !boardPlayer.drafted) {
-        console.log('📱 Restoring pre-selection visual from localStorage:', player.name);
+        console.log('📱 [Restore] Restoring pre-selection visual:', player.name);
         preSelectRestoredRef.current = true;
         mobileSelectPlayer(player, player.row, player.col);
         // Dismiss the confirm modal - we just want the highlight, not the popup
-        setTimeout(() => dismissModal(), 50);
+        setTimeout(() => {
+          console.log('📱 [Restore] Dismissing modal');
+          dismissModal();
+        }, 50);
       } else {
         // Player was drafted, clean up localStorage
+        console.log('📱 [Restore] Player was drafted, cleaning up localStorage');
         localStorage.removeItem(`preselect_${roomId}`);
       }
     } catch (e) {
-      // Ignore
+      console.log('📱 [Restore] Error:', e);
     }
   }, [isMobile, mobileSelectedPlayer, playerBoard, roomId, mobileSelectPlayer, dismissModal]);
 
@@ -1932,24 +1946,24 @@ const DraftScreen = ({ showToast }) => {
     
     // If we HAD a selection and now we don't, check if we should clear on server
     if (wasSelected && !mobileSelectedPlayer && roomId && currentUserId) {
-      // Also clear localStorage
-      try {
-        localStorage.removeItem(`preselect_${roomId}`);
-        console.log('📱 Cleared pre-select from localStorage');
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-      
       // Only emit clear-pre-select if user intentionally cleared (not because player was drafted)
       if (wasPlayerDraftedRef.current) {
         console.log('📱 Skipping clear-pre-select - player was drafted, backend handles cleanup');
+        // Clear localStorage only when player was actually drafted
+        try {
+          localStorage.removeItem(`preselect_${roomId}`);
+        } catch (e) {}
         wasPlayerDraftedRef.current = false; // Reset for next selection
       } else {
+        // User intentionally cleared - clear both server and localStorage
         socketService.emit('clear-pre-select', {
           roomId,
           userId: currentUserId
         });
         console.log('📱 Emitted clear-pre-select to server');
+        try {
+          localStorage.removeItem(`preselect_${roomId}`);
+        } catch (e) {}
       }
     }
   }, [mobileSelectedPlayer, roomId, currentUserId]);
@@ -2540,9 +2554,20 @@ const DraftScreen = ({ showToast }) => {
                   : null;
                 
                 // Check if this is the mobile-selected player
-                const isMobileSelected = isMobile && 
+                // Also check localStorage for reconnect scenario when Redux state is empty
+                let isMobileSelected = isMobile && 
                   mobileSelectedPlayer?.row === rowIndex && 
                   mobileSelectedPlayer?.col === colIndex;
+                
+                if (isMobile && !mobileSelectedPlayer && roomId) {
+                  try {
+                    const saved = localStorage.getItem(`preselect_${roomId}`);
+                    if (saved) {
+                      const p = JSON.parse(saved);
+                      isMobileSelected = p.row === rowIndex && p.col === colIndex;
+                    }
+                  } catch (e) {}
+                }
                 
                 return (
                   <div
