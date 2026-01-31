@@ -642,7 +642,32 @@ const draftSlice = createSlice({
       if (action.payload.currentTurn !== undefined) state.currentTurn = action.payload.currentTurn;
       if (action.payload.currentPick !== undefined) state.currentPick = action.payload.currentPick;
       if (action.payload.draftOrder !== undefined) state.draftOrder = action.payload.draftOrder;
-      if (action.payload.picks !== undefined) state.picks = action.payload.picks;
+      
+      // CRITICAL FIX: Merge picks instead of replacing to prevent losing locally added picks
+      // This fixes the visual lag where new picks show as previous pick momentarily
+      if (action.payload.picks !== undefined && Array.isArray(action.payload.picks)) {
+        const incomingPicks = action.payload.picks;
+        const existingPicks = state.picks || [];
+        
+        // Merge: keep existing picks that aren't in incoming, add all incoming
+        const mergedPicks = [...existingPicks];
+        
+        for (const incomingPick of incomingPicks) {
+          const existingIndex = mergedPicks.findIndex(p => p.pickNumber === incomingPick.pickNumber);
+          if (existingIndex >= 0) {
+            // Update existing pick with server data (server is authoritative)
+            mergedPicks[existingIndex] = { ...mergedPicks[existingIndex], ...incomingPick };
+          } else {
+            // Add new pick from server
+            mergedPicks.push(incomingPick);
+          }
+        }
+        
+        // Sort by pickNumber for consistent order
+        mergedPicks.sort((a, b) => (a.pickNumber || 0) - (b.pickNumber || 0));
+        state.picks = mergedPicks;
+      }
+      
       if (action.payload.timeRemaining !== undefined) state.timeRemaining = action.payload.timeRemaining;
       if (action.payload.countdownTime !== undefined) state.countdownTime = action.payload.countdownTime;
       if (action.payload.currentDrafter !== undefined) state.currentDrafter = action.payload.currentDrafter;
