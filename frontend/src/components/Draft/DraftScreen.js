@@ -1849,6 +1849,43 @@ const DraftScreen = ({ showToast }) => {
 
   // ==================== MOBILE HANDLERS ====================
   
+  // RESTORE PRE-SELECTION VISUAL from localStorage
+  // If we have no visual selection but localStorage has one (e.g. after reconnect),
+  // restore the highlight. This runs whenever mobileSelectedPlayer or playerBoard changes.
+  const preSelectRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!isMobile || mobileSelectedPlayer || !playerBoard || !roomId) {
+      // Reset the restored flag when we have a selection (so it can restore again after next disconnect)
+      if (mobileSelectedPlayer) preSelectRestoredRef.current = false;
+      return;
+    }
+    
+    // Only attempt restore once per reconnect cycle
+    if (preSelectRestoredRef.current) return;
+    
+    try {
+      const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
+      if (!savedPreSelect) return;
+      
+      const player = JSON.parse(savedPreSelect);
+      const boardPlayer = playerBoard[player.row]?.[player.col];
+      
+      // Only restore if the player hasn't been drafted
+      if (boardPlayer && !boardPlayer.drafted) {
+        console.log('📱 Restoring pre-selection visual from localStorage:', player.name);
+        preSelectRestoredRef.current = true;
+        mobileSelectPlayer(player, player.row, player.col);
+        // Dismiss the confirm modal - we just want the highlight, not the popup
+        setTimeout(() => dismissModal(), 50);
+      } else {
+        // Player was drafted, clean up localStorage
+        localStorage.removeItem(`preselect_${roomId}`);
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }, [isMobile, mobileSelectedPlayer, playerBoard, roomId, mobileSelectPlayer, dismissModal]);
+
   // Clear mobile selection when the selected player gets drafted by someone else
   // NOTE: Don't emit clear-pre-select here - backend will handle its own cleanup
   useEffect(() => {
