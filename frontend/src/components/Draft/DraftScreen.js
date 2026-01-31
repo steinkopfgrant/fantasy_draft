@@ -177,6 +177,19 @@ const DraftScreen = ({ showToast }) => {
     return sorted;
   }, [teams]);
 
+  // MEMOIZED: Read localStorage pre-selection once per render, not per cell
+  // This prevents 30+ localStorage reads per render cycle
+  const localStoragePreSelection = useMemo(() => {
+    if (!isMobile || mobileSelectedPlayer || !roomId) return null;
+    try {
+      const saved = localStorage.getItem(`preselect_${roomId}`);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+    return null;
+  }, [isMobile, mobileSelectedPlayer, roomId]);
+
   // FIXED: Standardize slot names to uppercase
   const standardizeSlotName = useCallback((slot) => {
     return (slot || '').toString().toUpperCase();
@@ -2546,22 +2559,11 @@ const DraftScreen = ({ showToast }) => {
                   : null;
                 
                 // Check if this is the mobile-selected player
-                // Also check localStorage for reconnect scenario when Redux state is empty
-                let isMobileSelected = isMobile && 
-                  mobileSelectedPlayer?.row === rowIndex && 
-                  mobileSelectedPlayer?.col === colIndex;
-                
-                if (isMobile && !mobileSelectedPlayer && roomId) {
-                  try {
-                    const saved = localStorage.getItem(`preselect_${roomId}`);
-                    if (saved) {
-                      const p = JSON.parse(saved);
-                      if (p.row === rowIndex && p.col === colIndex) {
-                        isMobileSelected = true;
-                      }
-                    }
-                  } catch (e) {}
-                }
+                // Uses memoized localStorage read to avoid 30+ reads per render
+                const isMobileSelected = isMobile && (
+                  (mobileSelectedPlayer?.row === rowIndex && mobileSelectedPlayer?.col === colIndex) ||
+                  (localStoragePreSelection?.row === rowIndex && localStoragePreSelection?.col === colIndex)
+                );
                 
                 return (
                   <div
