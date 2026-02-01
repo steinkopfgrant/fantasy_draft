@@ -481,25 +481,12 @@
     font-size: 0.6875rem;
   }
   
-  /* Mobile tooltip - hide prices, give more room to names */
   .roster-tooltip {
     min-width: 200px;
     padding: 0.75rem;
   }
   
-  /* MOBILE: 2-column layout - hide price, more room for name */
-  .roster-row {
-    grid-template-columns: 36px 1fr;
-  }
-  
-  .roster-row .player-name {
-    /* Keep on single line, truncate if needed */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  /* HIDE prices on mobile */
+  /* HIDE prices on mobile - gives more room for player names */
   .roster-row .player-price {
     display: none;
   }
