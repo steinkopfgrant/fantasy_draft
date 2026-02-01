@@ -33,7 +33,15 @@
   font-size: 1rem;
 }
 
-.contest-filters {
+.contests-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.filter-buttons {
   display: flex;
   gap: 0.5rem;
   background-color: #0a0e1b;
@@ -41,7 +49,7 @@
   border-radius: 8px;
 }
 
-.contest-filters button {
+.filter-buttons button {
   padding: 0.5rem 1.25rem;
   background-color: transparent;
   color: #8892b0;
@@ -53,14 +61,95 @@
   font-weight: 500;
 }
 
-.contest-filters button:hover {
+.filter-buttons button:hover {
   color: #ffffff;
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-.contest-filters button.active {
+.filter-buttons button.active {
   background-color: #00d4ff;
   color: #0a0e1b;
+}
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-control label {
+  color: #8892b0;
+  font-size: 0.875rem;
+}
+
+.sort-control select {
+  padding: 0.5rem 1rem;
+  background-color: #1a1f2e;
+  color: #ffffff;
+  border: 1px solid #2a2f3e;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.sort-control select:hover {
+  border-color: #00d4ff;
+}
+
+/* Player Search */
+.player-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.player-search input {
+  width: 100%;
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  background-color: #1a1f2e;
+  color: #ffffff;
+  border: 1px solid #2a2f3e;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.player-search input::placeholder {
+  color: #666;
+}
+
+.player-search input:focus {
+  outline: none;
+  border-color: #00d4ff;
+}
+
+.player-search .clear-search {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #8892b0;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.player-search .clear-search:hover {
+  color: #ffffff;
+}
+
+.search-results-info {
+  background-color: #1a1f2e;
+  border: 1px solid #00d4ff33;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: #00d4ff;
+  font-size: 0.875rem;
 }
 
 .my-contests-loading {
@@ -194,27 +283,27 @@
   letter-spacing: 0.5px;
 }
 
-.status-pending {
+.status-badge.pending {
   background-color: #ffaa44;
   color: #0a0e1b;
 }
 
-.status-drafting {
+.status-badge.drafting {
   background-color: #4444ff;
   color: #ffffff;
 }
 
-.status-completed {
+.status-badge.completed {
   background-color: #44ff44;
   color: #0a0e1b;
 }
 
-.status-cancelled {
+.status-badge.cancelled {
   background-color: #666666;
   color: #ffffff;
 }
 
-.status-live {
+.status-badge.live {
   background-color: #ff4444;
   color: #ffffff;
   animation: blink 1s infinite;
@@ -467,10 +556,163 @@
   font-size: 1.25rem;
 }
 
+/* Contest entry cards */
+.contest-entry {
+  background-color: #1a1f2e;
+  border: 1px solid #2a2f3e;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.contest-entry:hover {
+  border-color: #00d4ff33;
+  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.1);
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.entry-info h3 {
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+}
+
+.entry-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background-color: #0a0e1b;
+  border-radius: 6px;
+}
+
+.detail-label {
+  color: #8892b0;
+  font-size: 0.875rem;
+}
+
+.detail-value {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.detail-value.prize {
+  color: #44ff44;
+}
+
+.roster-summary {
+  background-color: #0a0e1b;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.roster-summary h4 {
+  color: #00d4ff;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.roster-summary .roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.roster-summary .roster-slot {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background-color: #1a1f2e;
+  border-radius: 6px;
+  border: none;
+}
+
+.roster-summary .slot-name {
+  color: #00d4ff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  min-width: 40px;
+}
+
+.roster-summary .player-name {
+  color: #ffffff;
+  font-size: 0.875rem;
+}
+
+.entry-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.action-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.875rem;
+}
+
+.action-button.rejoin {
+  background-color: #ffaa44;
+  color: #0a0e1b;
+}
+
+.action-button.rejoin:hover {
+  background-color: #ff9922;
+  transform: translateY(-2px);
+}
+
+.action-button.view {
+  background-color: #00d4ff;
+  color: #0a0e1b;
+}
+
+.action-button.view:hover {
+  background-color: #00a8cc;
+  transform: translateY(-2px);
+}
+
+.action-button:disabled {
+  background-color: #2a2f3e;
+  color: #666;
+  cursor: not-allowed;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .my-contests {
     padding: 1rem;
+  }
+
+  .contests-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .player-search {
+    max-width: none;
   }
 
   .contest-header {
@@ -488,11 +730,13 @@
     grid-template-columns: 1fr;
   }
 
-  .contest-actions {
+  .contest-actions,
+  .entry-actions {
     flex-direction: column;
   }
 
-  .action-btn {
+  .action-btn,
+  .action-button {
     width: 100%;
     justify-content: center;
   }

@@ -7,6 +7,7 @@ const MyContests = ({ user, onViewDraft, onRejoinDraft }) => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
+  const [playerSearch, setPlayerSearch] = useState('');
 
   useEffect(() => {
     fetchUserContests();
@@ -80,17 +81,36 @@ const MyContests = ({ user, onViewDraft, onRejoinDraft }) => {
       .reduce((total, player) => total + (player.price || 0), 0);
   };
 
+  // Check if roster contains a player matching the search
+  const rosterHasPlayer = (roster, searchTerm) => {
+    if (!roster || !searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return Object.values(roster).some(player => 
+      player?.name?.toLowerCase().includes(term)
+    );
+  };
+
   const filteredContests = contests.filter(contest => {
-    if (filter === 'all') return true;
-    if (filter === 'active') return contest.status === 'drafting' || contest.status === 'pending';
-    if (filter === 'completed') return contest.status === 'completed';
-    return contest.Contest?.type === filter;
+    // Status/type filter
+    let passesFilter = true;
+    if (filter === 'active') passesFilter = contest.status === 'drafting' || contest.status === 'pending';
+    else if (filter === 'completed') passesFilter = contest.status === 'completed';
+    else if (filter !== 'all') passesFilter = contest.Contest?.type === filter;
+    
+    // Player search filter
+    const passesPlayerSearch = rosterHasPlayer(contest.roster, playerSearch);
+    
+    return passesFilter && passesPlayerSearch;
   });
 
   const sortedContests = [...filteredContests].sort((a, b) => {
     switch (sortBy) {
       case 'date':
         return new Date(b.created_at) - new Date(a.created_at);
+      case 'contest':
+        const nameA = (a.Contest?.name || '').toLowerCase();
+        const nameB = (b.Contest?.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
       case 'status':
         return a.status.localeCompare(b.status);
       case 'type':
@@ -154,12 +174,33 @@ const MyContests = ({ user, onViewDraft, onRejoinDraft }) => {
           <label>Sort by:</label>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             <option value="date">Date</option>
+            <option value="contest">Contest Name</option>
             <option value="status">Status</option>
             <option value="type">Type</option>
             <option value="prize">Prize</option>
           </select>
         </div>
+
+        <div className="player-search">
+          <input
+            type="text"
+            placeholder="Search player (e.g. Ja'Marr Chase)"
+            value={playerSearch}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+          />
+          {playerSearch && (
+            <button className="clear-search" onClick={() => setPlayerSearch('')}>
+              ✕
+            </button>
+          )}
+        </div>
       </div>
+
+      {playerSearch && (
+        <div className="search-results-info">
+          Found {sortedContests.length} lineup{sortedContests.length !== 1 ? 's' : ''} with "{playerSearch}"
+        </div>
+      )}
 
       <div className="contests-list">
         {sortedContests.length === 0 ? (
