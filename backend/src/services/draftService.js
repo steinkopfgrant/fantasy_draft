@@ -347,7 +347,7 @@ class DraftService {
       currentDraft.picks.push({
         ...pick,
         teamIndex: currentTeamIndex,
-        pickNumber: currentDraft.currentTurn,
+        pickNumber: currentDraft.currentTurn + 1,
         timestamp: new Date().toISOString()
       });
       
@@ -524,7 +524,7 @@ class DraftService {
       
       draft.picks.push({
         teamIndex: currentTeamIndex,
-        pickNumber: draft.currentTurn,
+        pickNumber: draft.currentTurn + 1,
         skipped: true,
         reason: reason,
         timestamp: new Date().toISOString()
