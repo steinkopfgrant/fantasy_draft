@@ -481,85 +481,26 @@
     font-size: 0.6875rem;
   }
   
-  /* Mobile tooltip - more compact, no prices, full names */
+  /* Mobile tooltip - hide prices, give more room to names */
   .roster-tooltip {
-    min-width: 180px;
-    max-width: 85vw;
-    padding: 0.625rem;
-    /* Position tooltip more carefully on mobile */
-    left: 50% !important;
-    right: auto !important;
-    max-height: 70vh;
-    overflow-y: auto;
+    min-width: 200px;
+    padding: 0.75rem;
   }
   
-  .tooltip-header {
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.375rem;
-  }
-  
-  .tooltip-header .team-name {
-    font-size: 0.875rem;
-  }
-  
-  .tooltip-budget {
-    font-size: 0.75rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .tooltip-roster {
-    gap: 0.25rem;
-  }
-  
-  /* MOBILE: 2-column layout - slot and full player name, NO price */
+  /* MOBILE: 2-column layout - hide price, more room for name */
   .roster-row {
     grid-template-columns: 36px 1fr;
-    gap: 0.375rem;
-    padding: 0.3rem 0.4rem;
-    font-size: 0.75rem;
-  }
-  
-  .roster-row .slot-name {
-    font-size: 0.6875rem;
   }
   
   .roster-row .player-name {
-    font-size: 0.75rem;
-    /* Allow full name to show */
-    white-space: normal;
-    word-break: break-word;
+    /* Keep on single line, truncate if needed */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   /* HIDE prices on mobile */
   .roster-row .player-price {
     display: none;
-  }
-  
-  .tooltip-footer {
-    margin-top: 0.5rem;
-    padding-top: 0.375rem;
-    font-size: 0.6875rem;
-  }
-  
-  .you-badge {
-    font-size: 0.5625rem;
-    padding: 0.1rem 0.375rem;
-  }
-}
-
-/* Extra small screens */
-@media (max-width: 380px) {
-  .roster-tooltip {
-    min-width: 160px;
-    padding: 0.5rem;
-  }
-  
-  .roster-row {
-    grid-template-columns: 32px 1fr;
-    padding: 0.25rem 0.35rem;
-  }
-  
-  .tooltip-header .team-name {
-    font-size: 0.8125rem;
   }
 }
