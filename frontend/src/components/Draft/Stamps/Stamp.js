@@ -1,8 +1,8 @@
-// index.js
-// Export all stamp components
+// Stamp.js
+import MatrixStamp from './MatrixStamp';
+import GoldStamp from './GoldStamp';
 
-export { default as MatrixStamp } from './MatrixStamp';
-export { default as GoldStamp } from './GoldStamp';
+export { MatrixStamp, GoldStamp };
 
 // Stamp IDs for the backend/cosmetic system
 export const STAMP_IDS = {
@@ -20,6 +20,6 @@ export const getStampComponent = (stampId) => {
     case 'gold':
       return GoldStamp;
     default:
-      return null; // No stamp / default card
+      return null;
   }
 };
