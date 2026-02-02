@@ -2615,6 +2615,7 @@ const DraftScreen = ({ showToast }) => {
   
                       // If they have a stamp, render it
                       if (StampComponent) {
+                        console.log('🎨 RENDERING STAMP:', draftedByTeam?.equipped_stamp, 'for', player.name);
                        return (
                         <StampComponent
                           player={{
