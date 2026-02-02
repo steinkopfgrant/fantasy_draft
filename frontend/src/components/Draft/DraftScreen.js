@@ -2606,12 +2606,17 @@ const DraftScreen = ({ showToast }) => {
                     {isAutoSuggestion && (
                       <div className="suggestion-indicator">⭐ Best Pick</div>
                     )}
-                    {player.drafted && (() => {
-                      // Check if the drafter has a stamp equipped
-                      const draftedByTeam = teams?.[player.draftedBy];
-                      const StampComponent = draftedByTeam?.equipped_stamp 
-                       ? getStampComponent(draftedByTeam.equipped_stamp)
-                       : null;
+                  {player.drafted && (() => {
+  const draftedByTeam = teams?.[player.draftedBy];
+  console.log('🔍 STAMP DEBUG:', {
+    draftedBy: player.draftedBy,
+    draftedByTeam: draftedByTeam?.username,
+    equipped_stamp: draftedByTeam?.equipped_stamp,
+  });
+  const StampComponent = draftedByTeam?.equipped_stamp 
+    ? getStampComponent(draftedByTeam.equipped_stamp)
+    : null;
+  console.log('🔍 StampComponent:', StampComponent);
   
                       // If they have a stamp, render it
                       if (StampComponent) {
