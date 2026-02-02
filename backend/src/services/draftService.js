@@ -161,13 +161,23 @@ class DraftService {
     return playerBoard;
   }
   
-  async startDraft(contestId, entries, playerBoard) {
-    const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
-    const processedBoard = this.ensureStackedWRInBottomRight(playerBoard);
-    
-    // Fetch equipped_stamp for each user
-    const db = require('../models');
-    const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
+async startDraft(contestId, entries, playerBoard) {
+  const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
+  const processedBoard = this.ensureStackedWRInBottomRight(playerBoard);
+  
+  // DEBUG: Log what's in entries
+  console.log('🔍 ENTRIES DEBUG:', shuffledEntries.map(e => ({
+    id: e.id,
+    userId: e.userId,
+    user_id: e.user_id,
+    username: e.username,
+    keys: Object.keys(e)
+  })));
+  
+  // Fetch equipped_stamp for each user
+  const db = require('../models');
+  const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
+  // ... rest of code
     
     let userStamps = {};
     try {
