@@ -1,6 +1,7 @@
 // frontend/src/components/DraftBoard/DraftBoard.js
 import React, { useState, useEffect, useMemo } from 'react';
 import './DraftBoard.css';
+import { getStampComponent } from './Stamps';
 
 const DraftBoard = ({ 
   playerBoard, 

@@ -165,6 +165,24 @@ class DraftService {
     const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
     const processedBoard = this.ensureStackedWRInBottomRight(playerBoard);
     
+    // Fetch equipped_stamp for each user
+    const db = require('../models');
+    const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
+    
+    let userStamps = {};
+    try {
+      const users = await db.User.findAll({
+        where: { id: userIds },
+        attributes: ['id', 'equipped_stamp']
+      });
+      users.forEach(u => {
+        userStamps[u.id] = u.equipped_stamp;
+      });
+      console.log('🎨 Loaded equipped stamps:', userStamps);
+    } catch (err) {
+      console.error('⚠️ Could not load equipped stamps:', err.message);
+    }
+    
     const draftState = {
       contestId,
       playerBoard: processedBoard,
@@ -172,16 +190,20 @@ class DraftService {
       currentTurn: 0,
       draftOrder: this.createSnakeDraftOrder(shuffledEntries.length),
       picks: [],
-      teams: shuffledEntries.map((entry, index) => ({
-        entryId: entry.id,
-        userId: entry.userId || entry.user_id,
-        username: entry.username,
-        draftPosition: index, // IMPORTANT: Store draft position for consistent ordering
-        color: this.getTeamColor(index),
-        roster: { QB: null, RB: null, WR: null, TE: null, FLEX: null },
-        budget: 15,
-        bonus: 0
-      })),
+      teams: shuffledEntries.map((entry, index) => {
+        const oddsId = entry.userId || entry.user_id;
+        return {
+          entryId: entry.id,
+          userId: oddsId,
+          username: entry.username,
+          draftPosition: index, // IMPORTANT: Store draft position for consistent ordering
+          color: this.getTeamColor(index),
+          roster: { QB: null, RB: null, WR: null, TE: null, FLEX: null },
+          budget: 15,
+          bonus: 0,
+          equipped_stamp: userStamps[oddsId] || null
+        };
+      }),
       startTime: new Date().toISOString(),
       status: 'active'
     };
@@ -191,7 +213,8 @@ class DraftService {
       teamsType: typeof draftState.teams,
       teamsIsArray: Array.isArray(draftState.teams),
       teamsLength: draftState.teams.length,
-      entriesLength: entries.length
+      entriesLength: entries.length,
+      stamps: draftState.teams.map(t => ({ name: t.username, stamp: t.equipped_stamp }))
     });
     
     const key = `state:${contestId}`;

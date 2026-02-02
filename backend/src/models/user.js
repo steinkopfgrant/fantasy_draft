@@ -50,6 +50,14 @@ module.exports = (sequelize) => {
       }
     },
     
+    // Cosmetics - Equipped stamp frame
+    equipped_stamp: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Currently equipped stamp frame: beta_tester, cash_king, or null'
+    },
+    
     // Market Mover specific fields
     market_mover_votes_cast: {
       type: DataTypes.INTEGER,

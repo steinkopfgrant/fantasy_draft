@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { store } from '../../store/store';
 import axios from 'axios';
 import LiveDraftFeed from './LiveDraftFeed';
+import { getStampComponent } from './Stamps/Stamp';
 import {
   initializeDraft,
   joinDraftRoom,
@@ -2605,22 +2606,46 @@ const DraftScreen = ({ showToast }) => {
                     {isAutoSuggestion && (
                       <div className="suggestion-indicator">⭐ Best Pick</div>
                     )}
-                    {player.drafted && (
-                      <>
-                        {draftedByColor && (
+                    {player.drafted && (() => {
+                      // Check if the drafter has a stamp equipped
+                      const draftedByTeam = teams?.[player.draftedBy];
+                      const StampComponent = draftedByTeam?.equipped_stamp 
+                       ? getStampComponent(draftedByTeam.equipped_stamp)
+                       : null;
+  
+                      // If they have a stamp, render it
+                      if (StampComponent) {
+                       return (
+                        <StampComponent
+                          player={{
+                            name: player.name,
+                            team: player.team,
+                            position: player.position,
+                            price: player.price
+                          }} 
+                          pickNumber={player.pickNumber || getTeamPickNumber(player.draftedBy)}
+                          showDrafted={true}
+                        />
+                      );
+                     }
+  
+                     // Otherwise render the default game piece
+                     return (
+                       <>
+                         {draftedByColor && (
                           <div className={`game-piece ${draftedByColor}`}>
-                            <div className="piece-inner">
+                           <div className="piece-inner">
                               {player.pickNumber || getTeamPickNumber(player.draftedBy)}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {player.draftedToPosition && (
-                          <div className="drafted-position">{standardizeSlotName(player.draftedToPosition)}</div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                           </div>
+                         </div>
+                       )}
+                       {player.draftedToPosition && (
+                         <div className="drafted-position">{standardizeSlotName(player.draftedToPosition)}</div>
+                       )}
+                     </>
+                   );
+                 })}
+                 </div>
                 );
               })}
             </div>
