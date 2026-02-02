@@ -1,0 +1,62 @@
+.gold-stamp {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #b8860b 0%, #ffd700 50%, #b8860b 100%);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.gold-shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.crown-icon {
+  font-size: 20px;
+  position: absolute;
+  top: 4px;
+  animation: crown-bounce 1s ease-in-out infinite;
+}
+
+@keyframes crown-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.gold-stamp .stamp-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.gold-stamp .pick-number {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1a1a1a;
+  text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+
+.gold-stamp .drafted-label {
+  font-size: 10px;
+  color: #1a1a1a;
+  letter-spacing: 2px;
+  margin-top: 4px;
+  font-weight: bold;
+}
