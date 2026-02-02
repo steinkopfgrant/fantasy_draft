@@ -2650,7 +2650,7 @@ const DraftScreen = ({ showToast }) => {
                        )}
                      </>
                    );
-                 })}
+                 })()}
                  </div>
                 );
               })}
