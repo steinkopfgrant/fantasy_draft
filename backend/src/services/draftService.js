@@ -178,7 +178,7 @@ class DraftService {
       users.forEach(u => {
         userStamps[u.id] = u.equipped_stamp;
       });
-      console.log('🎨 Loaded equipped stamps:', userStamps);
+      console.log('🎨🎨🎨 STAMPS DEBUG - userIds:', userIds, 'stamps:', userStamps);
     } catch (err) {
       console.error('⚠️ Could not load equipped stamps:', err.message);
     }
