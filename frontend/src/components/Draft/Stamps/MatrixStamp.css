@@ -1,0 +1,70 @@
+.matrix-stamp {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.matrix-rain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  overflow: hidden;
+  opacity: 0.6;
+}
+
+.matrix-column {
+  display: flex;
+  flex-direction: column;
+  animation: matrix-fall 2s linear infinite;
+}
+
+.matrix-char {
+  color: #00ff00;
+  font-size: 10px;
+  font-family: monospace;
+  text-shadow: 0 0 5px #00ff00;
+  opacity: 0;
+  animation: char-fade 0.5s linear infinite;
+}
+
+@keyframes matrix-fall {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes char-fade {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.stamp-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.pick-number {
+  font-size: 24px;
+  font-weight: bold;
+  color: #00ff00;
+  text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+}
+
+.drafted-label {
+  font-size: 10px;
+  color: #00ff00;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
