@@ -15,7 +15,14 @@ const MatrixStamp = ({ player, pickNumber, showDrafted }) => {
           </div>
         ))}
       </div>
-      {showDrafted && <div className="matrix-drafted-label">DRAFTED</div>}
+      <div className="matrix-info-overlay">
+        {player?.name && <div className="matrix-player-name">{player.name}</div>}
+        {showDrafted && <div className="matrix-drafted-label">DRAFTED</div>}
+        <div className="matrix-player-details">
+          {player?.team && <span>{player.team} - ${player.price}</span>}
+          {player?.position && <span className="matrix-position-badge">{player.position}</span>}
+        </div>
+      </div>
     </div>
   );
 };

@@ -11,7 +11,14 @@ const GoldStamp = ({ player, pickNumber, showDrafted }) => {
         ))}
       </div>
       <div className="crown-icon">👑</div>
-      {showDrafted && <div className="gold-drafted-label">DRAFTED</div>}
+      <div className="gold-info-overlay">
+        {player?.name && <div className="gold-player-name">{player.name}</div>}
+        {showDrafted && <div className="gold-drafted-label">DRAFTED</div>}
+        <div className="gold-player-details">
+          {player?.team && <span>{player.team} - ${player.price}</span>}
+          {player?.position && <span className="gold-position-badge">{player.position}</span>}
+        </div>
+      </div>
     </div>
   );
 };
