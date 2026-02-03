@@ -1445,9 +1445,6 @@ const DraftScreen = ({ showToast }) => {
                   false,
         timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
-
-// Force immediate state refresh to get equipped_stamp for stamps
-      requestDraftState();
     };
 
     const handlePickSuccess = (data) => {
@@ -1505,8 +1502,7 @@ const DraftScreen = ({ showToast }) => {
  timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
 
-      // Force immediate state refresh to get equipped_stamp for stamps
-      requestDraftState();
+
     };
 
     const handleDraftCountdown = (data) => {
