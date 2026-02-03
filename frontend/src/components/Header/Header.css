@@ -28,6 +28,7 @@
   background-clip: text;
   text-decoration: none;
   letter-spacing: -0.5px;
+  flex-shrink: 0;
 }
 
 .logo:hover {
@@ -41,7 +42,7 @@
   gap: 0.5rem;
 }
 
-/* Nav Button Style - BidBlitz gradient background */
+/* Nav Button Style */
 .nav-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -69,7 +70,7 @@
   box-shadow: 0 2px 8px rgba(240, 147, 251, 0.4);
 }
 
-/* Voting button - slightly different accent */
+/* Voting button */
 .nav-btn-voting {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
@@ -89,7 +90,7 @@
   border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* User Stats Bar with Add Funds Button */
+/* User Stats Bar */
 .user-stats-bar {
   display: flex;
   align-items: center;
@@ -142,7 +143,7 @@
   background: rgba(74, 222, 128, 0.1);
 }
 
-/* Tickets display inside stats bar */
+/* Tickets display */
 .user-stats-bar .tickets-display {
   display: flex;
   align-items: center;
@@ -194,59 +195,202 @@
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
-/* Mobile Responsive */
-@media (max-width: 900px) {
-  .header-container {
-    flex-wrap: wrap;
+/* ============================================
+   MOBILE ELEMENTS - Hidden on desktop
+   ============================================ */
+
+.mobile-header-right {
+  display: none;
+}
+
+.nav-mobile-auth {
+  display: none;
+}
+
+.mobile-menu {
+  display: none;
+}
+
+/* Hamburger button */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 8px;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.hamburger:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hamburger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.hamburger-open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ============================================
+   MOBILE BREAKPOINT
+   ============================================ */
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0.6rem 1rem;
   }
-  
-  .nav {
-    flex-wrap: wrap;
+
+  .header-container {
+    flex-wrap: nowrap;
+  }
+
+  .logo {
+    font-size: 1.3rem;
+  }
+
+  /* Hide desktop nav on mobile */
+  .nav-desktop {
+    display: none;
+  }
+
+  /* Show mobile elements */
+  .mobile-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .nav-mobile-auth {
+    display: flex;
     gap: 0.4rem;
   }
-  
-  .nav-btn {
+
+  .nav-mobile-auth .nav-btn {
     padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
   }
-  
-  .user-info {
-    border-left: none;
-    padding-left: 0;
-    margin-left: 0;
-    width: 100%;
-    justify-content: flex-end;
-    margin-top: 0.5rem;
-  }
-}
 
-@media (max-width: 600px) {
-  .header {
-    padding: 0.5rem 1rem;
+  .hamburger {
+    display: flex;
   }
-  
-  .logo {
-    font-size: 1.4rem;
+
+  /* Mobile stats bar - compact */
+  .mobile-stats {
+    border-radius: 8px;
   }
-  
-  .nav-btn {
-    padding: 0.35rem 0.6rem;
-    font-size: 0.8rem;
+
+  .mobile-stats .add-funds-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
   }
-  
-  .add-funds-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 1.3rem;
-  }
-  
-  .user-stats-bar .balance,
-  .user-stats-bar .tickets-display {
-    padding: 0.4rem 0.5rem;
+
+  .mobile-stats .balance {
+    padding: 0.35rem 0.5rem;
     font-size: 0.85rem;
   }
-  
-  .username {
-    display: none;
+
+  .mobile-stats .tickets-display {
+    padding: 0.35rem 0.5rem;
+  }
+
+  .mobile-stats .tickets-icon {
+    font-size: 0.85rem;
+  }
+
+  .mobile-stats .tickets-count {
+    font-size: 0.85rem;
+  }
+
+  /* Mobile dropdown menu */
+  .mobile-menu {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 0.5rem;
+  }
+
+  .mobile-menu-open {
+    max-height: 500px;
+    padding: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 0.5rem;
+  }
+
+  .mobile-menu-item {
+    display: block;
+    padding: 0.75rem 1rem;
+    color: #ccd6f6;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    transition: background 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mobile-menu-item:hover,
+  .mobile-menu-item:active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .mobile-menu-active {
+    background: rgba(102, 126, 234, 0.15);
+    color: #667eea;
+  }
+
+  .mobile-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 0.4rem 0;
+  }
+
+  .mobile-menu-user {
+    padding: 0.5rem 1rem;
+  }
+
+  .mobile-menu-username {
+    color: #8892b0;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .mobile-menu-logout {
+    color: #ef4444;
+    font-weight: 600;
+  }
+
+  .mobile-menu-logout:hover,
+  .mobile-menu-logout:active {
+    background: rgba(239, 68, 68, 0.1);
   }
 }
