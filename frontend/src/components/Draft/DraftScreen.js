@@ -1373,18 +1373,6 @@ const DraftScreen = ({ showToast }) => {
           if (idx !== -1) resolvedTeamIndex = idx;
         }
       }
-      if (resolvedTeamIndex === undefined) {
-  const pickedUserId = data.userId || data.user_id;
-  if (pickedUserId && teams) {
-    const idx = teams.findIndex(t => getUserId(t) === pickedUserId);
-    if (idx !== -1) resolvedTeamIndex = idx;
-  }
-}
-// NEW: fallback to event payload teams (always populated from Redis)
-if (resolvedTeamIndex === undefined && data.teams) {
-  const idx = data.teams.findIndex(t => t.userId === data.userId);
-  if (idx !== -1) resolvedTeamIndex = idx;
-}
       console.log('🔍 Resolved teamIndex:', resolvedTeamIndex, 'from:', { teamIndex: data.teamIndex, draftPosition: data.draftPosition, userId: data.userId });
 
       // CRITICAL: Update player board to mark as drafted
