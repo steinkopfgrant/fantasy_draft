@@ -46,31 +46,39 @@ const DefaultPreview = ({ isSelected }) => (
   <div style={{
     width: '100%',
     height: '100%',
-    background: '#2a3040',
+    background: '#1a1f2e',
     borderRadius: '8px',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
     border: isSelected ? '2px solid #00d4ff' : '2px solid #3a3f4e',
     transition: 'border-color 0.3s',
     padding: '12px 10px',
+    opacity: 0.85,
   }}>
-    {/* Position badge top-right */}
+    {/* Game piece badge top-right */}
     <div style={{ 
       position: 'absolute', 
       top: '6px', 
       right: '6px', 
-      background: '#44cc44', 
-      color: '#fff', 
-      fontSize: '8px', 
-      fontWeight: '800', 
-      padding: '2px 5px', 
-      borderRadius: '4px' 
+      width: '20px',
+      height: '20px',
+      background: 'linear-gradient(135deg, #10B981, #059669)',
+      border: '2px solid #047857',
+      borderRadius: '50%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '9px',
+      fontWeight: '700',
+      color: '#fff',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+      zIndex: 10,
     }}>
-      QB
+      1
     </div>
     
     {/* Player name */}
@@ -78,26 +86,62 @@ const DefaultPreview = ({ isSelected }) => (
       color: '#ccd6f6', 
       fontWeight: '600', 
       fontSize: '13px', 
-      marginTop: '4px',
       textAlign: 'center',
+      zIndex: 5,
     }}>
       Josh Allen
     </div>
     
-    {/* Drafted overlay */}
+    {/* Red angled DRAFTED overlay */}
     <div style={{ 
-      color: '#8892b0', 
-      fontSize: '10px', 
-      letterSpacing: '2px',
-      fontWeight: '700',
-      opacity: 0.6,
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%) rotate(-20deg)',
+      color: 'red',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      opacity: 0.7,
+      zIndex: 10,
+      letterSpacing: '0.5px',
     }}>
       DRAFTED
     </div>
     
     {/* Team info */}
-    <div style={{ color: '#8892b0', fontSize: '10px' }}>
+    <div style={{ color: '#8892b0', fontSize: '10px', zIndex: 5 }}>
       BUF - $5
+    </div>
+
+    {/* Matchup text bottom-left */}
+    <div style={{
+      position: 'absolute',
+      bottom: '4px',
+      left: '6px',
+      fontSize: '8px',
+      color: '#6b7280',
+      fontWeight: '500',
+      zIndex: 5,
+    }}>
+      @ PIT
+    </div>
+
+    {/* Position badge bottom-right */}
+    <div style={{
+      position: 'absolute',
+      bottom: '4px',
+      right: '4px',
+      padding: '2px 5px',
+      borderRadius: '3px',
+      fontSize: '8px',
+      fontWeight: 'bold',
+      color: 'white',
+      background: 'rgba(0,0,0,0.85)',
+      zIndex: 5,
+      textTransform: 'uppercase',
+      letterSpacing: '0.3px',
+    }}>
+      QB
     </div>
   </div>
 );
