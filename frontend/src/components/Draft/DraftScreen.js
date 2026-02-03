@@ -1361,6 +1361,20 @@ const DraftScreen = ({ showToast }) => {
         timestamp: data.timestamp || new Date().toISOString()
       }));
       
+// CRITICAL: Resolve teamIndex robustly - fallback to userId lookup
+      let resolvedTeamIndex = data.teamIndex;
+      if (resolvedTeamIndex === undefined && data.draftPosition !== undefined) {
+        resolvedTeamIndex = data.draftPosition;
+      }
+      if (resolvedTeamIndex === undefined) {
+        const pickedUserId = data.userId || data.user_id;
+        if (pickedUserId && teams) {
+          const idx = teams.findIndex(t => getUserId(t) === pickedUserId);
+          if (idx !== -1) resolvedTeamIndex = idx;
+        }
+      }
+      console.log('🔍 Resolved teamIndex:', resolvedTeamIndex, 'from:', { teamIndex: data.teamIndex, draftPosition: data.draftPosition, userId: data.userId });
+
       // CRITICAL: Update player board to mark as drafted
       if (data.row !== undefined && data.col !== undefined) {
         dispatch(updatePlayerBoardCell({
@@ -1368,10 +1382,12 @@ const DraftScreen = ({ showToast }) => {
           col: data.col,
           updates: {
             drafted: true,
-            draftedBy: data.teamIndex !== undefined ? data.teamIndex : data.draftPosition,
+            draftedBy: resolvedTeamIndex,
             draftedAtTurn: data.currentTurn || currentTurn,
             pickNumber: pickNumber,
-            draftedToPosition: data.roster_slot || data.slot || data.position
+            draftedToPosition: data.roster_slot || data.slot || data.position,
+            // Store equipped_stamp directly on cell for first-render timing
+            equippedStamp: teams?.[resolvedTeamIndex]?.equipped_stamp || data.equipped_stamp || null
           }
         }));
       }
@@ -2607,14 +2623,21 @@ const DraftScreen = ({ showToast }) => {
                       <div className="suggestion-indicator">⭐ Best Pick</div>
                     )}
                   {player.drafted && (() => {
-  const draftedByTeam = teams?.[player.draftedBy];
+  // Fallback: use draftedByColor to find team index if draftedBy is undefined
+let teamIndex = player.draftedBy;
+if (teamIndex === undefined && draftedByColor) {
+  const colorMap = { green: 0, red: 1, blue: 2, yellow: 3, purple: 4 };
+  teamIndex = colorMap[draftedByColor];
+}
+const draftedByTeam = teams?.[teamIndex];
   console.log('🔍 STAMP DEBUG:', {
     draftedBy: player.draftedBy,
     draftedByTeam: draftedByTeam?.username,
     equipped_stamp: draftedByTeam?.equipped_stamp,
   });
-  const StampComponent = draftedByTeam?.equipped_stamp 
-    ? getStampComponent(draftedByTeam.equipped_stamp)
+const stampId = draftedByTeam?.equipped_stamp || player.equippedStamp;
+  const StampComponent = stampId 
+    ? getStampComponent(stampId)
     : null;
   console.log('🔍 StampComponent:', StampComponent);
   
