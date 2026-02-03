@@ -388,4 +388,154 @@ router.get('/admin/reconcile', authMiddleware, adminMiddleware, async (req, res)
     }
 });
 
+// ==================== COSMETICS ENDPOINTS ====================
+
+// Helper: Check if a stamp is unlocked for a user
+async function isStampUnlocked(user, stampId) {
+    // Default is always unlocked
+    if (!stampId) return true;
+    
+    // If currently equipped, it's unlocked
+    if (user.equipped_stamp === stampId) return true;
+    
+    // Check unlocked_badges array (we store stamp unlocks here)
+    if (user.unlocked_badges && user.unlocked_badges.includes(stampId)) return true;
+    
+    // Additional unlock logic can go here:
+    // - beta_tester: check if user registered before beta end date
+    // - gold: check if user has most cash game wins or MM tournament win
+    
+    return false;
+}
+
+// Get user's cosmetics (equipped items + unlocked items)
+router.get('/cosmetics', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id || req.user.userId;
+        const user = await db.User.findByPk(userId, {
+            attributes: ['id', 'equipped_stamp', 'unlocked_avatars', 'unlocked_badges', 'selected_avatar', 'selected_badge']
+        });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Build unlocked stamps list
+        const unlockedStamps = new Set();
+        
+        // If currently equipped, it's unlocked
+        if (user.equipped_stamp) {
+            unlockedStamps.add(user.equipped_stamp);
+        }
+        
+        // Check unlocked_badges array for stamp grants
+        if (user.unlocked_badges && Array.isArray(user.unlocked_badges)) {
+            user.unlocked_badges.forEach(badge => {
+                if (['beta_tester', 'gold'].includes(badge)) {
+                    unlockedStamps.add(badge);
+                }
+            });
+        }
+        
+        res.json({
+            equipped_stamp: user.equipped_stamp || null,
+            unlocked_stamps: [...unlockedStamps],
+            selected_avatar: user.selected_avatar || null,
+            selected_badge: user.selected_badge || null,
+        });
+    } catch (error) {
+        console.error('Error fetching cosmetics:', error);
+        res.status(500).json({ error: 'Failed to fetch cosmetics' });
+    }
+});
+
+// Update user's equipped cosmetics
+router.put('/cosmetics', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id || req.user.userId;
+        const { equipped_stamp, selected_avatar } = req.body;
+        
+        const user = await db.User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate stamp selection
+        const validStamps = [null, 'beta_tester', 'gold'];
+        if (equipped_stamp !== undefined) {
+            if (!validStamps.includes(equipped_stamp)) {
+                return res.status(400).json({ error: 'Invalid stamp selection' });
+            }
+            
+            // Check if user has unlocked this stamp (null = default, always allowed)
+            if (equipped_stamp !== null) {
+                const unlocked = await isStampUnlocked(user, equipped_stamp);
+                if (!unlocked) {
+                    return res.status(403).json({ error: 'Stamp not unlocked' });
+                }
+            }
+            
+            user.equipped_stamp = equipped_stamp;
+        }
+
+        if (selected_avatar !== undefined) {
+            user.selected_avatar = selected_avatar;
+        }
+
+        await user.save();
+        
+        console.log(`🎨 User ${user.username} equipped stamp: ${equipped_stamp || 'default'}`);
+        
+        res.json({
+            success: true,
+            equipped_stamp: user.equipped_stamp || null,
+            selected_avatar: user.selected_avatar || null,
+        });
+    } catch (error) {
+        console.error('Error updating cosmetics:', error);
+        res.status(500).json({ error: 'Failed to update cosmetics' });
+    }
+});
+
+// Admin: Grant a stamp to a user
+router.post('/admin/grant-stamp', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const { targetUserId, stampId } = req.body;
+        
+        if (!targetUserId || !stampId) {
+            return res.status(400).json({ error: 'targetUserId and stampId required' });
+        }
+        
+        const validStamps = ['beta_tester', 'gold'];
+        if (!validStamps.includes(stampId)) {
+            return res.status(400).json({ error: 'Invalid stamp ID' });
+        }
+        
+        const targetUser = await db.User.findByPk(targetUserId);
+        if (!targetUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Add to unlocked_badges if not already there
+        const currentBadges = targetUser.unlocked_badges || [];
+        if (!currentBadges.includes(stampId)) {
+            targetUser.unlocked_badges = [...currentBadges, stampId];
+            await targetUser.save();
+        }
+        
+        const adminUserId = req.user.id || req.user.userId;
+        console.log(`🎁 Admin ${adminUserId} granted stamp '${stampId}' to user ${targetUser.username}`);
+        
+        res.json({
+            success: true,
+            username: targetUser.username,
+            stampId,
+            unlocked_badges: targetUser.unlocked_badges,
+        });
+    } catch (error) {
+        console.error('Error granting stamp:', error);
+        res.status(500).json({ error: 'Failed to grant stamp' });
+    }
+});
+
 module.exports = router;

@@ -26,6 +26,7 @@ import RulesPage from './components/Rules/RulesPage';
 import PoolsPage from './components/Pools/PoolsPage';
 import DepositPage from './components/Wallet/DepositPage';
 import WithdrawalPage from './components/Wallet/WithdrawalPage';
+import CosmeticsPage from './components/Cosmetics/CosmeticsPage';
 
 // Helper to check if user is admin (handles both role and is_admin flag)
 const isUserAdmin = (user) => {
@@ -278,6 +279,13 @@ const AppContent = () => {
           <Route path="/teams" element={
             <ProtectedRoute>
               <TeamsPage />
+            </ProtectedRoute>
+          } />
+
+          {/* Cosmetics page */}
+          <Route path="/cosmetics" element={
+            <ProtectedRoute>
+              <CosmeticsPage />
             </ProtectedRoute>
           } />
 

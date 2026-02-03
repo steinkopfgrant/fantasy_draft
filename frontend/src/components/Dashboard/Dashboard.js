@@ -260,6 +260,33 @@ const Dashboard = ({ showToast }) => {
             >
               🎱 Player Pools
             </button>
+
+            {/* COSMETICS BUTTON */}
+            <button 
+              onClick={() => navigate('/cosmetics')}
+              style={{ 
+                width: '100%',
+                padding: '1rem',
+                background: 'linear-gradient(135deg, #00d4ff 0%, #0099cc 100%)',
+                color: '#0a0e1b',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 10px rgba(0, 212, 255, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.boxShadow = '0 4px 20px rgba(0, 212, 255, 0.5)';
+                e.target.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.boxShadow = '0 2px 10px rgba(0, 212, 255, 0.3)';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              ✨ Cosmetics
+            </button>
             
             {/* ADMIN PANEL BUTTON - Only shows for specific user */}
             {user?.username === 'aaaaaa' && (
