@@ -1387,7 +1387,7 @@ const DraftScreen = ({ showToast }) => {
             pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position,
             // Store equipped_stamp directly on cell for first-render timing
-            equippedStamp: teams?.[resolvedTeamIndex]?.equipped_stamp || data.equipped_stamp || null
+            equippedStamp: data.teams?.[resolvedTeamIndex]?.equipped_stamp || teams?.[resolvedTeamIndex]?.equipped_stamp || null
           }
         }));
       }
@@ -1429,7 +1429,7 @@ const DraftScreen = ({ showToast }) => {
         console.log('📝 Skipping roster update for own pick (already optimistically updated)');
       }
       
-      // Update draft state
+// Update draft state
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,
         currentPick: data.currentPick || (data.currentTurn + 1),
@@ -1439,6 +1439,9 @@ const DraftScreen = ({ showToast }) => {
                   false,
         timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
+
+      // Force immediate state refresh to get equipped_stamp for stamps
+      requestDraftState();
     };
 
     const handlePickSuccess = (data) => {
@@ -1493,8 +1496,11 @@ const DraftScreen = ({ showToast }) => {
         isMyTurn: (data.nextPlayer && getUserId(data.nextPlayer) === currentUserId) || 
                   (data.nextDrafter && getUserId(data.nextDrafter) === currentUserId) || 
                   false,
-        timeRemaining: data.timeLimit || data.timeRemaining || 30
+ timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
+
+      // Force immediate state refresh to get equipped_stamp for stamps
+      requestDraftState();
     };
 
     const handleDraftCountdown = (data) => {
