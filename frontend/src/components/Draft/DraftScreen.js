@@ -1366,10 +1366,11 @@ const DraftScreen = ({ showToast }) => {
       if (resolvedTeamIndex === undefined && data.draftPosition !== undefined) {
         resolvedTeamIndex = data.draftPosition;
       }
-      if (resolvedTeamIndex === undefined) {
+if (resolvedTeamIndex === undefined) {
         const pickedUserId = data.userId || data.user_id;
-        if (pickedUserId && teams) {
-          const idx = teams.findIndex(t => getUserId(t) === pickedUserId);
+        const liveTeams = store.getState().draft.teams;
+        if (pickedUserId && liveTeams) {
+          const idx = liveTeams.findIndex(t => getUserId(t) === pickedUserId);
           if (idx !== -1) resolvedTeamIndex = idx;
         }
       }
@@ -1393,7 +1394,7 @@ const DraftScreen = ({ showToast }) => {
             pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position,
             // Store equipped_stamp directly on cell for first-render timing
-            equippedStamp: eventTeamForStamp?.equipped_stamp || teams?.[resolvedTeamIndex]?.equipped_stamp || null
+       equippedStamp: eventTeamForStamp?.equipped_stamp || store.getState().draft.teams?.[resolvedTeamIndex]?.equipped_stamp || null
           }
         }));
       }
