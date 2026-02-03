@@ -200,14 +200,15 @@
 
 @media (max-width: 768px) {
   .header {
-    padding: 0.35rem 0.25rem;
+    padding: 0.3rem 0.25rem;
   }
 
   .header-container {
     gap: 0;
+    align-items: flex-start;
   }
 
-  /* Hide logo, admin, emoji, username on mobile */
+  /* Hide logo, admin, emoji, username, tickets on mobile */
   .logo {
     display: none;
   }
@@ -224,7 +225,11 @@
     display: none;
   }
 
-  /* Single row, no wrap, all items aligned */
+  .user-stats-bar .tickets-display {
+    display: none;
+  }
+
+  /* Nav: single row, top-aligned */
   .nav {
     flex-wrap: nowrap;
     gap: 3px;
@@ -232,7 +237,7 @@
     align-items: flex-start;
   }
 
-  /* Nav buttons: same height as + button (26px) */
+  /* Nav buttons: 26px tall */
   .nav-btn {
     padding: 0 7px;
     font-size: 11px;
@@ -243,7 +248,7 @@
     align-items: center;
   }
 
-  /* User info: column for stats + logout underneath */
+  /* User info: no extra spacing, stacks stats + logout */
   .user-info {
     gap: 0;
     margin-left: 3px;
@@ -254,11 +259,12 @@
     align-items: stretch;
   }
 
-  /* Stats bar: transparent bg, keep border between sections */
+  /* Stats bar: transparent, inline with nav */
   .user-stats-bar {
     border-radius: 5px;
     background: none;
     border: none;
+    height: 26px;
   }
 
   .add-funds-btn {
@@ -270,38 +276,22 @@
   }
 
   .user-stats-bar .balance {
-    padding: 0 5px;
+    padding: 0 6px;
     font-size: 11px;
     height: 26px;
     display: flex;
     align-items: center;
     border-left: none;
-    border-right: 1px solid rgba(255, 255, 255, 0.15);
+    border-right: none;
   }
 
-  .user-stats-bar .tickets-display {
-    padding: 0 8px 0 5px;
-    gap: 2px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-  }
-
-  .user-stats-bar .tickets-icon {
-    font-size: 10px;
-  }
-
-  .user-stats-bar .tickets-count {
-    font-size: 11px;
-  }
-
-  /* Logout: thin red bar underneath */
+  /* Logout: thin red bar underneath stats */
   .logout-btn {
     width: 100%;
-    height: 14px;
+    height: 16px;
     padding: 0;
-    margin: 0;
-    border-radius: 0 0 4px 4px;
+    margin-top: 2px;
+    border-radius: 3px;
     font-size: 8px;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -309,7 +299,7 @@
     align-items: center;
     justify-content: center;
     background: #dc2626;
-    opacity: 0.8;
+    opacity: 0.85;
     transform: none;
     box-shadow: none;
   }
@@ -336,18 +326,13 @@
     font-size: 12px;
   }
 
+  .user-stats-bar {
+    height: 24px;
+  }
+
   .user-stats-bar .balance {
     padding: 0 4px;
     font-size: 10px;
     height: 24px;
-  }
-
-  .user-stats-bar .tickets-display {
-    padding: 0 6px 0 4px;
-    height: 24px;
-  }
-
-  .user-stats-bar .tickets-count {
-    font-size: 10px;
   }
 }
