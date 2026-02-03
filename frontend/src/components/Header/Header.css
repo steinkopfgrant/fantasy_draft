@@ -229,7 +229,7 @@
     display: none;
   }
 
-  /* Nav: single row, top-aligned */
+  /* Nav: single row */
   .nav {
     flex-wrap: nowrap;
     gap: 3px;
@@ -248,7 +248,7 @@
     align-items: center;
   }
 
-  /* User info: no extra spacing, stacks stats + logout */
+  /* User info stacks stats + logout */
   .user-info {
     gap: 0;
     margin-left: 3px;
@@ -259,19 +259,20 @@
     align-items: stretch;
   }
 
-  /* Stats bar: transparent, inline with nav */
+  /* Stats bar: bordered, header-matching bg */
   .user-stats-bar {
-    border-radius: 5px;
-    background: none;
-    border: none;
     height: 26px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    overflow: hidden;
   }
 
   .add-funds-btn {
     width: 26px;
     height: 26px;
     font-size: 14px;
-    border-radius: 5px;
+    border-radius: 0;
     border-right: 1px solid rgba(255, 255, 255, 0.15);
   }
 
