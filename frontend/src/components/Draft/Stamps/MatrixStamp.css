@@ -1,242 +1,121 @@
-/* MatrixStamp.css */
-/* Beta Tester stamp - Matrix rain effect */
-
-.matrix-stamp-frame {
+.matrix-stamp {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: #000;
-  border: 2px solid #00ff41;
-  border-radius: 12px;
-  box-shadow: 
-    0 0 20px rgba(0, 255, 65, 0.3),
-    inset 0 0 30px rgba(0, 255, 65, 0.1);
+  border-radius: 8px;
   overflow: hidden;
+  border: 1px solid rgba(0, 255, 65, 0.4);
+  box-shadow: inset 0 0 15px rgba(0, 255, 65, 0.1);
+  z-index: 5;
 }
 
 .matrix-rain {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: space-around;
   overflow: hidden;
-  border-radius: 10px;
-  opacity: 0.4;
+  opacity: 0.35;
   pointer-events: none;
 }
 
 .matrix-column {
-  position: absolute;
-  top: -100%;
-  font-family: 'Courier New', monospace;
-  font-size: 10px;
-  color: #00ff41;
-  text-shadow: 0 0 8px #00ff41;
-  writing-mode: vertical-rl;
-  white-space: nowrap;
-  animation: matrix-fall linear infinite;
+  display: flex;
+  flex-direction: column;
+  animation: matrix-fall 2.5s linear infinite;
 }
 
-.matrix-column:nth-child(1) { left: 5%; animation-duration: 2.5s; animation-delay: 0s; }
-.matrix-column:nth-child(2) { left: 15%; animation-duration: 3s; animation-delay: 0.5s; }
-.matrix-column:nth-child(3) { left: 25%; animation-duration: 2.8s; animation-delay: 1s; }
-.matrix-column:nth-child(4) { left: 35%; animation-duration: 3.2s; animation-delay: 0.3s; }
-.matrix-column:nth-child(5) { left: 45%; animation-duration: 2.6s; animation-delay: 0.8s; }
-.matrix-column:nth-child(6) { left: 55%; animation-duration: 3.1s; animation-delay: 0.2s; }
-.matrix-column:nth-child(7) { left: 65%; animation-duration: 2.9s; animation-delay: 0.7s; }
-.matrix-column:nth-child(8) { left: 75%; animation-duration: 2.7s; animation-delay: 1.2s; }
-.matrix-column:nth-child(9) { left: 85%; animation-duration: 3.3s; animation-delay: 0.4s; }
-.matrix-column:nth-child(10) { left: 95%; animation-duration: 2.4s; animation-delay: 0.9s; }
+.matrix-char {
+  color: #00ff41;
+  font-size: 8px;
+  font-family: monospace;
+  text-shadow: 0 0 4px #00ff41;
+  opacity: 0;
+  animation: char-fade 0.5s linear infinite;
+  line-height: 1;
+}
 
 @keyframes matrix-fall {
-  0% {
-    top: -100%;
-    opacity: 1;
-  }
-  100% {
-    top: 100%;
-    opacity: 0.3;
-  }
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
 }
 
-.matrix-drafted-text {
+@keyframes char-fade {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.8; }
+}
+
+/* Name - top center */
+.matrix-player-name {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #00ff41;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 0 6px #00ff41, 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 2;
+  white-space: nowrap;
+}
+
+/* DRAFTED - center */
+.matrix-drafted-label {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: 'Impact', 'Arial Black', sans-serif;
-  font-size: 24px;
+  font-size: 14px;
   font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  z-index: 10;
   color: #00ff41;
-  text-shadow: 
-    0 0 10px #00ff41,
-    0 0 20px #00ff41,
-    0 0 30px #00ff41,
-    2px 2px 0 #000,
-    -2px -2px 0 #000;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-shadow: 0 0 8px #00ff41, 0 0 16px rgba(0, 255, 65, 0.5);
   animation: matrix-glow 1.5s infinite alternate;
+  z-index: 2;
 }
 
-@keyframes matrix-glow {
-  0% { opacity: 0.9; filter: brightness(1); }
-  100% { opacity: 1; filter: brightness(1.2); }
-}
-
-/* Desktop: name on one line */
-.matrix-player-name {
+/* Team - $Price - bottom center */
+.matrix-team-price {
   position: absolute;
-  top: 10px;
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 14px;
-  font-weight: 600;
   color: #00ff41;
-  text-shadow: 0 0 5px #00ff41, 0 2px 4px rgba(0,0,0,0.8);
-  z-index: 10;
+  font-size: 10px;
+  text-shadow: 0 0 4px #00ff41;
+  z-index: 2;
   white-space: nowrap;
 }
 
-/* Desktop: show names inline */
-.matrix-player-name .stamp-first-name::after {
-  content: ' ';
-}
-
-.matrix-player-name .stamp-last-name {
-  /* inline by default on desktop */
-}
-
-.matrix-player-info {
+/* Matchup - bottom left */
+.matrix-matchup {
   position: absolute;
-  bottom: 10px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
+  bottom: 8px;
+  left: 8px;
   color: #00ff41;
-  text-shadow: 0 0 5px #00ff41, 0 1px 3px rgba(0,0,0,0.8);
-  z-index: 10;
+  font-size: 10px;
+  text-shadow: 0 0 4px #00ff41;
+  z-index: 2;
 }
 
-.matrix-player-position {
-  background: rgba(0, 255, 65, 0.2);
+/* Position - bottom right */
+.matrix-position {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0, 255, 65, 0.15);
   border: 1px solid rgba(0, 255, 65, 0.3);
   padding: 2px 6px;
   border-radius: 4px;
-}
-
-.matrix-pick-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(135deg, #00ff41, #00aa2a);
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
   font-weight: 700;
-  color: #000;
-  z-index: 10;
+  font-size: 10px;
+  color: #00ff41;
+  z-index: 2;
 }
 
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  .matrix-column,
-  .matrix-drafted-text {
-    animation: none;
-  }
-}
-
-/* ============================================
-   MOBILE: Refit stamp to match card size
-   ============================================ */
-@media (max-width: 768px) {
-  .matrix-stamp-frame {
-    border-radius: 8px;
-    border-width: 1px;
-    box-shadow: 
-      0 0 8px rgba(0, 255, 65, 0.2),
-      inset 0 0 10px rgba(0, 255, 65, 0.05);
-  }
-
-  /* Hide position badge and team/price info on mobile */
-  .matrix-player-info {
-    display: none;
-  }
-
-  /* Stacked name: first name small on top, last name bigger below */
-  .matrix-player-name {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0px;
-    line-height: 1.1;
-    white-space: nowrap;
-    margin-top: -8px;
-  }
-
-  .matrix-player-name .stamp-first-name {
-    display: block;
-    font-size: 9px;
-    font-weight: 500;
-    opacity: 0.85;
-  }
-
-  .matrix-player-name .stamp-first-name::after {
-    content: '';
-  }
-
-  .matrix-player-name .stamp-last-name {
-    display: block;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-  }
-
-  /* Smaller DRAFTED text below the name */
-  .matrix-drafted-text {
-    font-size: 10px;
-    letter-spacing: 1px;
-    top: auto;
-    bottom: 6px;
-    left: 50%;
-    transform: translateX(-50%);
-    text-shadow: 
-      0 0 6px #00ff41,
-      0 0 10px #00ff41,
-      1px 1px 0 #000,
-      -1px -1px 0 #000;
-  }
-
-  /* Smaller pick badge */
-  .matrix-pick-badge {
-    width: 18px;
-    height: 18px;
-    font-size: 9px;
-    top: 3px;
-    right: 3px;
-  }
-
-  /* Slow down animations for battery */
-  .matrix-column {
-    animation-duration: 4s !important;
-    font-size: 7px;
-  }
-
-  .matrix-rain {
-    opacity: 0.3;
-  }
+@keyframes matrix-glow {
+  0% { opacity: 0.85; }
+  100% { opacity: 1; filter: brightness(1.15); }
 }
