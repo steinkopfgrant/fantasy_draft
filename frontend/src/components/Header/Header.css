@@ -248,7 +248,7 @@
     align-items: center;
   }
 
-  /* User info stacks stats + logout */
+  /* User info: completely transparent, no box */
   .user-info {
     gap: 0;
     margin-left: 3px;
@@ -257,23 +257,24 @@
     flex-shrink: 0;
     flex-direction: column;
     align-items: stretch;
+    background: none;
   }
 
-  /* Stats bar: bordered, header-matching bg */
+  /* Stats bar: NO background, NO border — sits directly on header */
   .user-stats-bar {
     height: 26px;
-    border-radius: 5px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    overflow: hidden;
+    border-radius: 0;
+    background: none !important;
+    border: none !important;
+    box-shadow: none;
+    overflow: visible;
   }
 
   .add-funds-btn {
     width: 26px;
     height: 26px;
     font-size: 14px;
-    border-radius: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
   }
 
   .user-stats-bar .balance {
@@ -282,11 +283,11 @@
     height: 26px;
     display: flex;
     align-items: center;
-    border-left: none;
-    border-right: none;
+    border: none;
+    background: none;
   }
 
-  /* Logout: thin red bar underneath stats */
+  /* Logout: thin red bar underneath */
   .logout-btn {
     width: 100%;
     height: 16px;
