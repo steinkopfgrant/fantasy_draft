@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { selectAuthUser } from '../../store/slices/authSlice';
+import axios from 'axios';
 
 // ============================================
 // STAMP DEFINITIONS
@@ -407,29 +408,18 @@ const CosmeticsPage = () => {
     setToast(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/users/cosmetics', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ equipped_stamp: stampId }),
-      });
+      const res = await axios.put('/api/users/cosmetics', { equipped_stamp: stampId });
 
-      if (res.ok) {
-        const data = await res.json();
-        setEquippedStamp(data.equipped_stamp || null);
+      if (res.data) {
+        setEquippedStamp(res.data.equipped_stamp || null);
         
         const stampName = STAMPS.find(s => s.id === stampId)?.name || 'Default';
         setToast({ type: 'success', message: `${stampName} stamp equipped!` });
-      } else {
-        const err = await res.json();
-        setToast({ type: 'error', message: err.error || 'Failed to equip stamp' });
       }
     } catch (err) {
       console.error('Failed to equip stamp:', err);
-      setToast({ type: 'error', message: 'Network error. Please try again.' });
+      const message = err.response?.data?.error || 'Network error. Please try again.';
+      setToast({ type: 'error', message });
     } finally {
       setSaving(false);
       setTimeout(() => setToast(null), 3000);
@@ -439,21 +429,16 @@ const CosmeticsPage = () => {
   useEffect(() => {
     const fetchUnlocked = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/users/cosmetics', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const set = new Set([null]); // Default always unlocked
-          if (data.unlocked_stamps) {
-            data.unlocked_stamps.forEach(s => set.add(s));
-          }
-          // Also add equipped (it must be unlocked if equipped)
-          if (data.equipped_stamp) set.add(data.equipped_stamp);
-          setUnlockedStamps(set);
-          setEquippedStamp(data.equipped_stamp || null);
+        const res = await axios.get('/api/users/cosmetics');
+        const data = res.data;
+        const set = new Set([null]); // Default always unlocked
+        if (data.unlocked_stamps) {
+          data.unlocked_stamps.forEach(s => set.add(s));
         }
+        // Also add equipped (it must be unlocked if equipped)
+        if (data.equipped_stamp) set.add(data.equipped_stamp);
+        setUnlockedStamps(set);
+        setEquippedStamp(data.equipped_stamp || null);
       } catch (err) {
         console.error('Failed to fetch unlocked stamps:', err);
       }
