@@ -1,15 +1,12 @@
 .gold-stamp {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 12, 2, 0.75);
+  background: linear-gradient(135deg, #1a1505, #0d0a02);
   border-radius: 8px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
   border: 1px solid rgba(255, 215, 0, 0.5);
   box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.1);
+  z-index: 5;
 }
 
 .gold-shimmer {
@@ -66,28 +63,25 @@
   50% { transform: translateX(-50%) translateY(-2px); }
 }
 
-/* Player info overlay */
-.gold-info-overlay {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  padding: 6px 8px;
-}
-
+/* Positioned to match original card text locations */
 .gold-player-name {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -70%);
   color: #ffd700;
   font-size: 13px;
   font-weight: 600;
   text-shadow: 0 0 6px rgba(255, 215, 0, 0.5), 0 1px 3px rgba(0,0,0,0.8);
-  margin-bottom: 2px;
+  z-index: 2;
+  white-space: nowrap;
 }
 
 .gold-drafted-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 10%);
   font-family: 'Impact', 'Arial Black', sans-serif;
   font-size: 14px;
   font-weight: bold;
@@ -96,16 +90,22 @@
   text-transform: uppercase;
   text-shadow: 0 0 8px #ffd700, 0 0 16px rgba(255, 215, 0, 0.4);
   animation: gold-pulse 2s infinite;
-  margin-bottom: 2px;
+  z-index: 2;
 }
 
-.gold-player-details {
+.gold-player-bottom {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 6px;
   color: #daa520;
   font-size: 10px;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 2;
+  white-space: nowrap;
 }
 
 .gold-position-badge {
