@@ -15,15 +15,11 @@ const MatrixStamp = ({ player, pickNumber, showDrafted }) => {
           </div>
         ))}
       </div>
-      {/* Text positioned to match original card layout exactly */}
       {player?.name && <div className="matrix-player-name">{player.name}</div>}
       {showDrafted && <div className="matrix-drafted-label">DRAFTED</div>}
-      {player?.team && (
-        <div className="matrix-player-bottom">
-          <span>{player.team} - ${player.price}</span>
-          {player?.position && <span className="matrix-position-badge">{player.position}</span>}
-        </div>
-      )}
+      {player?.team && <div className="matrix-team-price">{player.team} - ${player.price}</div>}
+      {player?.matchup && <div className="matrix-matchup">{player.matchup}</div>}
+      {player?.position && <div className="matrix-position">{player.position}</div>}
     </div>
   );
 };

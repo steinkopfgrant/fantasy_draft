@@ -63,12 +63,12 @@
   50% { transform: translateX(-50%) translateY(-2px); }
 }
 
-/* Positioned to match original card text locations */
+/* Name - top center */
 .gold-player-name {
   position: absolute;
-  top: 50%;
+  top: 12px;
   left: 50%;
-  transform: translate(-50%, -70%);
+  transform: translateX(-50%);
   color: #ffd700;
   font-size: 13px;
   font-weight: 600;
@@ -77,11 +77,12 @@
   white-space: nowrap;
 }
 
+/* DRAFTED - center */
 .gold-drafted-label {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, 10%);
+  transform: translate(-50%, -50%);
   font-family: 'Impact', 'Arial Black', sans-serif;
   font-size: 14px;
   font-weight: bold;
@@ -93,14 +94,12 @@
   z-index: 2;
 }
 
-.gold-player-bottom {
+/* Team - $Price - bottom center */
+.gold-team-price {
   position: absolute;
   bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
   color: #daa520;
   font-size: 10px;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
@@ -108,13 +107,30 @@
   white-space: nowrap;
 }
 
-.gold-position-badge {
+/* Matchup - bottom left */
+.gold-matchup {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: #daa520;
+  font-size: 10px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 2;
+}
+
+/* Position - bottom right */
+.gold-position {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
   background: rgba(255, 215, 0, 0.15);
   border: 1px solid rgba(255, 215, 0, 0.3);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10px;
   color: #ffd700;
+  z-index: 2;
 }
 
 @keyframes gold-pulse {

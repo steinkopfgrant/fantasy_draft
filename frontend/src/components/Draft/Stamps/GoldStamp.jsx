@@ -13,12 +13,9 @@ const GoldStamp = ({ player, pickNumber, showDrafted }) => {
       <div className="crown-icon">👑</div>
       {player?.name && <div className="gold-player-name">{player.name}</div>}
       {showDrafted && <div className="gold-drafted-label">DRAFTED</div>}
-      {player?.team && (
-        <div className="gold-player-bottom">
-          <span>{player.team} - ${player.price}</span>
-          {player?.position && <span className="gold-position-badge">{player.position}</span>}
-        </div>
-      )}
+      {player?.team && <div className="gold-team-price">{player.team} - ${player.price}</div>}
+      {player?.matchup && <div className="gold-matchup">{player.matchup}</div>}
+      {player?.position && <div className="gold-position">{player.position}</div>}
     </div>
   );
 };

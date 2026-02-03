@@ -45,12 +45,12 @@
   50% { opacity: 0.8; }
 }
 
-/* Positioned to match original card text locations */
+/* Name - top center */
 .matrix-player-name {
   position: absolute;
-  top: 50%;
+  top: 12px;
   left: 50%;
-  transform: translate(-50%, -70%);
+  transform: translateX(-50%);
   color: #00ff41;
   font-size: 13px;
   font-weight: 600;
@@ -59,11 +59,12 @@
   white-space: nowrap;
 }
 
+/* DRAFTED - center */
 .matrix-drafted-label {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, 10%);
+  transform: translate(-50%, -50%);
   font-family: 'Impact', 'Arial Black', sans-serif;
   font-size: 14px;
   font-weight: bold;
@@ -75,14 +76,12 @@
   z-index: 2;
 }
 
-.matrix-player-bottom {
+/* Team - $Price - bottom center */
+.matrix-team-price {
   position: absolute;
   bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
   color: #00ff41;
   font-size: 10px;
   text-shadow: 0 0 4px #00ff41;
@@ -90,12 +89,30 @@
   white-space: nowrap;
 }
 
-.matrix-position-badge {
+/* Matchup - bottom left */
+.matrix-matchup {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: #00ff41;
+  font-size: 10px;
+  text-shadow: 0 0 4px #00ff41;
+  z-index: 2;
+}
+
+/* Position - bottom right */
+.matrix-position {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
   background: rgba(0, 255, 65, 0.15);
   border: 1px solid rgba(0, 255, 65, 0.3);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10px;
+  color: #00ff41;
+  z-index: 2;
 }
 
 @keyframes matrix-glow {
