@@ -41,7 +41,7 @@
   gap: 0.5rem;
 }
 
-/* Nav Button Style - BidBlitz gradient background */
+/* Nav Button Style */
 .nav-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -69,7 +69,7 @@
   box-shadow: 0 2px 8px rgba(240, 147, 251, 0.4);
 }
 
-/* Voting button - slightly different accent */
+/* Voting button */
 .nav-btn-voting {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
@@ -89,7 +89,7 @@
   border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* User Stats Bar with Add Funds Button */
+/* User Stats Bar */
 .user-stats-bar {
   display: flex;
   align-items: center;
@@ -142,7 +142,7 @@
   background: rgba(74, 222, 128, 0.1);
 }
 
-/* Tickets display inside stats bar */
+/* Tickets display */
 .user-stats-bar .tickets-display {
   display: flex;
   align-items: center;
@@ -229,7 +229,7 @@
     flex-wrap: nowrap;
     gap: 3px;
     width: 100%;
-    align-items: center;
+    align-items: flex-start;
   }
 
   /* Compact nav buttons */
@@ -243,20 +243,21 @@
     align-items: center;
   }
 
-  /* User info inline, no border */
+  /* User info: column layout for stats + logout underneath */
   .user-info {
     gap: 0;
     margin-left: 3px;
     padding-left: 0;
     border-left: none;
     flex-shrink: 0;
-    position: relative;
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  /* Stats bar: invisible background, matches header */
+  /* Stats bar: fully transparent, no border */
   .user-stats-bar {
     border-radius: 5px;
-    background: transparent;
+    background: none;
     border: none;
   }
 
@@ -287,37 +288,30 @@
     font-size: 11px;
   }
 
-  /* Logout: thin red line under the stats bar, expands on hover */
+  /* Logout: thin red bar underneath the stats */
   .logout-btn {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    height: 3px;
+    width: 100%;
+    height: 14px;
     padding: 0;
-    margin-top: 2px;
+    margin: 0;
     border-radius: 0 0 4px 4px;
-    font-size: 0;
-    color: transparent;
-    overflow: hidden;
-    transition: all 0.25s ease;
-    background: #ef4444;
-    opacity: 0.6;
-    z-index: 10;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #dc2626;
+    opacity: 0.8;
+    transform: none;
+    box-shadow: none;
   }
 
   .logout-btn:hover,
   .logout-btn:active {
-    height: 24px;
-    font-size: 10px;
-    color: white;
-    padding: 4px 0;
-    opacity: 1;
     transform: none;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    box-shadow: none;
+    opacity: 1;
   }
 }
 
