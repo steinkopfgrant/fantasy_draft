@@ -128,12 +128,12 @@ const Header = () => {
                 to="/market-mover" 
                 className={`nav-btn nav-btn-voting ${isActive('/market-mover') ? 'nav-btn-active' : ''}`}
               >
-                📈 Voting
+                <span className="nav-btn-emoji">📈 </span>Voting
               </Link>
               {(user?.role === 'admin' || user?.is_admin) && (
                 <Link 
                   to="/admin" 
-                  className={`nav-btn ${isActive('/admin') ? 'nav-btn-active' : ''}`}
+                  className={`nav-btn nav-btn-admin ${isActive('/admin') ? 'nav-btn-active' : ''}`}
                 >
                   Admin
                 </Link>

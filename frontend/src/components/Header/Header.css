@@ -195,7 +195,7 @@
 }
 
 /* ============================================
-   MOBILE - Compact single-row layout
+   MOBILE
    ============================================ */
 
 @media (max-width: 768px) {
@@ -209,6 +209,21 @@
 
   /* Hide logo on mobile */
   .logo {
+    display: none;
+  }
+
+  /* Hide admin button on mobile */
+  .nav-btn-admin {
+    display: none;
+  }
+
+  /* Hide voting emoji on mobile */
+  .nav-btn-emoji {
+    display: none;
+  }
+
+  /* Hide username on mobile */
+  .username {
     display: none;
   }
 
@@ -226,20 +241,18 @@
     white-space: nowrap;
   }
 
-  /* Hide logout and username on mobile */
+  /* Compact logout on mobile */
   .logout-btn {
-    display: none;
-  }
-
-  .username {
-    display: none;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
   }
 
   /* Compact user info */
   .user-info {
-    gap: 0;
+    gap: 0.3rem;
     margin-left: 0.3rem;
-    padding-left: 0.3rem;
+    padding-left: 0;
     border-left: none;
   }
 
@@ -276,6 +289,11 @@
 /* Extra small screens */
 @media (max-width: 400px) {
   .nav-btn {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  .logout-btn {
     padding: 0.3rem 0.4rem;
     font-size: 0.7rem;
   }
