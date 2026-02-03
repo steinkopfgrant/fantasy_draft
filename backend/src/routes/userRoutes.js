@@ -413,7 +413,7 @@ router.get('/cosmetics', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id || req.user.userId;
         const user = await db.User.findByPk(userId, {
-            attributes: ['id', 'equipped_stamp', 'unlocked_avatars', 'unlocked_badges', 'selected_avatar', 'selected_badge']
+            attributes: ['id', 'equipped_stamp', 'unlocked_avatars', 'unlocked_badges', 'selected_avatar', 'selected_badge', 'is_admin', 'role']
         });
         
         if (!user) {
@@ -422,6 +422,12 @@ router.get('/cosmetics', authMiddleware, async (req, res) => {
 
         // Build unlocked stamps list
         const unlockedStamps = new Set();
+        
+        // Admin users get everything unlocked
+        if (user.is_admin || user.role === 'admin') {
+            unlockedStamps.add('beta_tester');
+            unlockedStamps.add('gold');
+        }
         
         // If currently equipped, it's unlocked
         if (user.equipped_stamp) {
@@ -468,7 +474,8 @@ router.put('/cosmetics', authMiddleware, async (req, res) => {
             }
             
             // Check if user has unlocked this stamp (null = default, always allowed)
-            if (equipped_stamp !== null) {
+            // Admin users can equip any stamp
+            if (equipped_stamp !== null && !user.is_admin && user.role !== 'admin') {
                 const unlocked = await isStampUnlocked(user, equipped_stamp);
                 if (!unlocked) {
                     return res.status(403).json({ error: 'Stamp not unlocked' });

@@ -12,33 +12,30 @@ const STAMPS = [
     id: null,
     name: 'Default',
     description: 'The classic BidBlitz drafted card. Clean and simple.',
-    rarity: 'common',
     unlockMethod: 'Available to all players',
     alwaysUnlocked: true,
+    color: '#00d4ff',
+    glow: 'rgba(0, 212, 255, 0.3)',
   },
   {
     id: 'beta_tester',
     name: 'Matrix',
     description: 'Green rain cascading through the digital void. OG status.',
-    rarity: 'rare',
     unlockMethod: 'Awarded to beta testers',
     alwaysUnlocked: false,
+    color: '#00ff41',
+    glow: 'rgba(0, 255, 65, 0.3)',
   },
   {
     id: 'gold',
     name: 'Gold',
     description: 'The ultimate flex. Shimmer and floating particles mark true dominance.',
-    rarity: 'legendary',
-    unlockMethod: 'Most Cash Game wins in a season, or 1st place in Market Mover tournament',
+    unlockMethod: 'Most Cash Game wins per season, or 1st place in Market Mover tournament',
     alwaysUnlocked: false,
+    color: '#ffd700',
+    glow: 'rgba(255, 215, 0, 0.3)',
   },
 ];
-
-const RARITY_COLORS = {
-  common: { color: '#8892b0', glow: 'rgba(136, 146, 176, 0.3)', label: 'COMMON' },
-  rare: { color: '#00ff41', glow: 'rgba(0, 255, 65, 0.3)', label: 'RARE' },
-  legendary: { color: '#ffd700', glow: 'rgba(255, 215, 0, 0.3)', label: 'LEGENDARY' },
-};
 
 // ============================================
 // MINI STAMP PREVIEW COMPONENTS
@@ -48,36 +45,63 @@ const DefaultPreview = ({ isSelected }) => (
   <div style={{
     width: '100%',
     height: '100%',
-    background: '#1a2035',
+    background: '#2a3040',
     borderRadius: '8px',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
-    border: isSelected ? '2px solid #00d4ff' : '2px solid #2a2f3e',
+    border: isSelected ? '2px solid #00d4ff' : '2px solid #3a3f4e',
     transition: 'border-color 0.3s',
+    padding: '12px 10px',
   }}>
-    <div style={{ color: '#ccd6f6', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}>
+    {/* Position badge top-right */}
+    <div style={{ 
+      position: 'absolute', 
+      top: '6px', 
+      right: '6px', 
+      background: '#44cc44', 
+      color: '#fff', 
+      fontSize: '8px', 
+      fontWeight: '800', 
+      padding: '2px 5px', 
+      borderRadius: '4px' 
+    }}>
+      QB
+    </div>
+    
+    {/* Player name */}
+    <div style={{ 
+      color: '#ccd6f6', 
+      fontWeight: '600', 
+      fontSize: '13px', 
+      marginTop: '4px',
+      textAlign: 'center',
+    }}>
       Josh Allen
     </div>
+    
+    {/* Drafted overlay */}
     <div style={{ 
       color: '#8892b0', 
-      fontSize: '11px', 
+      fontSize: '10px', 
       letterSpacing: '2px',
-      fontWeight: '600',
+      fontWeight: '700',
+      opacity: 0.6,
     }}>
       DRAFTED
     </div>
-    <div style={{ color: '#8892b0', fontSize: '10px', marginTop: '6px' }}>
+    
+    {/* Team info */}
+    <div style={{ color: '#8892b0', fontSize: '10px' }}>
       BUF - $5
     </div>
   </div>
 );
 
 const MatrixPreview = ({ isSelected }) => {
-  // Matrix rain characters
   const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
   const columns = 8;
   
@@ -96,7 +120,6 @@ const MatrixPreview = ({ isSelected }) => {
       border: isSelected ? '2px solid #00ff41' : '2px solid #0a3d0a',
       transition: 'border-color 0.3s',
     }}>
-      {/* Matrix rain columns */}
       {Array.from({ length: columns }).map((_, i) => (
         <div
           key={i}
@@ -124,7 +147,6 @@ const MatrixPreview = ({ isSelected }) => {
         </div>
       ))}
       
-      {/* Content */}
       <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
         <div style={{ color: '#00ff41', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textShadow: '0 0 8px rgba(0,255,65,0.6)' }}>
           Josh Allen
@@ -161,7 +183,6 @@ const GoldPreview = ({ isSelected }) => (
     border: isSelected ? '2px solid #ffd700' : '2px solid #4a3800',
     transition: 'border-color 0.3s',
   }}>
-    {/* Shimmer effect */}
     <div style={{
       position: 'absolute',
       top: 0,
@@ -173,7 +194,6 @@ const GoldPreview = ({ isSelected }) => (
       pointerEvents: 'none',
     }} />
     
-    {/* Floating particles */}
     {Array.from({ length: 6 }).map((_, i) => (
       <div
         key={i}
@@ -193,7 +213,6 @@ const GoldPreview = ({ isSelected }) => (
       />
     ))}
     
-    {/* Content */}
     <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
       <div style={{ color: '#ffd700', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textShadow: '0 0 8px rgba(255,215,0,0.5)' }}>
         Josh Allen
@@ -225,7 +244,6 @@ const PREVIEW_MAP = {
 // ============================================
 const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
   const [hovered, setHovered] = useState(false);
-  const rarity = RARITY_COLORS[stamp.rarity];
   const PreviewComponent = PREVIEW_MAP[stamp.id] || DefaultPreview;
   
   return (
@@ -235,17 +253,17 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
       style={{
         position: 'relative',
         background: isEquipped 
-          ? `linear-gradient(135deg, rgba(${stamp.rarity === 'legendary' ? '255,215,0' : stamp.rarity === 'rare' ? '0,255,65' : '0,212,255'},0.08) 0%, #1a1f2e 100%)`
+          ? `linear-gradient(135deg, ${stamp.color}14 0%, #1a1f2e 100%)`
           : '#1a1f2e',
         border: isEquipped 
-          ? `2px solid ${rarity.color}` 
+          ? `2px solid ${stamp.color}` 
           : `2px solid ${hovered && isUnlocked ? '#3a3f4e' : '#2a2f3e'}`,
         borderRadius: '16px',
         padding: '20px',
         transition: 'all 0.3s ease',
         transform: hovered && isUnlocked ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: isEquipped
-          ? `0 0 20px ${rarity.glow}, 0 8px 32px rgba(0,0,0,0.3)`
+          ? `0 0 20px ${stamp.glow}, 0 8px 32px rgba(0,0,0,0.3)`
           : hovered && isUnlocked
             ? '0 8px 24px rgba(0,0,0,0.3)'
             : '0 2px 8px rgba(0,0,0,0.2)',
@@ -261,14 +279,14 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
           position: 'absolute',
           top: '-10px',
           right: '-10px',
-          background: rarity.color,
+          background: stamp.color,
           color: '#0a0e1b',
           fontSize: '10px',
           fontWeight: '800',
           padding: '4px 10px',
           borderRadius: '20px',
           letterSpacing: '1px',
-          boxShadow: `0 2px 10px ${rarity.glow}`,
+          boxShadow: `0 2px 10px ${stamp.glow}`,
           zIndex: 5,
         }}>
           EQUIPPED
@@ -299,51 +317,37 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
         <PreviewComponent isSelected={isEquipped} />
       </div>
 
-      {/* Stamp info */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <h3 style={{ 
-          color: isUnlocked ? '#ccd6f6' : '#556677',
-          margin: 0, 
-          fontSize: '16px', 
-          fontWeight: '700',
-        }}>
-          {stamp.name}
-        </h3>
-        <span style={{
-          fontSize: '9px',
-          fontWeight: '800',
-          letterSpacing: '1.5px',
-          color: rarity.color,
-          opacity: isUnlocked ? 1 : 0.5,
-        }}>
-          {rarity.label}
-        </span>
-      </div>
+      {/* Stamp name */}
+      <h3 style={{ 
+        color: isUnlocked ? '#ccd6f6' : '#556677',
+        margin: '0 0 8px 0', 
+        fontSize: '16px', 
+        fontWeight: '700',
+      }}>
+        {stamp.name}
+      </h3>
       
+      {/* Description */}
       <p style={{ 
         color: isUnlocked ? '#8892b0' : '#445566',
-        margin: '0 0 12px 0', 
+        margin: '0 0 4px 0', 
         fontSize: '12px', 
         lineHeight: '1.5',
       }}>
         {stamp.description}
       </p>
 
-      {/* Unlock method */}
-      {!isUnlocked && (
-        <div style={{
-          background: 'rgba(255,255,255,0.03)',
-          borderRadius: '8px',
-          padding: '8px 12px',
-          marginTop: '8px',
+      {/* Unlock method - always shown for non-default stamps */}
+      {stamp.id !== null && (
+        <p style={{ 
+          color: isUnlocked ? '#667788' : '#445566',
+          margin: '4px 0 0 0', 
+          fontSize: '11px', 
+          lineHeight: '1.4',
+          fontStyle: 'italic',
         }}>
-          <div style={{ fontSize: '10px', color: '#556677', fontWeight: '600', marginBottom: '2px' }}>
-            HOW TO UNLOCK
-          </div>
-          <div style={{ fontSize: '11px', color: '#667788', lineHeight: '1.4' }}>
-            {stamp.unlockMethod}
-          </div>
-        </div>
+          {stamp.unlockMethod}
+        </p>
       )}
 
       {/* Equip button (for unlocked, non-equipped stamps) */}
@@ -358,9 +362,9 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
             width: '100%',
             marginTop: '12px',
             padding: '8px',
-            background: 'rgba(0, 212, 255, 0.1)',
-            color: '#00d4ff',
-            border: '1px solid rgba(0, 212, 255, 0.3)',
+            background: `${stamp.color}18`,
+            color: stamp.color,
+            border: `1px solid ${stamp.color}50`,
             borderRadius: '8px',
             fontWeight: '600',
             fontSize: '12px',
@@ -370,13 +374,13 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
           }}
           onMouseEnter={(e) => {
             if (!saving) {
-              e.target.style.background = 'rgba(0, 212, 255, 0.2)';
-              e.target.style.borderColor = 'rgba(0, 212, 255, 0.6)';
+              e.target.style.background = `${stamp.color}30`;
+              e.target.style.borderColor = `${stamp.color}90`;
             }
           }}
           onMouseLeave={(e) => {
-            e.target.style.background = 'rgba(0, 212, 255, 0.1)';
-            e.target.style.borderColor = 'rgba(0, 212, 255, 0.3)';
+            e.target.style.background = `${stamp.color}18`;
+            e.target.style.borderColor = `${stamp.color}50`;
           }}
         >
           {saving ? 'Saving...' : 'Equip'}
@@ -597,7 +601,6 @@ const CosmeticsPage = () => {
           gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
           gap: '20px',
         }}>
-          {/* Avatars placeholder */}
           <div style={{
             background: '#1a1f2e',
             border: '2px dashed #2a2f3e',
@@ -613,7 +616,6 @@ const CosmeticsPage = () => {
             </p>
           </div>
           
-          {/* Emotes placeholder */}
           <div style={{
             background: '#1a1f2e',
             border: '2px dashed #2a2f3e',
@@ -629,7 +631,6 @@ const CosmeticsPage = () => {
             </p>
           </div>
           
-          {/* Board Themes placeholder */}
           <div style={{
             background: '#1a1f2e',
             border: '2px dashed #2a2f3e',
