@@ -1,139 +1,320 @@
-.gold-stamp {
+/* GoldStamp.css */
+/* Cash King stamp - Gold shimmer with floating particles */
+
+.gold-stamp-frame {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(135deg, #1a1505, #0d0a02);
-  border-radius: 8px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #1a1505 0%, #0d0a02 100%);
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 215, 0, 0.5);
-  box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.1);
-  z-index: 5;
 }
 
-.gold-shimmer {
+/* Animated gold border */
+.gold-stamp-frame::before {
+  content: '';
   position: absolute;
-  top: 0; left: -100%; width: 100%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.15), transparent);
-  animation: gold-shimmer 2.5s infinite;
-  pointer-events: none;
-}
-@keyframes gold-shimmer {
-  0% { left: -100%; }
-  100% { left: 100%; }
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  background: linear-gradient(
+    90deg,
+    #ffd700, #ffec8b, #ffd700, #b8860b, #ffd700
+  );
+  background-size: 400% 100%;
+  border-radius: 14px;
+  z-index: -1;
+  animation: gold-shimmer 3s linear infinite;
 }
 
+@keyframes gold-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Inner glow */
+.gold-stamp-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 215, 0, 0.1) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  border-radius: 12px;
+}
+
+/* Crown icon */
+.gold-crown {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  z-index: 20;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  animation: crown-bob 2s infinite ease-in-out;
+}
+
+@keyframes crown-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-3px); }
+}
+
+/* Floating particles container */
 .gold-particles {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
+  border-radius: 10px;
   pointer-events: none;
 }
+
 .gold-particle {
   position: absolute;
-  width: 3px; height: 3px;
+  width: 4px;
+  height: 4px;
   background: #ffd700;
   border-radius: 50%;
   opacity: 0;
-  animation: gold-float-up 3s infinite;
-  box-shadow: 0 0 4px #ffd700;
-}
-.gold-particle:nth-child(1) { left: 10%; }
-.gold-particle:nth-child(2) { left: 25%; }
-.gold-particle:nth-child(3) { left: 45%; }
-.gold-particle:nth-child(4) { left: 60%; }
-.gold-particle:nth-child(5) { left: 75%; }
-.gold-particle:nth-child(6) { left: 90%; }
-
-@keyframes gold-float-up {
-  0% { bottom: -5px; opacity: 0; transform: scale(0); }
-  20% { opacity: 0.7; transform: scale(1); }
-  80% { opacity: 0.5; }
-  100% { bottom: 100%; opacity: 0; transform: scale(0.3); }
+  animation: float-up 3s infinite;
+  box-shadow: 0 0 6px #ffd700;
 }
 
-.crown-icon {
-  position: absolute;
-  top: 2px; left: 50%;
-  transform: translateX(-50%);
-  font-size: 12px;
-  z-index: 2;
-  animation: crown-bob 2s ease-in-out infinite;
-}
-@keyframes crown-bob {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-2px); }
+.gold-particle:nth-child(1) { left: 10%; animation-delay: 0s; }
+.gold-particle:nth-child(2) { left: 25%; animation-delay: 0.5s; }
+.gold-particle:nth-child(3) { left: 40%; animation-delay: 1s; }
+.gold-particle:nth-child(4) { left: 55%; animation-delay: 1.5s; }
+.gold-particle:nth-child(5) { left: 70%; animation-delay: 0.3s; }
+.gold-particle:nth-child(6) { left: 85%; animation-delay: 0.8s; }
+.gold-particle:nth-child(7) { left: 15%; animation-delay: 1.2s; }
+.gold-particle:nth-child(8) { left: 60%; animation-delay: 0.6s; }
+
+@keyframes float-up {
+  0% {
+    bottom: -10px;
+    opacity: 0;
+    transform: scale(0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    bottom: 100%;
+    opacity: 0;
+    transform: scale(0.5);
+  }
 }
 
-/* Name - top center */
-.gold-player-name {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #ffd700;
-  font-size: 13px;
-  font-weight: 600;
-  text-shadow: 0 0 6px rgba(255, 215, 0, 0.5), 0 1px 3px rgba(0,0,0,0.8);
-  z-index: 2;
-  white-space: nowrap;
-}
-
-/* DRAFTED - center */
-.gold-drafted-label {
+.gold-drafted-text {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: 'Impact', 'Arial Black', sans-serif;
-  font-size: 14px;
+  font-size: 24px;
   font-weight: bold;
-  color: #ffd700;
-  letter-spacing: 3px;
   text-transform: uppercase;
-  text-shadow: 0 0 8px #ffd700, 0 0 16px rgba(255, 215, 0, 0.4);
-  animation: gold-pulse 2s infinite;
-  z-index: 2;
-}
-
-/* Team - $Price - bottom center */
-.gold-team-price {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #daa520;
-  font-size: 10px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  z-index: 2;
-  white-space: nowrap;
-}
-
-/* Matchup - bottom left */
-.gold-matchup {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  color: #daa520;
-  font-size: 10px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  z-index: 2;
-}
-
-/* Position - bottom right */
-.gold-position {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  background: rgba(255, 215, 0, 0.15);
-  border: 1px solid rgba(255, 215, 0, 0.3);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 10px;
+  letter-spacing: 2px;
+  z-index: 10;
   color: #ffd700;
-  z-index: 2;
+  text-shadow: 
+    0 0 10px #ffd700,
+    0 0 20px #b8860b,
+    2px 2px 0 #000,
+    -2px -2px 0 #000;
+  animation: gold-pulse 2s infinite;
 }
 
 @keyframes gold-pulse {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 1; filter: brightness(1.15); }
+  0%, 100% { 
+    filter: brightness(1);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% { 
+    filter: brightness(1.2);
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+}
+
+/* Desktop: name on one line */
+.gold-player-name {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffd700;
+  text-shadow: 0 0 5px rgba(255, 215, 0, 0.5), 0 2px 4px rgba(0,0,0,0.8);
+  z-index: 10;
+  white-space: nowrap;
+}
+
+/* Desktop: show names inline */
+.gold-player-name .stamp-first-name::after {
+  content: ' ';
+}
+
+.gold-player-name .stamp-last-name {
+  /* inline by default on desktop */
+}
+
+.gold-player-info {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #daa520;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 10;
+}
+
+.gold-player-position {
+  background: rgba(255, 215, 0, 0.2);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.gold-pick-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #ffd700, #b8860b);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  z-index: 10;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .gold-stamp-frame::before,
+  .gold-crown,
+  .gold-particle,
+  .gold-drafted-text {
+    animation: none;
+  }
+  .gold-particle {
+    opacity: 0.5;
+    bottom: 50%;
+  }
+}
+
+/* ============================================
+   MOBILE: Refit stamp to match card size
+   ============================================ */
+@media (max-width: 768px) {
+  .gold-stamp-frame {
+    border-radius: 8px;
+  }
+
+  .gold-stamp-frame::before {
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: 10px;
+    animation-duration: 5s;
+  }
+
+  /* Hide position badge and team/price info on mobile */
+  .gold-player-info {
+    display: none;
+  }
+
+  /* Hide crown on mobile - takes too much space */
+  .gold-crown {
+    display: none;
+  }
+
+  /* Stacked name: first name small on top, last name bigger below */
+  .gold-player-name {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0px;
+    line-height: 1.1;
+    white-space: nowrap;
+    margin-top: -8px;
+  }
+
+  .gold-player-name .stamp-first-name {
+    display: block;
+    font-size: 9px;
+    font-weight: 500;
+    opacity: 0.85;
+  }
+
+  .gold-player-name .stamp-first-name::after {
+    content: '';
+  }
+
+  .gold-player-name .stamp-last-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  /* Smaller DRAFTED text below the name */
+  .gold-drafted-text {
+    font-size: 10px;
+    letter-spacing: 1px;
+    top: auto;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-shadow: 
+      0 0 6px #ffd700,
+      0 0 10px #b8860b,
+      1px 1px 0 #000,
+      -1px -1px 0 #000;
+    animation: none;
+  }
+
+  /* Smaller pick badge */
+  .gold-pick-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+    top: 3px;
+    right: 3px;
+  }
+
+  /* Fewer/slower particles for battery */
+  .gold-particle {
+    animation-duration: 5s;
+    width: 3px;
+    height: 3px;
+  }
 }

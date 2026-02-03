@@ -1208,19 +1208,19 @@
   }
 }
 /* Hide DRAFTED text when stamp is present */
-.player-card.drafted:has(.matrix-stamp)::after,
-.player-card.drafted:has(.gold-stamp)::after {
+.player-card.drafted:has(.matrix-stamp-frame)::after,
+.player-card.drafted:has(.gold-stamp-frame)::after {
   display: none;
 }
 
 /* Make stamps visible above the card content */
-.matrix-stamp,
-.gold-stamp {
+.matrix-stamp-frame,
+.gold-stamp-frame {
   z-index: 15;
 }
 
 /* Don't fade cards with stamps */
-.player-card.drafted:has(.matrix-stamp),
-.player-card.drafted:has(.gold-stamp) {
+.player-card.drafted:has(.matrix-stamp-frame),
+.player-card.drafted:has(.gold-stamp-frame) {
   opacity: 1;
 }
