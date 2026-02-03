@@ -200,120 +200,120 @@
 
 @media (max-width: 768px) {
   .header {
-    padding: 0.4rem 0.5rem;
+    padding: 0.35rem 0.25rem;
   }
 
   .header-container {
     gap: 0;
   }
 
-  /* Hide logo on mobile */
+  /* Hide logo, admin, emoji, username on mobile */
   .logo {
     display: none;
   }
 
-  /* Hide admin button on mobile */
   .nav-btn-admin {
     display: none;
   }
 
-  /* Hide voting emoji on mobile */
   .nav-btn-emoji {
     display: none;
   }
 
-  /* Hide username on mobile */
   .username {
     display: none;
   }
 
+  /* Single row, no wrap */
   .nav {
     flex-wrap: nowrap;
-    gap: 0.3rem;
+    gap: 3px;
     width: 100%;
-    justify-content: center;
   }
 
+  /* Tiny compact buttons */
   .nav-btn {
-    padding: 0.35rem 0.55rem;
-    font-size: 0.75rem;
-    border-radius: 6px;
+    padding: 6px 7px;
+    font-size: 11px;
+    border-radius: 5px;
     white-space: nowrap;
   }
 
-  /* Compact logout on mobile */
+  /* Compact logout */
   .logout-btn {
-    padding: 0.35rem 0.55rem;
-    font-size: 0.75rem;
-    border-radius: 6px;
+    padding: 6px 7px;
+    font-size: 11px;
+    border-radius: 5px;
+    flex-shrink: 0;
   }
 
-  /* Compact user info */
+  /* Compact user info - no border, tight */
   .user-info {
-    gap: 0.3rem;
-    margin-left: 0.3rem;
+    gap: 3px;
+    margin-left: 3px;
     padding-left: 0;
     border-left: none;
+    flex-shrink: 0;
   }
 
   /* Compact stats bar */
   .user-stats-bar {
-    border-radius: 6px;
-  }
-
-  .add-funds-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 1.1rem;
-  }
-
-  .user-stats-bar .balance {
-    padding: 0.25rem 0.4rem;
-    font-size: 0.75rem;
-  }
-
-  .user-stats-bar .tickets-display {
-    padding: 0.25rem 0.4rem;
-    gap: 0.15rem;
-  }
-
-  .user-stats-bar .tickets-icon {
-    font-size: 0.75rem;
-  }
-
-  .user-stats-bar .tickets-count {
-    font-size: 0.75rem;
-  }
-}
-
-/* Extra small screens */
-@media (max-width: 400px) {
-  .nav-btn {
-    padding: 0.3rem 0.4rem;
-    font-size: 0.7rem;
-  }
-
-  .logout-btn {
-    padding: 0.3rem 0.4rem;
-    font-size: 0.7rem;
+    border-radius: 5px;
   }
 
   .add-funds-btn {
     width: 24px;
     height: 24px;
-    font-size: 1rem;
+    font-size: 14px;
   }
 
   .user-stats-bar .balance {
-    padding: 0.2rem 0.3rem;
-    font-size: 0.7rem;
+    padding: 4px 5px;
+    font-size: 11px;
   }
 
   .user-stats-bar .tickets-display {
-    padding: 0.2rem 0.3rem;
+    padding: 4px 6px 4px 4px;
+    gap: 2px;
+  }
+
+  .user-stats-bar .tickets-icon {
+    font-size: 10px;
   }
 
   .user-stats-bar .tickets-count {
-    font-size: 0.7rem;
+    font-size: 11px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 380px) {
+  .nav-btn {
+    padding: 5px 5px;
+    font-size: 10px;
+  }
+
+  .logout-btn {
+    padding: 5px 5px;
+    font-size: 10px;
+  }
+
+  .add-funds-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
+
+  .user-stats-bar .balance {
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+
+  .user-stats-bar .tickets-display {
+    padding: 3px 5px 3px 3px;
+  }
+
+  .user-stats-bar .tickets-count {
+    font-size: 10px;
   }
 }
