@@ -224,7 +224,7 @@
     display: none;
   }
 
-  /* Single row, no wrap */
+  /* Single row, no wrap, all items aligned */
   .nav {
     flex-wrap: nowrap;
     gap: 3px;
@@ -232,9 +232,9 @@
     align-items: flex-start;
   }
 
-  /* Compact nav buttons */
+  /* Nav buttons: same height as + button (26px) */
   .nav-btn {
-    padding: 6px 7px;
+    padding: 0 7px;
     font-size: 11px;
     border-radius: 5px;
     white-space: nowrap;
@@ -243,7 +243,7 @@
     align-items: center;
   }
 
-  /* User info: column layout for stats + logout underneath */
+  /* User info: column for stats + logout underneath */
   .user-info {
     gap: 0;
     margin-left: 3px;
@@ -254,7 +254,7 @@
     align-items: stretch;
   }
 
-  /* Stats bar: fully transparent, no border */
+  /* Stats bar: transparent bg, keep border between sections */
   .user-stats-bar {
     border-radius: 5px;
     background: none;
@@ -266,18 +266,25 @@
     height: 26px;
     font-size: 14px;
     border-radius: 5px;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .user-stats-bar .balance {
-    padding: 4px 5px;
+    padding: 0 5px;
     font-size: 11px;
+    height: 26px;
+    display: flex;
+    align-items: center;
     border-left: none;
-    border-right: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .user-stats-bar .tickets-display {
-    padding: 4px 8px 4px 2px;
+    padding: 0 8px 0 5px;
     gap: 2px;
+    height: 26px;
+    display: flex;
+    align-items: center;
   }
 
   .user-stats-bar .tickets-icon {
@@ -288,7 +295,7 @@
     font-size: 11px;
   }
 
-  /* Logout: thin red bar underneath the stats */
+  /* Logout: thin red bar underneath */
   .logout-btn {
     width: 100%;
     height: 14px;
@@ -318,7 +325,7 @@
 /* Extra small screens */
 @media (max-width: 380px) {
   .nav-btn {
-    padding: 5px 5px;
+    padding: 0 5px;
     font-size: 10px;
     height: 24px;
   }
@@ -330,12 +337,14 @@
   }
 
   .user-stats-bar .balance {
-    padding: 3px 4px;
+    padding: 0 4px;
     font-size: 10px;
+    height: 24px;
   }
 
   .user-stats-bar .tickets-display {
-    padding: 3px 6px 3px 2px;
+    padding: 0 6px 0 4px;
+    height: 24px;
   }
 
   .user-stats-bar .tickets-count {
