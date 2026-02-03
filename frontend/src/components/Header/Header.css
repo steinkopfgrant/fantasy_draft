@@ -229,51 +229,53 @@
     flex-wrap: nowrap;
     gap: 3px;
     width: 100%;
+    align-items: center;
   }
 
-  /* Tiny compact buttons */
+  /* Compact nav buttons */
   .nav-btn {
     padding: 6px 7px;
     font-size: 11px;
     border-radius: 5px;
     white-space: nowrap;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
   }
 
-  /* Compact logout */
-  .logout-btn {
-    padding: 6px 7px;
-    font-size: 11px;
-    border-radius: 5px;
-    flex-shrink: 0;
-  }
-
-  /* Compact user info - no border, tight */
+  /* User info inline, no border */
   .user-info {
-    gap: 3px;
+    gap: 0;
     margin-left: 3px;
     padding-left: 0;
     border-left: none;
     flex-shrink: 0;
+    position: relative;
   }
 
-  /* Compact stats bar */
+  /* Stats bar: invisible background, matches header */
   .user-stats-bar {
     border-radius: 5px;
+    background: transparent;
+    border: none;
   }
 
   .add-funds-btn {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     font-size: 14px;
+    border-radius: 5px;
   }
 
   .user-stats-bar .balance {
     padding: 4px 5px;
     font-size: 11px;
+    border-left: none;
+    border-right: none;
   }
 
   .user-stats-bar .tickets-display {
-    padding: 4px 6px 4px 4px;
+    padding: 4px 8px 4px 2px;
     gap: 2px;
   }
 
@@ -284,6 +286,39 @@
   .user-stats-bar .tickets-count {
     font-size: 11px;
   }
+
+  /* Logout: thin red line under the stats bar, expands on hover */
+  .logout-btn {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 3px;
+    padding: 0;
+    margin-top: 2px;
+    border-radius: 0 0 4px 4px;
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+    transition: all 0.25s ease;
+    background: #ef4444;
+    opacity: 0.6;
+    z-index: 10;
+  }
+
+  .logout-btn:hover,
+  .logout-btn:active {
+    height: 24px;
+    font-size: 10px;
+    color: white;
+    padding: 4px 0;
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* Extra small screens */
@@ -291,16 +326,12 @@
   .nav-btn {
     padding: 5px 5px;
     font-size: 10px;
-  }
-
-  .logout-btn {
-    padding: 5px 5px;
-    font-size: 10px;
+    height: 24px;
   }
 
   .add-funds-btn {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     font-size: 12px;
   }
 
@@ -310,7 +341,7 @@
   }
 
   .user-stats-bar .tickets-display {
-    padding: 3px 5px 3px 3px;
+    padding: 3px 6px 3px 2px;
   }
 
   .user-stats-bar .tickets-count {
