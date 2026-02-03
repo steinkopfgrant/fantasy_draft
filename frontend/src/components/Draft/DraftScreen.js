@@ -1440,8 +1440,10 @@ const DraftScreen = ({ showToast }) => {
         timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
 
-      // Force immediate state refresh to get equipped_stamp for stamps
-      requestDraftState();
+// Push event teams into Redux so equipped_stamp is available immediately
+      if (data.teams && Array.isArray(data.teams)) {
+        dispatch(updateDraftState({ teams: data.teams }));
+      }
     };
 
     const handlePickSuccess = (data) => {
@@ -1499,8 +1501,10 @@ const DraftScreen = ({ showToast }) => {
  timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
 
-      // Force immediate state refresh to get equipped_stamp for stamps
-      requestDraftState();
+// Push event teams into Redux so equipped_stamp is available immediately
+      if (data.teams && Array.isArray(data.teams)) {
+        dispatch(updateDraftState({ teams: data.teams }));
+      }
     };
 
     const handleDraftCountdown = (data) => {
