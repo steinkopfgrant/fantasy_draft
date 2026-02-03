@@ -1375,7 +1375,13 @@ const DraftScreen = ({ showToast }) => {
       }
       console.log('🔍 Resolved teamIndex:', resolvedTeamIndex, 'from:', { teamIndex: data.teamIndex, draftPosition: data.draftPosition, userId: data.userId });
 
-      // CRITICAL: Update player board to mark as drafted
+// CRITICAL: Update player board to mark as drafted
+      // Look up equipped_stamp by userId (order-independent) from event payload
+      const stampUserId = data.userId || data.user_id;
+      const eventTeamForStamp = data.teams?.find(t => 
+        (t.userId || t.user_id || t.id) === stampUserId
+      );
+      
       if (data.row !== undefined && data.col !== undefined) {
         dispatch(updatePlayerBoardCell({
           row: data.row,
@@ -1387,7 +1393,7 @@ const DraftScreen = ({ showToast }) => {
             pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position,
             // Store equipped_stamp directly on cell for first-render timing
-            equippedStamp: data.teams?.[resolvedTeamIndex]?.equipped_stamp || teams?.[resolvedTeamIndex]?.equipped_stamp || null
+            equippedStamp: eventTeamForStamp?.equipped_stamp || teams?.[resolvedTeamIndex]?.equipped_stamp || null
           }
         }));
       }
@@ -1440,10 +1446,8 @@ const DraftScreen = ({ showToast }) => {
         timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
 
-// Push event teams into Redux so equipped_stamp is available immediately
-      if (data.teams && Array.isArray(data.teams)) {
-        dispatch(updateDraftState({ teams: data.teams }));
-      }
+// Force immediate state refresh to get equipped_stamp for stamps
+      requestDraftState();
     };
 
     const handlePickSuccess = (data) => {
@@ -1501,10 +1505,8 @@ const DraftScreen = ({ showToast }) => {
  timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
 
-// Push event teams into Redux so equipped_stamp is available immediately
-      if (data.teams && Array.isArray(data.teams)) {
-        dispatch(updateDraftState({ teams: data.teams }));
-      }
+      // Force immediate state refresh to get equipped_stamp for stamps
+      requestDraftState();
     };
 
     const handleDraftCountdown = (data) => {
