@@ -114,10 +114,11 @@
   .price-row {
     display: grid;
     grid-template-columns: 28px repeat(5, 1fr);
+    grid-auto-rows: 65px;
     gap: 5px;
     margin-bottom: 6px;
     align-items: stretch;
-    overflow: visible; /* Allow position badges to overflow */
+    overflow: visible;
   }
 
   /* -----------------------------------------
@@ -147,12 +148,14 @@
   /* -----------------------------------------
      PLAYER CARDS - Uniform size, compact touch targets
      ----------------------------------------- */
-  .player-card {
+.player-card {
     background: #2a2f3e;
     border: 2px solid transparent;
     border-radius: 8px;
     padding: 6px 4px;
     min-height: 65px;
+    max-height: 65px;
+    height: 65px;
     height: 65px; /* FIXED height for uniform cards */
     cursor: pointer;
     transition: transform 0.1s, background 0.1s;
