@@ -161,3 +161,13 @@
     top: calc(50% + 10px);
   }
 }
+
+@media (max-width: 768px) {
+  .gold-player-name {
+    white-space: normal !important;
+    max-width: 90%;
+  }
+  .gold-drafted-label {
+    font-size: 11px;
+  }
+}
