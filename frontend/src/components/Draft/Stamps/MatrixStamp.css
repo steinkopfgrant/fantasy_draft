@@ -130,3 +130,15 @@
     display: none;
   }
 }
+
+@media (max-width: 768px) {
+  .matrix-player-name {
+    word-spacing: 100vw;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .matrix-drafted-label {
+    font-size: 12px;
+    top: calc(50% + 10px);
+  }
+}
