@@ -213,17 +213,28 @@ const LandingPage = () => {
             70% { box-shadow: 0 0 0 10px rgba(68, 255, 68, 0); }
             100% { box-shadow: 0 0 0 0 rgba(68, 255, 68, 0); }
           }
+          @media (max-width: 768px) {
+            .landing-hero { padding: 2rem 1rem !important; }
+            .landing-logo { padding: 1rem 1.5rem !important; min-width: unset !important; width: 90% !important; }
+            .landing-logo h1 { font-size: 2.2rem !important; letter-spacing: 2px !important; }
+            .landing-tagline { font-size: 1rem !important; letter-spacing: 1px !important; }
+            .landing-section { padding: 2rem 1rem !important; }
+            .landing-section-title { font-size: 1.8rem !important; }
+            .landing-cta-btn { padding: 0.8rem 1.5rem !important; font-size: 1rem !important; }
+            .landing-cards-grid { grid-template-columns: 1fr !important; }
+            .landing-steps { flex-direction: column !important; }
+          }
         `}
       </style>
       
       {/* Hero Section */}
-      <div style={{ 
+      <div className="landing-hero" style={{ 
         textAlign: 'center', 
         padding: '4rem 2rem',
         background: 'linear-gradient(180deg, rgba(0, 191, 255, 0.1) 0%, transparent 100%)'
       }}>
         {/* BidBlitz Logo */}
-        <div style={{
+        <div className="landing-logo" style={{
           display: 'inline-block',
           position: 'relative',
           padding: '1.5rem 8rem',
@@ -251,7 +262,7 @@ const LandingPage = () => {
           </h1>
         </div>
 
-        <p style={{ 
+        <p className="landing-tagline" style={{ 
           fontSize: '1.4rem', 
           color: '#94a3b8', 
           marginBottom: '2.5rem',
@@ -268,7 +279,7 @@ const LandingPage = () => {
           flexWrap: 'wrap'
         }}>
           <Link to="/rules" style={{ textDecoration: 'none' }}>
-            <button style={{
+            <button className="landing-cta-btn" style={{
               padding: '1rem 2.5rem',
               fontSize: '1.1rem',
               fontWeight: '600',
@@ -284,7 +295,7 @@ const LandingPage = () => {
             </button>
           </Link>
           <Link to="/login" style={{ textDecoration: 'none' }}>
-            <button style={{
+            <button className="landing-cta-btn" style={{
               padding: '1rem 2.5rem',
               fontSize: '1.1rem',
               fontWeight: '600',
@@ -302,12 +313,12 @@ const LandingPage = () => {
       </div>
 
       {/* MarketMover Preview Section */}
-      <div style={{ 
+      <div className="landing-section" style={{ 
         padding: '4rem 2rem',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        <h2 style={{ 
+        <h2 className="landing-section-title" style={{ 
           textAlign: 'center',
           fontSize: '2.5rem',
           marginBottom: '1rem',
@@ -327,7 +338,7 @@ const LandingPage = () => {
           Vote for players to boost their appearance rates and gain competitive intelligence.
         </p>
 
-        <div style={{
+        <div className="landing-cards-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
           gap: '2rem',
@@ -482,12 +493,12 @@ const LandingPage = () => {
       </div>
 
       {/* Features Section */}
-      <div style={{ padding: '4rem 2rem', maxWidth: '1200px', margin: '0 auto' }}>
-        <h2 style={{ textAlign: 'center', fontSize: '2.5rem', marginBottom: '3rem', color: '#ffffff' }}>
+      <div className="landing-section" style={{ padding: '4rem 2rem', maxWidth: '1200px', margin: '0 auto' }}>
+        <h2 className="landing-section-title" style={{ textAlign: 'center', fontSize: '2.5rem', marginBottom: '3rem', color: '#ffffff' }}>
           Game Modes
         </h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+        <div className="landing-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
           {[
             { icon: '💰', title: 'Cash Games', desc: '5-player winner-take-all contests with $5 entry fee. Fast-paced action with immediate payouts.' },
             { icon: '📈', title: 'Market Mover', desc: 'Vote for players and check ownership data. Influence the market and gain competitive intelligence.' },
@@ -509,12 +520,12 @@ const LandingPage = () => {
       </div>
 
       {/* How It Works */}
-      <div style={{ padding: '4rem 2rem', background: 'rgba(0, 0, 0, 0.2)' }}>
-        <h2 style={{ textAlign: 'center', fontSize: '2.5rem', marginBottom: '3rem', color: '#ffffff' }}>
+      <div className="landing-section" style={{ padding: '4rem 2rem', background: 'rgba(0, 0, 0, 0.2)' }}>
+        <h2 className="landing-section-title" style={{ textAlign: 'center', fontSize: '2.5rem', marginBottom: '3rem', color: '#ffffff' }}>
           How It Works
         </h2>
         
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', maxWidth: '1000px', margin: '0 auto', flexWrap: 'wrap' }}>
+        <div className="landing-steps" style={{ display: 'flex', justifyContent: 'center', gap: '2rem', maxWidth: '1000px', margin: '0 auto', flexWrap: 'wrap' }}>
           {[
             { num: 1, title: 'Join a Contest', desc: 'Pick from cash games, tournaments, or Market Mover contests' },
             { num: 2, title: 'Draft Your Team', desc: 'Select 5 players within your $15 budget' },
@@ -546,8 +557,8 @@ const LandingPage = () => {
       </div>
 
       {/* CTA Section */}
-      <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%)' }}>
-        <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#00d4ff' }}>
+      <div className="landing-section" style={{ textAlign: 'center', padding: '4rem 2rem', background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%)' }}>
+        <h2 className="landing-section-title" style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#00d4ff' }}>
           Ready to Start Playing?
         </h2>
         <p style={{ fontSize: '1.2rem', color: '#8892b0', marginBottom: '2rem' }}>
@@ -555,7 +566,7 @@ const LandingPage = () => {
         </p>
         
         <Link to="/register" style={{ textDecoration: 'none' }}>
-          <button style={{
+          <button className="landing-cta-btn" style={{
             padding: '1.2rem 3rem',
             fontSize: '1.2rem',
             fontWeight: '700',
