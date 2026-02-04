@@ -2566,7 +2566,7 @@ if (resolvedTeamIndex === undefined) {
         </div>
         
         <div className="on-the-clock">
-          On The Clock: <span className={actualIsMyTurn ? 'you' : ''}>{currentDrafter?.username || currentDrafter?.name || '...'}</span>
+          On The Clock: <span className={actualIsMyTurn ? 'you' : ''}>{currentDrafter?.username || currentDrafter?.name || (sortedTeams?.length > 0 && currentTurn !== undefined ? (sortedTeams[getTeamForPick(currentTurn + 1, sortedTeams.length)]?.name || sortedTeams[getTeamForPick(currentTurn + 1, sortedTeams.length)]?.username) : null) || '...'}</span>
         </div>
         
         <div className="header-budget">
