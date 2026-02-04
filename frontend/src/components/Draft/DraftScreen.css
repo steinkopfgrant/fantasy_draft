@@ -1224,3 +1224,6 @@
 .player-card.drafted:has(.gold-stamp) {
   opacity: 1;
 }
+.player-card.drafted .position-badge {
+  display: none;
+}
