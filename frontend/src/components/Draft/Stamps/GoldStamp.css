@@ -137,3 +137,15 @@
   0%, 100% { opacity: 0.9; }
   50% { opacity: 1; filter: brightness(1.15); }
 }
+
+/* ============================================
+   MOBILE: Hide extras, keep name + DRAFTED + bg
+   ============================================ */
+@media (max-width: 768px) {
+  .gold-team-price,
+  .gold-matchup,
+  .gold-position,
+  .crown-icon {
+    display: none;
+  }
+}

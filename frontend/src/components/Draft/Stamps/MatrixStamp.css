@@ -119,3 +119,14 @@
   0% { opacity: 0.85; }
   100% { opacity: 1; filter: brightness(1.15); }
 }
+
+/* ============================================
+   MOBILE: Hide extras, keep name + DRAFTED + bg
+   ============================================ */
+@media (max-width: 768px) {
+  .matrix-team-price,
+  .matrix-matchup,
+  .matrix-position {
+    display: none;
+  }
+}
