@@ -2566,7 +2566,7 @@ if (resolvedTeamIndex === undefined) {
         </div>
         
         <div className="on-the-clock">
-          On The Clock: <span className={actualIsMyTurn ? 'you' : ''}>{actualIsMyTurn ? 'You!' : (currentDrafter?.username || currentDrafter?.name || '...')}</span>
+          On The Clock: <span className={actualIsMyTurn ? 'you' : ''}>{currentDrafter?.username || currentDrafter?.name || '...'}</span>
         </div>
         
         <div className="header-budget">
