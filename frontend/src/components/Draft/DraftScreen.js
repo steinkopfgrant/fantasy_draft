@@ -178,6 +178,21 @@ const DraftScreen = ({ showToast }) => {
     return sorted;
   }, [teams]);
 
+    // Track which stamps are unique in the room (only 1 user has it)
+  const uniqueStamps = useMemo(() => {
+    if (!teams) return new Set();
+    const stampCounts = {};
+    teams.forEach(team => {
+      const stamp = team.equipped_stamp || 'default';
+      stampCounts[stamp] = (stampCounts[stamp] || 0) + 1;
+    });
+    return new Set(
+      Object.entries(stampCounts)
+        .filter(([, count]) => count === 1)
+        .map(([stamp]) => stamp)
+    );
+  }, [teams]);
+
   // MEMOIZED: Read localStorage pre-selection once per render, not per cell
   // This prevents 30+ localStorage reads per render cycle
   const localStoragePreSelection = useMemo(() => {
@@ -2586,11 +2601,14 @@ if (resolvedTeamIndex === undefined) {
                 const isAutoSuggestion = autoPickSuggestion && 
                   autoPickSuggestion.row === rowIndex && 
                   autoPickSuggestion.col === colIndex;
-                
                 const teamColors = ['green', 'red', 'blue', 'yellow', 'purple'];
                 const draftedByColor = player.drafted && player.draftedBy !== undefined 
                   ? teamColors[player.draftedBy] 
                   : null;
+                
+                // Hide color border if drafter has a unique stamp in the room
+                const drafterStamp = teams?.[player.draftedBy]?.equipped_stamp || 'default';
+                const hasUniqueStamp = uniqueStamps.has(drafterStamp);
                 
                 // Check if this is the mobile-selected player
                 // Uses memoized localStorage read to avoid 30+ reads per render
@@ -2604,7 +2622,7 @@ if (resolvedTeamIndex === undefined) {
                     key={`${rowIndex}-${colIndex}`}
                     className={`player-card 
                       ${player.drafted ? 'drafted' : ''} 
-                      ${draftedByColor ? `drafted-by-${draftedByColor}` : ''}
+                      ${(draftedByColor && !hasUniqueStamp) ? `drafted-by-${draftedByColor}` : ''}
                       ${isAutoSuggestion ? 'auto-suggestion' : ''}
                       ${actualIsMyTurn && !player.drafted && !isPicking ? 'clickable' : ''}
                       ${isPicking ? 'disabled' : ''}
