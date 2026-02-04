@@ -161,3 +161,8 @@
     top: calc(50% + 14px);
   }
 }
+
+@media (max-width: 768px) {
+  .matrix-player-name { font-size: 7.5px; }
+  .matrix-drafted-label { font-size: 10.5px; }
+}

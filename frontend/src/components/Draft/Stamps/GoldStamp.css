@@ -180,3 +180,8 @@
     top: calc(50% + 14px);
   }
 }
+
+@media (max-width: 768px) {
+  .gold-player-name { font-size: 7.5px; }
+  .gold-drafted-label { font-size: 10.5px; }
+}
