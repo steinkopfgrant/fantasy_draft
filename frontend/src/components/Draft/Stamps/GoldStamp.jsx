@@ -10,7 +10,6 @@ const GoldStamp = ({ player, pickNumber, showDrafted }) => {
           <div key={i} className="gold-particle" style={{ animationDelay: `${i * 0.4}s` }} />
         ))}
       </div>
-      <div className="crown-icon">👑</div>
       {player?.name && <div className="gold-player-name">{player.name}</div>}
       {showDrafted && <div className="gold-drafted-label">DRAFTED</div>}
       {player?.team && <div className="gold-team-price">{player.team} - ${player.price}</div>}
