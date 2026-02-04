@@ -2017,13 +2017,6 @@ if (resolvedTeamIndex === undefined) {
   // Handle mobile player tap - opens confirmation modal
   // Allow tapping anytime for preview/pre-selection, not just on turn
   const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
-    console.log('📱 handleMobilePlayerTap called:', { 
-      playerName: player?.name, 
-      drafted: player?.drafted, 
-      isPicking,
-      roomId,
-      currentUserId 
-    });
     
     if (player.drafted || isPicking) {
       console.log('📱 Tap blocked - drafted or picking');
@@ -2054,14 +2047,11 @@ if (resolvedTeamIndex === undefined) {
           col: colIndex
         }
       };
-      console.log('📱 Emitting pre-select:', preSelectData);
       socketService.emit('pre-select', preSelectData);
-      console.log('📱 Emitted pre-select to server:', player.name);
       
       // ALSO save to localStorage for persistence across page refresh/reconnect
       try {
         localStorage.setItem(`preselect_${roomId}`, JSON.stringify(preSelectData.player));
-        console.log('📱 Saved pre-select to localStorage:', player.name);
       } catch (e) {
         console.warn('Failed to save pre-select to localStorage:', e);
       }
@@ -2083,22 +2073,13 @@ if (resolvedTeamIndex === undefined) {
 
   // Handle player card click (desktop vs mobile)
   const handlePlayerCardClick = useCallback((player, rowIndex, colIndex) => {
-    console.log('🖱️ handlePlayerCardClick:', { 
-      isMobile, 
-      playerName: player?.name,
-      drafted: player?.drafted, 
-      isPicking, 
-      actualIsMyTurn 
-    });
     
     if (player.drafted || isPicking) return;
     
     if (isMobile) {
-      console.log('🖱️ Taking MOBILE path');
       // Mobile: Always allow tap for preview/pre-selection
       handleMobilePlayerTap(player, rowIndex, colIndex);
     } else {
-      console.log('🖱️ Taking DESKTOP path');
       // Desktop: Only allow on your turn
       if (actualIsMyTurn) {
         selectPlayer(rowIndex, colIndex);
