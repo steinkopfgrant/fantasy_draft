@@ -2635,8 +2635,8 @@ if (resolvedTeamIndex === undefined) {
                       position: 'relative'
                     }}
                   >
-                    <div className={`position-badge ${standardizeSlotName(player.position)}`}>
-                      {standardizeSlotName(player.position)}
+                    <div className={`position-badge ${standardizeSlotName(player.originalPosition || player.position)}`}>
+                      {standardizeSlotName(player.originalPosition || player.position)}
                     </div>
                     <div className="player-name">
                       {isMobile ? (
