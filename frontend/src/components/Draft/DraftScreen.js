@@ -2562,7 +2562,7 @@ if (resolvedTeamIndex === undefined) {
       
       <div className="draft-header">
         <div className={`timer ${actualIsMyTurn ? 'my-turn' : ''} ${timeRemaining <= 10 ? 'warning' : ''}`}>
-          <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{Math.max(0, timeRemaining ?? 30)}s</span>
+          Draft Timer: <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{Math.max(0, timeRemaining ?? 30)}s</span>
         </div>
         
         <div className="on-the-clock">
