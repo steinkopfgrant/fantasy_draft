@@ -166,3 +166,8 @@
   .matrix-player-name { font-size: 7.5px; }
   .matrix-drafted-label { font-size: 10.5px; }
 }
+/* BACKGROUND PAUSE - Stop GPU-heavy animations when app is hidden */
+.app-backgrounded .matrix-stamp-overlay,
+.app-backgrounded .matrix-stamp-overlay * {
+  animation-play-state: paused !important;
+}

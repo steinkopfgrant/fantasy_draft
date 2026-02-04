@@ -2184,6 +2184,25 @@ if (resolvedTeamIndex === undefined) {
     };
   }, [status, roomId, calculateTimeRemaining, dispatch]);
   // =====================================================================
+// =====================================================================
+
+  // BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
+  useEffect(() => {
+    const handleBackgroundToggle = () => {
+      if (document.visibilityState === 'hidden') {
+        document.body.classList.add('app-backgrounded');
+      } else {
+        document.body.classList.remove('app-backgrounded');
+      }
+    };
+    document.addEventListener('visibilitychange', handleBackgroundToggle);
+    return () => {
+      document.removeEventListener('visibilitychange', handleBackgroundToggle);
+      document.body.classList.remove('app-backgrounded');
+    };
+  }, []);
+
+  // MOBILE STALL DETECTION: If timer shows 0 for more than 5 seconds...
 
   // MOBILE STALL DETECTION: If timer shows 0 for more than 5 seconds without turn advancing, force refresh
   useEffect(() => {
