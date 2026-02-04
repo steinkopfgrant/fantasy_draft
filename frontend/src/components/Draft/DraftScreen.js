@@ -2561,35 +2561,16 @@ if (resolvedTeamIndex === undefined) {
       />
       
       <div className="draft-header">
-        <div className="timer-section">
-          <div className={`timer ${actualIsMyTurn ? 'my-turn' : ''} ${timeRemaining <= 10 ? 'warning' : ''}`}>
-            Time: <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{Math.max(0, timeRemaining ?? 30)}s</span>
-          </div>
-          {actualIsMyTurn && <div className="turn-indicator">Your Turn!</div>}
+        <div className={`timer ${actualIsMyTurn ? 'my-turn' : ''} ${timeRemaining <= 10 ? 'warning' : ''}`}>
+          <span className={`time-value ${showLowTimeWarning ? 'low-time' : ''}`}>{Math.max(0, timeRemaining ?? 30)}s</span>
         </div>
         
-        <div className="draft-info">
-          <DraftOrderInfo />
-          <span>Budget: ${safeMyTeam ? (safeMyTeam.budget + (safeMyTeam.bonus || 0)) : 15}</span>
+        <div className="on-the-clock">
+          On The Clock: <span className={actualIsMyTurn ? 'you' : ''}>{actualIsMyTurn ? 'You!' : (currentDrafter?.username || currentDrafter?.name || '...')}</span>
         </div>
         
-        <div className="controls">
-          <label>
-            <input 
-              type="checkbox" 
-              checked={autoPickEnabled}
-              onChange={handleAutoPickToggle}
-            />
-            Auto-pick
-          </label>
-          <label>
-            <input 
-              type="checkbox" 
-              checked={showAutoPickSuggestion}
-              onChange={handleSuggestionToggle}
-            />
-            Show suggestions
-          </label>
+        <div className="header-budget">
+          Your Budget: <span>${safeMyTeam ? (safeMyTeam.budget + (safeMyTeam.bonus || 0)) : 15}</span>
         </div>
       </div>
 
