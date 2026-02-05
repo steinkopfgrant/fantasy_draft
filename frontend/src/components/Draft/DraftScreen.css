@@ -1209,6 +1209,7 @@
 }
 /* Hide DRAFTED text when stamp is present */
 .player-card.drafted:has(.matrix-stamp)::after,
+.player-card.drafted:has(.blitz-stamp-frame)::after,
 .player-card.drafted:has(.gold-stamp)::after {
   display: none;
 }
@@ -1221,7 +1222,8 @@
 
 /* Don't fade cards with stamps */
 .player-card.drafted:has(.matrix-stamp),
-.player-card.drafted:has(.gold-stamp) {
+.player-card.drafted:has(.gold-stamp),
+.player-card.drafted:has(.blitz-stamp-frame) {
   opacity: 1;
 }
 .player-card.drafted .position-badge {
