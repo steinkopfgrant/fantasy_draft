@@ -2136,83 +2136,135 @@ if (resolvedTeamIndex === undefined) {
     };
   }, [status, startTimerInterval, stopTimerInterval]);
 
-// CRITICAL: Handle tab visibility change - re-sync timer when tab becomes active
-// This is essential for mobile where phone lock pauses JS execution
+// CRITICAL: Handle mobile wake from lock - multiple event fallbacks
+// visibilitychange alone is unreliable on mobile lock/unlock
 useEffect(() => {
-  let lastHiddenAt = null;
+  let lastActiveAt = Date.now();
+  let refreshInProgress = false;
   
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      lastHiddenAt = Date.now();
-      console.log('👁️ Tab hidden at:', new Date().toISOString());
+  const forceRefresh = async (source) => {
+    // Debounce - don't refresh more than once per 2 seconds
+    if (refreshInProgress) {
+      console.log(`👁️ [${source}] Refresh already in progress, skipping`);
       return;
     }
     
-    // Tab became visible
-    const hiddenDuration = lastHiddenAt ? Date.now() - lastHiddenAt : 0;
-    console.log(`👁️ Tab visible after ${Math.round(hiddenDuration/1000)}s`);
+    const timeSinceActive = Date.now() - lastActiveAt;
+    console.log(`👁️ [${source}] Wake detected after ${Math.round(timeSinceActive/1000)}s`);
     
-    // ALWAYS try to refresh when coming back, regardless of status
-    // (status might be stale/wrong after long sleep)
+    // Only force refresh if we've been inactive for more than 3 seconds
+    if (timeSinceActive < 3000) {
+      lastActiveAt = Date.now();
+      return;
+    }
+    
+    refreshInProgress = true;
+    lastActiveAt = Date.now();
+    
+    // Skip if not in a draft
     if (!roomId || !hasJoinedRef.current) {
-      console.log('👁️ Not in active draft, skipping refresh');
+      console.log(`👁️ [${source}] Not in active draft, skipping`);
+      refreshInProgress = false;
       return;
     }
     
-    // 1. Immediately recalculate timer from stored timestamp
-    if (status === 'active' && turnStartedAtRef.current) {
+    console.log(`👁️ [${source}] Forcing full refresh...`);
+    
+    // 1. Recalculate timer immediately
+    if (turnStartedAtRef.current) {
       const remaining = calculateTimeRemaining();
       dispatch(updateTimer(remaining));
-      console.log(`👁️ Timer recalculated: ${remaining}s`);
     }
     
-    // 2. Restart timer interval (it may have been throttled while hidden)
+    // 2. Restart timer interval
+    stopTimerInterval();
     if (status === 'active') {
-      stopTimerInterval();
       startTimerInterval();
-      console.log('👁️ Timer interval restarted');
     }
     
-    // 3. Check socket health and force reconnect if stale
-    const forceRefresh = () => {
-      if (!socketService.isConnected()) {
-        console.log('👁️ Socket disconnected, reconnecting...');
-        socketService.connect();
-        // Retry after reconnect
-        setTimeout(forceRefresh, 1000);
-        return;
-      }
-      
-      console.log('👁️ Requesting fresh draft state...');
+    // 3. Force socket reconnect if stale
+    if (timeSinceActive > 10000) {
+      console.log(`👁️ [${source}] Stale for >10s, forcing socket reconnect...`);
+      socketService.disconnect();
+      await new Promise(r => setTimeout(r, 200));
+      socketService.connect();
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    // 4. Request fresh state
+    if (socketService.isConnected()) {
       socketService.emit('get-draft-state', { roomId });
       lastSyncTimeRef.current = Date.now();
-    };
-    
-    // If hidden for more than 5 seconds, be more aggressive
-    if (hiddenDuration > 5000) {
-      console.log('👁️ Was hidden for >5s, forcing socket reconnect check...');
-      
-      // Force disconnect and reconnect to ensure fresh connection
-      if (hiddenDuration > 30000) {
-        console.log('👁️ Was hidden for >30s, forcing full socket reconnect...');
-        socketService.disconnect();
-        setTimeout(() => {
-          socketService.connect();
-          setTimeout(forceRefresh, 500);
-        }, 100);
-      } else {
-        forceRefresh();
-      }
     } else {
-      // Quick return - just request state
-      forceRefresh();
+      // Socket not connected, try again after delay
+      setTimeout(() => {
+        if (socketService.isConnected()) {
+          socketService.emit('get-draft-state', { roomId });
+          lastSyncTimeRef.current = Date.now();
+        }
+      }, 1000);
+    }
+    
+    // Allow another refresh after 2 seconds
+    setTimeout(() => {
+      refreshInProgress = false;
+    }, 2000);
+  };
+  
+  // Track when we're active
+  const markActive = () => {
+    lastActiveAt = Date.now();
+  };
+  
+  // Event handlers
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      // Don't update lastActiveAt here - we want to know when we went inactive
+      console.log('👁️ Tab hidden');
+    } else {
+      forceRefresh('visibilitychange');
     }
   };
-
+  
+  const handleFocus = () => forceRefresh('focus');
+  const handlePageShow = (e) => {
+    if (e.persisted) {
+      // Page was restored from bfcache
+      forceRefresh('pageshow-bfcache');
+    } else {
+      forceRefresh('pageshow');
+    }
+  };
+  
+  // Touch/click as last resort - user is definitely back
+  const handleInteraction = () => {
+    const timeSinceActive = Date.now() - lastActiveAt;
+    if (timeSinceActive > 5000) {
+      forceRefresh('interaction');
+    } else {
+      markActive();
+    }
+  };
+  
+  // Register all event listeners
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('focus', handleFocus);
+  window.addEventListener('pageshow', handlePageShow);
+  document.addEventListener('touchstart', handleInteraction, { passive: true });
+  document.addEventListener('click', handleInteraction);
+  
+  // Also track mouse/touch to know when user is active
+  document.addEventListener('mousemove', markActive, { passive: true });
+  document.addEventListener('touchmove', markActive, { passive: true });
   
   return () => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', handleFocus);
+    window.removeEventListener('pageshow', handlePageShow);
+    document.removeEventListener('touchstart', handleInteraction);
+    document.removeEventListener('click', handleInteraction);
+    document.removeEventListener('mousemove', markActive);
+    document.removeEventListener('touchmove', markActive);
   };
 }, [status, roomId, calculateTimeRemaining, dispatch, startTimerInterval, stopTimerInterval]);
   // =====================================================================
