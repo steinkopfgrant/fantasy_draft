@@ -1,5 +1,5 @@
 // frontend/src/components/Cosmetics/CosmeticsPage.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { selectAuthUser } from '../../store/slices/authSlice';
@@ -17,6 +17,15 @@ const STAMPS = [
     alwaysUnlocked: true,
     color: '#00d4ff',
     glow: 'rgba(0, 212, 255, 0.3)',
+  },
+  {
+    id: 'blitz',
+    name: 'Blitz',
+    description: 'The signature BidBlitz look. Orange energy with scattered triangles.',
+    unlockMethod: 'Available to all players',
+    alwaysUnlocked: true,
+    color: '#ff6b35',
+    glow: 'rgba(255, 107, 53, 0.3)',
   },
   {
     id: 'beta_tester',
@@ -145,6 +154,105 @@ const DefaultPreview = ({ isSelected }) => (
     </div>
   </div>
 );
+
+const BlitzPreview = ({ isSelected }) => {
+  // Generate triangles once
+  const triangles = useMemo(() => {
+    const result = [];
+    const width = 120;
+    const height = 100;
+    const size = 4;
+    const placedPositions = [];
+    const minDistance = size * 2.5;
+    
+    const isOverlapping = (x, y) => {
+      for (const pos of placedPositions) {
+        const dist = Math.sqrt((x - pos.x) ** 2 + (y - pos.y) ** 2);
+        if (dist < minDistance) return true;
+      }
+      return false;
+    };
+    
+    for (let i = 0; i < 200; i++) {
+      if (result.length >= 30) break;
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      if (isOverlapping(x, y)) continue;
+      if (Math.random() < 0.5) {
+        placedPositions.push({ x, y });
+        result.push({
+          id: i,
+          x,
+          y,
+          rotation: Math.random() * 360,
+          size: size + Math.random() * 2
+        });
+      }
+    }
+    return result;
+  }, []);
+
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      background: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ff6b35 100%)',
+      borderRadius: '8px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+      border: isSelected ? '2px solid #ff6b35' : '2px solid #8a3a1a',
+      transition: 'border-color 0.3s',
+    }}>
+      {/* Triangle pattern */}
+      <svg 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          opacity: 0.85,
+          pointerEvents: 'none',
+        }}
+        viewBox="0 0 120 100"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        {triangles.map(({ id, x, y, rotation, size }) => (
+          <polygon
+            key={id}
+            points={`${x},${y - size} ${x + size * 0.866},${y + size * 0.5} ${x - size * 0.866},${y + size * 0.5}`}
+            fill="rgba(255, 255, 255, 0.85)"
+            stroke="rgba(0, 0, 0, 0.1)"
+            strokeWidth="0.5"
+            transform={`rotate(${rotation} ${x} ${y})`}
+          />
+        ))}
+      </svg>
+      
+      <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
+        <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textShadow: '1px 1px 2px rgba(0,0,0,0.4)' }}>
+          Josh Allen
+        </div>
+        <div style={{ 
+          color: '#fff', 
+          fontSize: '11px', 
+          letterSpacing: '3px',
+          fontWeight: '800',
+          textShadow: '2px 2px 0 rgba(0,0,0,0.3)',
+        }}>
+          DRAFTED
+        </div>
+        <div style={{ color: '#fff', fontSize: '10px', marginTop: '6px', opacity: 0.9, textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
+          BUF - $5
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MatrixPreview = ({ isSelected }) => {
   const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
@@ -280,6 +388,7 @@ const GoldPreview = ({ isSelected }) => (
 
 const PREVIEW_MAP = {
   null: DefaultPreview,
+  'blitz': BlitzPreview,
   'beta_tester': MatrixPreview,
   'gold': GoldPreview,
 };
@@ -383,7 +492,7 @@ const StampCard = ({ stamp, isEquipped, isUnlocked, onEquip, saving }) => {
       </p>
 
       {/* Unlock method - always shown for non-default stamps */}
-      {stamp.id !== null && (
+      {stamp.id !== null && !stamp.alwaysUnlocked && (
         <p style={{ 
           color: isUnlocked ? '#667788' : '#445566',
           margin: '4px 0 0 0', 
@@ -444,7 +553,7 @@ const CosmeticsPage = () => {
   const [equippedStamp, setEquippedStamp] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [unlockedStamps, setUnlockedStamps] = useState(new Set([null]));
+  const [unlockedStamps, setUnlockedStamps] = useState(new Set([null, 'blitz']));
 
   const handleEquip = useCallback(async (stampId) => {
     if (saving) return;
@@ -475,7 +584,7 @@ const CosmeticsPage = () => {
       try {
         const res = await axios.get('/api/users/cosmetics');
         const data = res.data;
-        const set = new Set([null]); // Default always unlocked
+        const set = new Set([null, 'blitz']); // Default and Blitz always unlocked
         if (data.unlocked_stamps) {
           data.unlocked_stamps.forEach(s => set.add(s));
         }
