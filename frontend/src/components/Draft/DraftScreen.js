@@ -2182,23 +2182,22 @@ if (resolvedTeamIndex === undefined) {
   // =====================================================================
 // BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
   // Also force reload if user has been away too long (MOBILE ONLY)
+  const hiddenAtRef = useRef(null);
   useEffect(() => {
-    let hiddenAt = null;
-    
     const handleBackgroundToggle = () => {
       if (document.visibilityState === 'hidden') {
         document.body.classList.add('app-backgrounded');
-        hiddenAt = Date.now();
+        hiddenAtRef.current = Date.now();
       } else {
         document.body.classList.remove('app-backgrounded');
         
         // MOBILE ONLY: If gone for more than 60 seconds, force reload for clean state
-        if (isMobile && hiddenAt && (Date.now() - hiddenAt > 60000)) {
+        if (isMobile && hiddenAtRef.current && (Date.now() - hiddenAtRef.current > 60000)) {
           console.log('📱 Away for 60s+, forcing reload for fresh state...');
           window.location.reload();
           return;
         }
-        hiddenAt = null;
+        hiddenAtRef.current = null;
       }
     };
     document.addEventListener('visibilitychange', handleBackgroundToggle);
