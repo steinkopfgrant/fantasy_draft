@@ -2181,7 +2181,7 @@ if (resolvedTeamIndex === undefined) {
   }, [status, roomId, calculateTimeRemaining, dispatch]);
   // =====================================================================
 // BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
-  // Also force reload if user has been away too long (mobile app switching)
+  // Also force reload if user has been away too long (MOBILE ONLY)
   useEffect(() => {
     let hiddenAt = null;
     
@@ -2192,8 +2192,8 @@ if (resolvedTeamIndex === undefined) {
       } else {
         document.body.classList.remove('app-backgrounded');
         
-        // If gone for more than 60 seconds, force reload for clean state
-        if (hiddenAt && (Date.now() - hiddenAt > 60000)) {
+        // MOBILE ONLY: If gone for more than 60 seconds, force reload for clean state
+        if (isMobile && hiddenAt && (Date.now() - hiddenAt > 60000)) {
           console.log('📱 Away for 60s+, forcing reload for fresh state...');
           window.location.reload();
           return;
@@ -2206,7 +2206,7 @@ if (resolvedTeamIndex === undefined) {
       document.removeEventListener('visibilitychange', handleBackgroundToggle);
       document.body.classList.remove('app-backgrounded');
     };
-  }, []);
+  }, [isMobile]);
   
   // MOBILE STALL DETECTION: If timer shows 0 for more than 5 seconds without turn advancing, force refresh
   useEffect(() => {
