@@ -467,7 +467,7 @@ router.put('/cosmetics', authMiddleware, async (req, res) => {
         }
 
         // Validate stamp selection
-        const validStamps = [null, 'beta_tester', 'gold'];
+        const validStamps = [null, 'blitz', 'beta_tester', 'gold'];
         if (equipped_stamp !== undefined) {
             if (!validStamps.includes(equipped_stamp)) {
                 return res.status(400).json({ error: 'Invalid stamp selection' });

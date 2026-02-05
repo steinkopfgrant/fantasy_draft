@@ -196,7 +196,7 @@ const BlitzPreview = ({ isSelected }) => {
     <div style={{
       width: '100%',
       height: '100%',
-      background: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ff6b35 100%)',
+      background: '#f7931e',
       borderRadius: '8px',
       display: 'flex',
       flexDirection: 'column',
@@ -215,7 +215,7 @@ const BlitzPreview = ({ isSelected }) => {
           left: 0,
           width: '100%',
           height: '100%',
-          opacity: 0.85,
+          opacity: 1.00,
           pointerEvents: 'none',
         }}
         viewBox="0 0 120 100"
@@ -225,9 +225,9 @@ const BlitzPreview = ({ isSelected }) => {
           <polygon
             key={id}
             points={`${x},${y - size} ${x + size * 0.866},${y + size * 0.5} ${x - size * 0.866},${y + size * 0.5}`}
-            fill="rgba(255, 255, 255, 0.85)"
-            stroke="rgba(0, 0, 0, 0.1)"
-            strokeWidth="0.5"
+            fill="white"
+            stroke="black"
+            strokeWidth="1"
             transform={`rotate(${rotation} ${x} ${y})`}
           />
         ))}
