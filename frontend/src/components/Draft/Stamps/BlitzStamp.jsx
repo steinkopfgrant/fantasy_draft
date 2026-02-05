@@ -4,7 +4,7 @@
 import React, { useMemo } from 'react';
 import './BlitzStamp.css';
 
-const BlitzStamp = ({ player, pickNumber }) => {
+const BlitzStamp = ({ player }) => {
   // Generate equidistant triangle grid, then remove those touching text
   const triangles = useMemo(() => {
     const width = 120;
@@ -91,16 +91,11 @@ const BlitzStamp = ({ player, pickNumber }) => {
         })}
       </svg>
 
-      {pickNumber != null && (
-        <div className="blitz-pick-badge">{pickNumber}</div>
-      )}
-
       {player && (
         <>
           <div className="blitz-player-name">{player.name}</div>
           <div className="blitz-player-info">
             <span className="blitz-team-price">{player.team} - ${player.price}</span>
-            <span className="blitz-player-position">{player.position}</span>
           </div>
         </>
       )}
