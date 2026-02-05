@@ -22,8 +22,8 @@ const STAMPS = [
     id: 'blitz',
     name: 'Blitz',
     description: 'The signature BidBlitz look. Orange energy with scattered triangles.',
-    unlockMethod: 'Available to all players',
-    alwaysUnlocked: true,
+    unlockMethod: 'Complete 1,000 drafts',
+    alwaysUnlocked: false,
     color: '#ff6b35',
     glow: 'rgba(255, 107, 53, 0.3)',
   },
@@ -156,39 +156,43 @@ const DefaultPreview = ({ isSelected }) => (
 );
 
 const BlitzPreview = ({ isSelected }) => {
-  // Generate triangles once
+  // Generate equidistant triangles on left and right sides only
   const triangles = useMemo(() => {
     const result = [];
     const width = 120;
     const height = 100;
-    const size = 4;
-    const placedPositions = [];
-    const minDistance = size * 2.5;
+    const size = 4.5;
+    const spacing = 9;
     
-    const isOverlapping = (x, y) => {
-      for (const pos of placedPositions) {
-        const dist = Math.sqrt((x - pos.x) ** 2 + (y - pos.y) ** 2);
-        if (dist < minDistance) return true;
-      }
-      return false;
-    };
+    // Only show triangles on left (x < 20) and right (x > 100) sides
+    const isInAvoidZone = (x) => x >= 20 && x <= 100;
     
-    for (let i = 0; i < 200; i++) {
-      if (result.length >= 30) break;
-      const x = Math.random() * width;
-      const y = Math.random() * height;
-      if (isOverlapping(x, y)) continue;
-      if (Math.random() < 0.5) {
-        placedPositions.push({ x, y });
+    // Create uniform hexagonal grid pattern
+    const rowHeight = spacing * 0.866;
+    const rows = Math.ceil(height / rowHeight) + 1;
+    const cols = Math.ceil(width / spacing) + 1;
+    
+    for (let row = 0; row < rows; row++) {
+      const y = row * rowHeight;
+      const xOffset = (row % 2) * (spacing / 2);
+      
+      for (let col = 0; col < cols; col++) {
+        const x = col * spacing + xOffset;
+        
+        if (isInAvoidZone(x)) continue;
+        
+        const pointsUp = (row + col) % 2 === 0;
+        
         result.push({
-          id: i,
+          id: `${row}-${col}`,
           x,
           y,
-          rotation: Math.random() * 360,
-          size: size + Math.random() * 2
+          pointsUp,
+          size
         });
       }
     }
+    
     return result;
   }, []);
 
@@ -196,7 +200,7 @@ const BlitzPreview = ({ isSelected }) => {
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#f7931e',
+      background: 'linear-gradient(135deg, #FFB347 0%, #FFA500 30%, #FF8C00 70%, #E67300 100%)',
       borderRadius: '8px',
       display: 'flex',
       flexDirection: 'column',
@@ -207,6 +211,18 @@ const BlitzPreview = ({ isSelected }) => {
       border: isSelected ? '2px solid #ff6b35' : '2px solid #8a3a1a',
       transition: 'border-color 0.3s',
     }}>
+      {/* Radial gradient overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'radial-gradient(ellipse at center, rgba(255, 200, 100, 0.3) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }} />
+      
       {/* Triangle pattern */}
       <svg 
         style={{
@@ -215,38 +231,57 @@ const BlitzPreview = ({ isSelected }) => {
           left: 0,
           width: '100%',
           height: '100%',
-          opacity: 1.00,
           pointerEvents: 'none',
+          zIndex: 2,
         }}
         viewBox="0 0 120 100"
         preserveAspectRatio="xMidYMid slice"
       >
-        {triangles.map(({ id, x, y, rotation, size }) => (
-          <polygon
-            key={id}
-            points={`${x},${y - size} ${x + size * 0.866},${y + size * 0.5} ${x - size * 0.866},${y + size * 0.5}`}
-            fill="white"
-            stroke="black"
-            strokeWidth="1"
-            transform={`rotate(${rotation} ${x} ${y})`}
-          />
-        ))}
+        {triangles.map(({ id, x, y, pointsUp, size }) => {
+          const h = size * 0.866;
+          const points = pointsUp
+            ? `${x},${y - h * 0.67} ${x + size / 2},${y + h * 0.33} ${x - size / 2},${y + h * 0.33}`
+            : `${x},${y + h * 0.67} ${x + size / 2},${y - h * 0.33} ${x - size / 2},${y - h * 0.33}`;
+          
+          return (
+            <polygon
+              key={id}
+              points={points}
+              fill="white"
+              stroke="black"
+              strokeWidth="0.8"
+              strokeLinejoin="round"
+            />
+          );
+        })}
       </svg>
       
-      <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-        <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textShadow: '1px 1px 2px rgba(0,0,0,0.4)' }}>
+      <div style={{ position: 'relative', zIndex: 10, textAlign: 'center' }}>
+        <div style={{ 
+          color: '#fff', 
+          fontWeight: 'bold', 
+          fontSize: '13px', 
+          marginBottom: '4px', 
+          textShadow: '0 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.3)',
+        }}>
           Josh Allen
         </div>
         <div style={{ 
           color: '#fff', 
-          fontSize: '11px', 
+          fontSize: '14px', 
           letterSpacing: '3px',
-          fontWeight: '800',
-          textShadow: '2px 2px 0 rgba(0,0,0,0.3)',
+          fontWeight: '900',
+          fontStyle: 'italic',
+          textShadow: '0 0 10px rgba(255,255,255,0.8), 0 0 20px rgba(255,255,255,0.6), 0 0 30px rgba(255,255,255,0.4)',
         }}>
           DRAFTED
         </div>
-        <div style={{ color: '#fff', fontSize: '10px', marginTop: '6px', opacity: 0.9, textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
+        <div style={{ 
+          color: '#fff', 
+          fontSize: '10px', 
+          marginTop: '6px', 
+          textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+        }}>
           BUF - $5
         </div>
       </div>
@@ -553,7 +588,7 @@ const CosmeticsPage = () => {
   const [equippedStamp, setEquippedStamp] = useState(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [unlockedStamps, setUnlockedStamps] = useState(new Set([null, 'blitz']));
+  const [unlockedStamps, setUnlockedStamps] = useState(new Set([null])); // Only default always unlocked now
 
   const handleEquip = useCallback(async (stampId) => {
     if (saving) return;
@@ -584,7 +619,7 @@ const CosmeticsPage = () => {
       try {
         const res = await axios.get('/api/users/cosmetics');
         const data = res.data;
-        const set = new Set([null, 'blitz']); // Default and Blitz always unlocked
+        const set = new Set([null]); // Only default always unlocked
         if (data.unlocked_stamps) {
           data.unlocked_stamps.forEach(s => set.add(s));
         }
