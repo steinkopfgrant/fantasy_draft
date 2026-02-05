@@ -2136,49 +2136,85 @@ if (resolvedTeamIndex === undefined) {
     };
   }, [status, startTimerInterval, stopTimerInterval]);
 
-  // CRITICAL: Handle tab visibility change - re-sync timer when tab becomes active
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && status === 'active') {
-        console.log('👁️ Tab became visible - re-syncing timer with server');
-        
-        // Immediately recalculate from stored timestamp
-        const remaining = calculateTimeRemaining();
-        dispatch(updateTimer(remaining));
-        
-        // Function to request state with retry
-        const requestStateWithRetry = (retries = 3, delay = 500) => {
-          if (!socketService.isConnected()) {
-            console.log(`👁️ Socket not connected, waiting... (${retries} retries left)`);
-            if (retries > 0) {
-              setTimeout(() => requestStateWithRetry(retries - 1, delay * 1.5), delay);
-            } else {
-              console.log('👁️ Socket still not connected after retries, forcing reconnect...');
-              // Force socket reconnect
-              socketService.disconnect();
-              setTimeout(() => {
-                socketService.connect();
-              }, 500);
-            }
-            return;
-          }
-          
-          console.log('👁️ Socket connected, requesting fresh state...');
-          socketService.emit('get-draft-state', { roomId });
-          lastSyncTimeRef.current = Date.now();
-        };
-        
-        // Start request with retry logic
-        requestStateWithRetry();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+// CRITICAL: Handle tab visibility change - re-sync timer when tab becomes active
+// This is essential for mobile where phone lock pauses JS execution
+useEffect(() => {
+  let lastHiddenAt = null;
+  
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      lastHiddenAt = Date.now();
+      console.log('👁️ Tab hidden at:', new Date().toISOString());
+      return;
+    }
     
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // Tab became visible
+    const hiddenDuration = lastHiddenAt ? Date.now() - lastHiddenAt : 0;
+    console.log(`👁️ Tab visible after ${Math.round(hiddenDuration/1000)}s`);
+    
+    // ALWAYS try to refresh when coming back, regardless of status
+    // (status might be stale/wrong after long sleep)
+    if (!roomId || !hasJoinedRef.current) {
+      console.log('👁️ Not in active draft, skipping refresh');
+      return;
+    }
+    
+    // 1. Immediately recalculate timer from stored timestamp
+    if (status === 'active' && turnStartedAtRef.current) {
+      const remaining = calculateTimeRemaining();
+      dispatch(updateTimer(remaining));
+      console.log(`👁️ Timer recalculated: ${remaining}s`);
+    }
+    
+    // 2. Restart timer interval (it may have been throttled while hidden)
+    if (status === 'active') {
+      stopTimerInterval();
+      startTimerInterval();
+      console.log('👁️ Timer interval restarted');
+    }
+    
+    // 3. Check socket health and force reconnect if stale
+    const forceRefresh = () => {
+      if (!socketService.isConnected()) {
+        console.log('👁️ Socket disconnected, reconnecting...');
+        socketService.connect();
+        // Retry after reconnect
+        setTimeout(forceRefresh, 1000);
+        return;
+      }
+      
+      console.log('👁️ Requesting fresh draft state...');
+      socketService.emit('get-draft-state', { roomId });
+      lastSyncTimeRef.current = Date.now();
     };
-  }, [status, roomId, calculateTimeRemaining, dispatch]);
+    
+    // If hidden for more than 5 seconds, be more aggressive
+    if (hiddenDuration > 5000) {
+      console.log('👁️ Was hidden for >5s, forcing socket reconnect check...');
+      
+      // Force disconnect and reconnect to ensure fresh connection
+      if (hiddenDuration > 30000) {
+        console.log('👁️ Was hidden for >30s, forcing full socket reconnect...');
+        socketService.disconnect();
+        setTimeout(() => {
+          socketService.connect();
+          setTimeout(forceRefresh, 500);
+        }, 100);
+      } else {
+        forceRefresh();
+      }
+    } else {
+      // Quick return - just request state
+      forceRefresh();
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+}, [status, roomId, calculateTimeRemaining, dispatch, startTimerInterval, stopTimerInterval]);
   // =====================================================================
 // BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
   // Also force reload if user has been away too long (MOBILE ONLY)
