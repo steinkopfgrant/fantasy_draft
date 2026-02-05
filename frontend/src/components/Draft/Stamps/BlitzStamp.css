@@ -1,0 +1,163 @@
+/* BlitzStamp.css */
+/* BidBlitz signature stamp - Orange with white triangles pattern */
+/* STATIC - no animations for performance */
+
+.blitz-stamp-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ff6b35 100%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Orange border with subtle depth */
+.blitz-stamp-frame::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(135deg, #ff8c42, #e65c00);
+  border-radius: 14px;
+  z-index: -1;
+}
+
+/* Inner shadow for depth */
+.blitz-stamp-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Triangle SVG container */
+.blitz-triangles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* DRAFTED text */
+.blitz-drafted-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  z-index: 10;
+  color: #fff;
+  text-shadow: 
+    2px 2px 0 rgba(0, 0, 0, 0.4),
+    -1px -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+/* Player name at top */
+.blitz-player-name {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 
+    1px 1px 2px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90%;
+}
+
+/* Player info at bottom */
+.blitz-player-info {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.blitz-player-position {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Pick number badge */
+.blitz-pick-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e65c00;
+  z-index: 10;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .blitz-drafted-text {
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+  
+  .blitz-player-name {
+    font-size: 11px;
+    top: 6px;
+  }
+  
+  .blitz-player-info {
+    font-size: 9px;
+    bottom: 6px;
+    left: 6px;
+    right: 6px;
+  }
+  
+  .blitz-pick-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+}
+
+/* Pause animations when app is backgrounded (for consistency with other stamps) */
+.app-backgrounded .blitz-stamp-frame {
+  /* No animations to pause, but keeping selector for consistency */
+}
