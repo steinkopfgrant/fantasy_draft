@@ -1930,10 +1930,19 @@ class ContestService {
   }
 
   async handlePlayerPick(roomId, userId, playerData, positionData) {
-    const draft = this.activeDrafts.get(roomId);
-    if (!draft) {
-      throw new Error('Draft not found');
+    // Prevent same user from double-picking (dual device scenario)
+    const userPickLock = `picking:${roomId}:${userId}`;
+    const gotLock = await this.redis.set(userPickLock, '1', 'NX', 'EX', 5);
+    if (!gotLock) {
+      console.log(`⚠️ User ${userId} already has pick in flight, ignoring duplicate`);
+      throw new Error('Pick already in progress');
     }
+
+    try {
+      const draft = this.activeDrafts.get(roomId);
+      if (!draft) {
+        throw new Error('Draft not found');
+      }
 
     const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
     const row = positionData?.row;
@@ -2015,7 +2024,11 @@ class ContestService {
       console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
     }
 
-    await this.startNextPick(roomId);
+      await this.startNextPick(roomId);
+    } finally {
+      // Always release the user pick lock
+      await this.redis.del(userPickLock);
+    }
   }
 
   async handleAutoPick(roomId, userId) {
