@@ -93,7 +93,10 @@ const BlitzStamp = ({ player }) => {
 
       {player && (
         <>
-          <div className="blitz-player-name">{player.name}</div>
+          <div className="blitz-player-name">
+            <span className="blitz-first-name">{player.name?.split(' ')[0]}</span>
+            <span className="blitz-last-name">{player.name?.split(' ').slice(1).join(' ')}</span>
+          </div>
           <div className="blitz-player-info">
             <span className="blitz-team-price">{player.team} - ${player.price}</span>
           </div>
