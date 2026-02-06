@@ -799,3 +799,96 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+/* Add this to TeamsPage.css */
+
+/* Contest Type Filter */
+.contest-filter {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: rgba(26, 31, 46, 0.5);
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #8892b0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccd6f6;
+}
+
+.filter-btn.active {
+  background: #2a2f3e;
+  color: #ccd6f6;
+}
+
+.filter-btn.cash.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.filter-btn.market.active {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+.filter-count {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filter-btn.active .filter-count {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.filter-btn.cash.active .filter-count {
+  background: rgba(16, 185, 129, 0.3);
+}
+
+.filter-btn.market.active .filter-count {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+/* Mobile adjustments for filter */
+@media (max-width: 768px) {
+  .contest-filter {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .filter-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .contest-filter {
+    flex-wrap: wrap;
+  }
+  
+  .filter-btn {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}

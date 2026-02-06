@@ -1,5 +1,5 @@
 // frontend/src/components/Teams/TeamsPage.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import './TeamsPage.css';
@@ -8,8 +8,10 @@ const TeamsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'active';
+  const initialFilter = searchParams.get('filter') || 'all';
   
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [contestFilter, setContestFilter] = useState(initialFilter);
   const [activeTeams, setActiveTeams] = useState([]);
   const [historyTeams, setHistoryTeams] = useState([]);
   const [historySummary, setHistorySummary] = useState(null);
@@ -78,9 +80,51 @@ const TeamsPage = () => {
     }
   }, [selectedTeam, fetchTeamDetails]);
 
+  // Filter teams by contest type
+  const filterByContestType = useCallback((teams) => {
+    if (contestFilter === 'all') return teams;
+    
+    return teams.filter(team => {
+      const type = team.contestType?.toLowerCase();
+      if (contestFilter === 'cash') {
+        return type === 'cash';
+      } else if (contestFilter === 'market') {
+        return type === 'market' || type === 'bash';
+      }
+      return true;
+    });
+  }, [contestFilter]);
+
+  // Filtered teams
+  const filteredActiveTeams = useMemo(() => 
+    filterByContestType(activeTeams), 
+    [activeTeams, filterByContestType]
+  );
+  
+  const filteredHistoryTeams = useMemo(() => 
+    filterByContestType(historyTeams),
+    [historyTeams, filterByContestType]
+  );
+
+  // Count teams by type for badges
+  const activeCountsByType = useMemo(() => ({
+    all: activeTeams.length,
+    cash: activeTeams.filter(t => t.contestType?.toLowerCase() === 'cash').length,
+    market: activeTeams.filter(t => ['market', 'bash'].includes(t.contestType?.toLowerCase())).length,
+  }), [activeTeams]);
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setSearchParams({ tab });
+    setSearchParams({ tab, filter: contestFilter });
+  };
+
+  const handleFilterChange = (filter) => {
+    setContestFilter(filter);
+    setSearchParams({ tab: activeTab, filter });
+    // Reset pagination when filter changes
+    if (activeTab === 'history') {
+      setHistoryPage(1);
+    }
   };
 
   const formatContestType = (type) => {
@@ -162,6 +206,37 @@ const TeamsPage = () => {
         </div>
       </div>
 
+      {/* Contest Type Filter */}
+      <div className="contest-filter">
+        <button
+          className={`filter-btn ${contestFilter === 'all' ? 'active' : ''}`}
+          onClick={() => handleFilterChange('all')}
+        >
+          All
+          {activeTab === 'active' && activeCountsByType.all > 0 && (
+            <span className="filter-count">{activeCountsByType.all}</span>
+          )}
+        </button>
+        <button
+          className={`filter-btn cash ${contestFilter === 'cash' ? 'active' : ''}`}
+          onClick={() => handleFilterChange('cash')}
+        >
+          💵 Cash Games
+          {activeTab === 'active' && activeCountsByType.cash > 0 && (
+            <span className="filter-count">{activeCountsByType.cash}</span>
+          )}
+        </button>
+        <button
+          className={`filter-btn market ${contestFilter === 'market' ? 'active' : ''}`}
+          onClick={() => handleFilterChange('market')}
+        >
+          📈 Market Mover
+          {activeTab === 'active' && activeCountsByType.market > 0 && (
+            <span className="filter-count">{activeCountsByType.market}</span>
+          )}
+        </button>
+      </div>
+
       {loading ? (
         <div className="teams-loading">
           <div className="spinner"></div>
@@ -169,16 +244,16 @@ const TeamsPage = () => {
         </div>
       ) : activeTab === 'active' ? (
         <div className="active-teams-section">
-          {activeTeams.length === 0 ? (
+          {filteredActiveTeams.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🏈</div>
-              <h3>No Active Teams</h3>
+              <h3>{contestFilter === 'all' ? 'No Active Teams' : `No Active ${contestFilter === 'cash' ? 'Cash Game' : 'Market Mover'} Teams`}</h3>
               <p>Join a contest to start drafting your lineup!</p>
               <button className="btn-primary" onClick={() => navigate('/lobby')}>Browse Contests</button>
             </div>
           ) : (
             <div className="teams-grid">
-              {activeTeams.map(team => {
+              {filteredActiveTeams.map(team => {
                 const badge = getStatusBadge(team.status, team.contestStatus);
                 return (
                   <div key={team.id} className={`team-card ${badge.class}`} onClick={() => handleTeamClick(team)}>
@@ -223,16 +298,16 @@ const TeamsPage = () => {
             </div>
           )}
 
-          {historyTeams.length === 0 ? (
+          {filteredHistoryTeams.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📊</div>
-              <h3>No Contest History</h3>
+              <h3>{contestFilter === 'all' ? 'No Contest History' : `No ${contestFilter === 'cash' ? 'Cash Game' : 'Market Mover'} History`}</h3>
               <p>Your settled contests will appear here.</p>
             </div>
           ) : (
             <>
               <div className="history-list">
-                {historyTeams.map(team => (
+                {filteredHistoryTeams.map(team => (
                   <div key={team.id} className={`history-card ${team.isWinner ? 'winner' : 'loser'}`} onClick={() => setSelectedTeam(team)}>
                     <div className="result-badge">
                       <span className={`net-result ${team.netResult >= 0 ? 'positive' : 'negative'}`}>
