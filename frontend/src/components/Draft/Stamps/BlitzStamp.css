@@ -45,11 +45,11 @@
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: 'Arial Black', 'Impact', sans-serif;
-  font-size: 22px;
+  font-size: clamp(10px, 4vw, 22px);
   font-weight: 900;
   font-style: italic;
   text-transform: uppercase;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   z-index: 10;
   color: #fff;
   text-shadow: 
@@ -57,15 +57,16 @@
     0 0 20px rgba(255, 255, 255, 0.6),
     0 0 30px rgba(255, 255, 255, 0.4),
     0 0 40px rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
 }
 
 /* Player name at top - clean white with subtle shadow */
 .blitz-player-name {
   position: absolute;
-  top: 10px;
+  top: 6px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 14px;
+  font-size: clamp(9px, 2.5vw, 14px);
   font-weight: 700;
   color: #fff;
   text-shadow: 
@@ -75,30 +76,30 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 85%;
-  letter-spacing: 0.5px;
+  max-width: 70%;
+  text-align: center;
+  letter-spacing: 0.3px;
 }
 
 /* Player info at bottom */
 .blitz-player-info {
   position: absolute;
-  bottom: 10px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
+  text-align: center;
 }
 
 .blitz-team-price {
-  font-size: 12px;
+  font-size: clamp(8px, 2vw, 12px);
   font-weight: 600;
   color: #fff;
   text-shadow: 
     0 1px 3px rgba(0, 0, 0, 0.5),
     0 0 8px rgba(0, 0, 0, 0.3);
   letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .blitz-player-position {
@@ -133,41 +134,65 @@
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
+  .blitz-stamp-frame {
+    border-width: 2px;
+    border-radius: 8px;
+  }
+  
   .blitz-drafted-text {
-    font-size: 16px;
-    letter-spacing: 2px;
+    font-size: 11px;
+    letter-spacing: 1px;
     text-shadow: 
-      0 0 8px rgba(255, 255, 255, 0.8),
-      0 0 15px rgba(255, 255, 255, 0.5),
-      0 0 25px rgba(255, 255, 255, 0.3);
+      0 0 6px rgba(255, 255, 255, 0.8),
+      0 0 12px rgba(255, 255, 255, 0.5);
   }
   
   .blitz-player-name {
-    font-size: 12px;
-    top: 8px;
+    font-size: 10px;
+    top: 4px;
+    max-width: 65%;
   }
   
   .blitz-team-price {
-    font-size: 10px;
-  }
-  
-  .blitz-player-position {
-    font-size: 10px;
-    padding: 3px 8px;
+    font-size: 9px;
   }
   
   .blitz-player-info {
-    bottom: 8px;
-    left: 8px;
-    right: 8px;
+    bottom: 4px;
+  }
+  
+  .blitz-player-position {
+    font-size: 9px;
+    padding: 2px 6px;
   }
   
   .blitz-pick-badge {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+    top: 4px;
+    right: 4px;
+  }
+}
+
+/* Extra small cards */
+@media (max-width: 480px) {
+  .blitz-drafted-text {
     font-size: 10px;
-    top: 6px;
-    right: 6px;
+    letter-spacing: 0.5px;
+  }
+  
+  .blitz-player-name {
+    font-size: 9px;
+    top: 3px;
+  }
+  
+  .blitz-team-price {
+    font-size: 8px;
+  }
+  
+  .blitz-player-info {
+    bottom: 3px;
   }
 }
 
