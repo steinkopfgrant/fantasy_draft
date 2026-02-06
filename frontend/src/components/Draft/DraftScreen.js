@@ -2136,11 +2136,13 @@ if (resolvedTeamIndex === undefined) {
     };
   }, [status, startTimerInterval, stopTimerInterval]);
 
-// CRITICAL: Handle mobile wake from lock - multiple event fallbacks
-// visibilitychange alone is unreliable on mobile lock/unlock
+// CRITICAL: Handle mobile wake from lock/app switch - multiple fallbacks
+// Includes heartbeat that detects JS pause (most reliable for app switching)
 useEffect(() => {
   let lastActiveAt = Date.now();
+  let lastHeartbeat = Date.now();
   let refreshInProgress = false;
+  let heartbeatInterval = null;
   
   const forceRefresh = async (source) => {
     // Debounce - don't refresh more than once per 2 seconds
@@ -2152,14 +2154,9 @@ useEffect(() => {
     const timeSinceActive = Date.now() - lastActiveAt;
     console.log(`👁️ [${source}] Wake detected after ${Math.round(timeSinceActive/1000)}s`);
     
-    // Only force refresh if we've been inactive for more than 3 seconds
-    if (timeSinceActive < 3000) {
-      lastActiveAt = Date.now();
-      return;
-    }
-    
     refreshInProgress = true;
     lastActiveAt = Date.now();
+    lastHeartbeat = Date.now();
     
     // Skip if not in a draft
     if (!roomId || !hasJoinedRef.current) {
@@ -2182,7 +2179,7 @@ useEffect(() => {
       startTimerInterval();
     }
     
-    // 3. Force socket reconnect if stale
+    // 3. Force socket reconnect if stale for a while
     if (timeSinceActive > 10000) {
       console.log(`👁️ [${source}] Stale for >10s, forcing socket reconnect...`);
       socketService.disconnect();
@@ -2192,18 +2189,16 @@ useEffect(() => {
     }
     
     // 4. Request fresh state
-    if (socketService.isConnected()) {
-      socketService.emit('get-draft-state', { roomId });
-      lastSyncTimeRef.current = Date.now();
-    } else {
-      // Socket not connected, try again after delay
-      setTimeout(() => {
-        if (socketService.isConnected()) {
-          socketService.emit('get-draft-state', { roomId });
-          lastSyncTimeRef.current = Date.now();
-        }
-      }, 1000);
-    }
+    const requestState = () => {
+      if (socketService.isConnected()) {
+        socketService.emit('get-draft-state', { roomId });
+        lastSyncTimeRef.current = Date.now();
+      }
+    };
+    
+    requestState();
+    // Retry once more after a delay in case socket wasn't ready
+    setTimeout(requestState, 1000);
     
     // Allow another refresh after 2 seconds
     setTimeout(() => {
@@ -2211,15 +2206,36 @@ useEffect(() => {
     }, 2000);
   };
   
+  // HEARTBEAT: Detects JS pause from app switching
+  // If interval was supposed to run every 1s but 3+ seconds passed, we were paused
+  const startHeartbeat = () => {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    
+    heartbeatInterval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - lastHeartbeat;
+      
+      // If more than 3 seconds since last heartbeat, JS was paused
+      if (elapsed > 3000) {
+        console.log(`💓 Heartbeat detected ${Math.round(elapsed/1000)}s gap - JS was paused`);
+        forceRefresh('heartbeat');
+      }
+      
+      lastHeartbeat = now;
+    }, 1000);
+  };
+  
+  startHeartbeat();
+  
   // Track when we're active
   const markActive = () => {
     lastActiveAt = Date.now();
+    lastHeartbeat = Date.now();
   };
   
   // Event handlers
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
-      // Don't update lastActiveAt here - we want to know when we went inactive
       console.log('👁️ Tab hidden');
     } else {
       forceRefresh('visibilitychange');
@@ -2228,18 +2244,13 @@ useEffect(() => {
   
   const handleFocus = () => forceRefresh('focus');
   const handlePageShow = (e) => {
-    if (e.persisted) {
-      // Page was restored from bfcache
-      forceRefresh('pageshow-bfcache');
-    } else {
-      forceRefresh('pageshow');
-    }
+    forceRefresh(e.persisted ? 'pageshow-bfcache' : 'pageshow');
   };
   
   // Touch/click as last resort - user is definitely back
   const handleInteraction = () => {
     const timeSinceActive = Date.now() - lastActiveAt;
-    if (timeSinceActive > 5000) {
+    if (timeSinceActive > 3000) {
       forceRefresh('interaction');
     } else {
       markActive();
@@ -2252,12 +2263,11 @@ useEffect(() => {
   window.addEventListener('pageshow', handlePageShow);
   document.addEventListener('touchstart', handleInteraction, { passive: true });
   document.addEventListener('click', handleInteraction);
-  
-  // Also track mouse/touch to know when user is active
   document.addEventListener('mousemove', markActive, { passive: true });
   document.addEventListener('touchmove', markActive, { passive: true });
   
   return () => {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('focus', handleFocus);
     window.removeEventListener('pageshow', handlePageShow);
@@ -2323,30 +2333,6 @@ useEffect(() => {
       return () => clearTimeout(timer);
     }
   }, [status, countdownTime, dispatch]);
-
-  // MOBILE HEARTBEAT: Periodic check to ensure socket is connected and state is fresh
-  useEffect(() => {
-    if (status !== 'active') return;
-    
-    const heartbeatInterval = setInterval(() => {
-      // Check socket health
-      if (!socketService.isConnected()) {
-        console.log('💓 Heartbeat: Socket disconnected, attempting reconnect...');
-        socketService.connect();
-        return;
-      }
-      
-      // If we haven't received a state update in 45 seconds, request fresh state
-      const timeSinceLastSync = Date.now() - (lastSyncTimeRef.current || 0);
-      if (timeSinceLastSync > 45000) {
-        console.log(`💓 Heartbeat: No state update in ${Math.round(timeSinceLastSync/1000)}s, requesting fresh state...`);
-        socketService.emit('get-draft-state', { roomId });
-        lastSyncTimeRef.current = Date.now();
-      }
-    }, 10000); // Check every 10 seconds
-    
-    return () => clearInterval(heartbeatInterval);
-  }, [status, roomId]);
 
   // AUTO-PICK: Enhanced timer handler with auto-pick
   // Uses isPicking as primary guard, ref as debounce for rapid re-renders
