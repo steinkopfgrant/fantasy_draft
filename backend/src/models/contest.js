@@ -12,6 +12,11 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM('cash', 'bash', 'market', 'firesale'),
       allowNull: false
     },
+    sport: {
+      type: DataTypes.STRING(20),
+      defaultValue: 'nfl',
+      allowNull: false
+    },
     name: {
       type: DataTypes.STRING(100),
       allowNull: false

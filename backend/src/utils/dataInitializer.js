@@ -11,13 +11,14 @@ async function ensureInitialData() {
     const contestCount = await db.Contest.count();
     
     if (contestCount === 0) {
-      console.log('No contests found. Creating initial cash game...');
+      console.log('No contests found. Creating initial cash games...');
       await createInitialContests();
     } else {
       console.log(`Found ${contestCount} existing contests`);
       
-      // Only ensure we have an open cash game (tournaments are admin-launched only)
-      await ensureCashGame();
+      // Ensure we have open cash games for each sport
+      await ensureCashGame('nfl');
+      await ensureCashGame('nba');
     }
 
     // Clean up any orphaned entries
@@ -36,28 +37,48 @@ async function createInitialContests() {
   const transaction = await db.sequelize.transaction();
   
   try {
-    // Create Cash Game ONLY - tournaments are admin-launched
-    const cashGame = await db.Contest.create({
+    // Create NFL Cash Game
+    await db.Contest.create({
       type: 'cash',
       name: 'Cash Game #1',
+      sport: 'nfl',
       status: 'open',
       entry_fee: 5.00,
       prize_pool: 24.00,
       max_entries: 5,
       current_entries: 0,
       max_entries_per_user: 1,
-      player_board: generatePlayerBoard(),
+      player_board: generatePlayerBoard(null, [], [], 'nfl'),
       start_time: new Date(),
-      end_time: new Date(Date.now() + 7200000), // 2 hours from now
+      end_time: new Date(Date.now() + 7200000),
       scoring_type: 'standard',
       max_salary: 15,
       prizes: [24]
     }, { transaction });
 
-    console.log('✅ Created Cash Game #1');
+    console.log('✅ Created NFL Cash Game #1');
 
-    // NOTE: Market Mover, Daily Bash, and Firesale are NOT auto-created
-    // These tournaments must be launched by an admin with guaranteed prize pools
+    // Create NBA Cash Game
+    await db.Contest.create({
+      type: 'cash',
+      name: 'NBA Cash Game #1',
+      sport: 'nba',
+      status: 'open',
+      entry_fee: 5.00,
+      prize_pool: 24.00,
+      max_entries: 5,
+      current_entries: 0,
+      max_entries_per_user: 1,
+      player_board: generatePlayerBoard(null, [], [], 'nba'),
+      start_time: new Date(),
+      end_time: new Date(Date.now() + 7200000),
+      scoring_type: 'standard',
+      max_salary: 15,
+      prizes: [24]
+    }, { transaction });
+
+    console.log('✅ Created NBA Cash Game #1');
+
     console.log('ℹ️ Tournament contests (Market Mover, Firesale) must be created by admin');
 
     await transaction.commit();
@@ -70,32 +91,37 @@ async function createInitialContests() {
   }
 }
 
-// Only ensure cash games exist - tournaments are admin-only
-async function ensureCashGame() {
+// Ensure cash games exist for a specific sport
+async function ensureCashGame(sport = 'nfl') {
   try {
-    // Check for open cash game
+    const sportLabel = sport.toUpperCase();
+    const namePrefix = sport === 'nfl' ? 'Cash Game' : 'NBA Cash Game';
+    
+    // Check for open cash game for this sport
     const openCashGame = await db.Contest.findOne({
       where: {
         type: 'cash',
+        sport: sport,
         status: 'open'
       }
     });
 
     if (!openCashGame) {
-      console.log('No open cash game found. Creating one...');
+      console.log(`No open ${sportLabel} cash game found. Creating one...`);
       
-      // Find highest cash game number
+      // Find highest cash game number for this sport
       const cashGames = await db.Contest.findAll({
         where: {
           type: 'cash',
-          name: { [Op.like]: 'Cash Game #%' }
+          sport: sport,
+          name: { [Op.like]: `${namePrefix} #%` }
         },
         attributes: ['name']
       });
 
       let maxNumber = 0;
       cashGames.forEach(game => {
-        const match = game.name.match(/Cash Game #(\d+)/);
+        const match = game.name.match(/#(\d+)/);
         if (match) {
           maxNumber = Math.max(maxNumber, parseInt(match[1]));
         }
@@ -103,14 +129,15 @@ async function ensureCashGame() {
 
       await db.Contest.create({
         type: 'cash',
-        name: `Cash Game #${maxNumber + 1}`,
+        name: `${namePrefix} #${maxNumber + 1}`,
+        sport: sport,
         status: 'open',
         entry_fee: 5.00,
         prize_pool: 24.00,
         max_entries: 5,
         current_entries: 0,
         max_entries_per_user: 1,
-        player_board: generatePlayerBoard(),
+        player_board: generatePlayerBoard(null, [], [], sport),
         start_time: new Date(),
         end_time: new Date(Date.now() + 7200000),
         scoring_type: 'standard',
@@ -118,14 +145,11 @@ async function ensureCashGame() {
         prizes: [24]
       });
 
-      console.log(`✅ Created Cash Game #${maxNumber + 1}`);
+      console.log(`✅ Created ${namePrefix} #${maxNumber + 1}`);
     }
 
-    // NOTE: We do NOT auto-create Market Mover, Daily Bash, or Firesale
-    // These are tournament contests that require admin launch with guaranteed prizes
-
   } catch (error) {
-    console.error('Error ensuring cash game:', error);
+    console.error(`Error ensuring ${sport} cash game:`, error);
     throw error;
   }
 }
@@ -133,7 +157,6 @@ async function ensureCashGame() {
 // Clean up deprecated contest types (Daily Bash)
 async function cleanupDeprecatedContests() {
   try {
-    // Delete any 'bash' type contests - they are deprecated
     const deletedBash = await db.Contest.destroy({
       where: {
         type: 'bash'
@@ -146,13 +169,11 @@ async function cleanupDeprecatedContests() {
 
   } catch (error) {
     console.error('Error cleaning up deprecated contests:', error);
-    // Don't throw - this is just cleanup
   }
 }
 
 async function cleanupOrphanedEntries() {
   try {
-    // Find entries for non-existent contests
     const orphanedEntries = await db.ContestEntry.findAll({
       include: [{
         model: db.Contest,
@@ -192,7 +213,6 @@ async function cleanupOrphanedEntries() {
 
   } catch (error) {
     console.error('Error cleaning up orphaned entries:', error);
-    // Don't throw - this is just cleanup
   }
 }
 
@@ -240,7 +260,6 @@ async function createTestUsers() {
 
   } catch (error) {
     console.error('Error creating test users:', error);
-    // Don't throw - test users are optional
   }
 }
 
@@ -250,50 +269,50 @@ async function createTestUsers() {
 
 /**
  * Create a Market Mover tournament (admin only)
- * @param {Object} options - Tournament configuration
- * @param {number} options.entryFee - Entry fee (default: 25)
- * @param {number} options.prizePool - Guaranteed prize pool (default: 120000)
- * @param {number} options.maxEntries - Max entries (default: 5000)
  */
 async function createMarketMoverTournament(options = {}) {
   const {
     entryFee = 25,
     prizePool = 120000,
     maxEntries = 5000,
-    maxEntriesPerUser = 150
+    maxEntriesPerUser = 150,
+    sport = 'nfl'
   } = options;
 
   try {
-    // Check if there's already an open Market Mover
     const existing = await db.Contest.findOne({
       where: {
         type: 'market',
+        sport: sport,
         status: 'open'
       }
     });
 
     if (existing) {
-      console.log('⚠️ An open Market Mover tournament already exists');
+      console.log(`⚠️ An open ${sport.toUpperCase()} Market Mover tournament already exists`);
       return existing;
     }
 
+    const sportLabel = sport === 'nfl' ? '' : `${sport.toUpperCase()} `;
+    
     const tournament = await db.Contest.create({
       type: 'market',
-      name: 'Market Mover',
+      name: `${sportLabel}Market Mover`,
+      sport: sport,
       status: 'open',
       entry_fee: entryFee,
       prize_pool: prizePool,
       max_entries: maxEntries,
       current_entries: 0,
       max_entries_per_user: maxEntriesPerUser,
-      player_board: null, // Each room gets unique board with FIRE SALE modifiers
+      player_board: null,
       start_time: new Date(),
-      end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week
+      end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       scoring_type: 'standard',
       max_salary: 15
     });
 
-    console.log(`✅ Created Market Mover tournament with $${prizePool.toLocaleString()} prize pool`);
+    console.log(`✅ Created ${sport.toUpperCase()} Market Mover tournament with $${prizePool.toLocaleString()} prize pool`);
     return tournament;
 
   } catch (error) {
@@ -304,46 +323,50 @@ async function createMarketMoverTournament(options = {}) {
 
 /**
  * Create a Firesale tournament (admin only)
- * @param {Object} options - Tournament configuration
  */
 async function createFiresaleTournament(options = {}) {
   const {
     entryFee = 50,
     prizePool = 250000,
     maxEntries = 10000,
-    maxEntriesPerUser = 150
+    maxEntriesPerUser = 150,
+    sport = 'nfl'
   } = options;
 
   try {
     const existing = await db.Contest.findOne({
       where: {
         type: 'firesale',
+        sport: sport,
         status: 'open'
       }
     });
 
     if (existing) {
-      console.log('⚠️ An open Firesale tournament already exists');
+      console.log(`⚠️ An open ${sport.toUpperCase()} Firesale tournament already exists`);
       return existing;
     }
 
+    const sportLabel = sport === 'nfl' ? '' : `${sport.toUpperCase()} `;
+
     const tournament = await db.Contest.create({
       type: 'firesale',
-      name: 'Trading Floor Firesale',
+      name: `${sportLabel}Trading Floor Firesale`,
+      sport: sport,
       status: 'open',
       entry_fee: entryFee,
       prize_pool: prizePool,
       max_entries: maxEntries,
       current_entries: 0,
       max_entries_per_user: maxEntriesPerUser,
-      player_board: generatePlayerBoard(),
+      player_board: generatePlayerBoard(null, [], [], sport),
       start_time: new Date(),
       end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       scoring_type: 'standard',
       max_salary: 15
     });
 
-    console.log(`✅ Created Firesale tournament with $${prizePool.toLocaleString()} prize pool`);
+    console.log(`✅ Created ${sport.toUpperCase()} Firesale tournament with $${prizePool.toLocaleString()} prize pool`);
     return tournament;
 
   } catch (error) {
