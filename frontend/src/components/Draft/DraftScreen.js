@@ -42,6 +42,32 @@ import {
   useMobileSelection,
 } from './DraftScreen.mobile.jsx';
 
+// ==================== SPORT CONFIGURATION ====================
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+    slotPriority: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+    flexEligible: ['RB', 'WR', 'TE'],
+    budget: 15,
+    rosterSize: 5,
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'FLEX'],
+    slotPriority: ['PG', 'SG', 'SF', 'PF', 'FLEX'],
+    flexEligible: ['PG', 'SG', 'SF', 'PF'],
+    budget: 15,
+    rosterSize: 5,
+  },
+  mlb: {
+    positions: ['P', 'C', '1B', 'OF', 'FLEX'],
+    slotPriority: ['P', 'C', '1B', 'OF', 'FLEX'],
+    flexEligible: ['C', '1B', 'OF'],
+    budget: 15,
+    rosterSize: 5,
+  },
+};
+// =============================================================
+
 // Module-level tracking to survive React remounts
 let moduleInitializedRoomId = null;
 let moduleLastInitTime = 0;
@@ -131,6 +157,9 @@ const DraftScreen = ({ showToast }) => {
     autoPickSuggestion,
     error
   } = draftState;
+
+  const sport = contestData?.sport || 'nfl';
+  const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
 
   const socketConnected = useSelector(state => state.socket.connected);
 
@@ -488,7 +517,7 @@ const DraftScreen = ({ showToast }) => {
     console.log(`💰 Auto-pick budget: $${totalBudget}`);
     
     // Get available slots for the team
-    const availableSlots = ['QB', 'RB', 'WR', 'TE', 'FLEX'].filter(slot => 
+    const availableSlots = sportConfig.positions.filter(slot => 
       !getPlayerFromRoster(roster, slot)
     );
     
@@ -499,8 +528,8 @@ const DraftScreen = ({ showToast }) => {
       return null;
     }
     
-    // CORRECT PRIORITY: QB → RB → WR → TE → FLEX (matching server logic)
-    const slotPriority = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+    // CORRECT PRIORITY: Use sport-specific slot priority (matching server logic)
+    const slotPriority = sportConfig.slotPriority;
     const prioritizedSlots = slotPriority.filter(slot => availableSlots.includes(slot));
     
     console.log(`🎯 Prioritized slots:`, prioritizedSlots);
@@ -533,7 +562,7 @@ const DraftScreen = ({ showToast }) => {
           let canFillSlot = false;
           if (targetSlot === playerPosition) {
             canFillSlot = true;
-          } else if (targetSlot === 'FLEX' && ['RB', 'WR', 'TE'].includes(playerPosition)) {
+          } else if (targetSlot === 'FLEX' && sportConfig.flexEligible.includes(playerPosition)) {
             canFillSlot = true;
           }
           
@@ -566,7 +595,7 @@ const DraftScreen = ({ showToast }) => {
     
     console.log(`❌ No eligible auto-pick found`);
     return null;
-  }, [standardizeSlotName]);
+  }, [standardizeSlotName, sportConfig]);
 
   // SNAKE DRAFT: Get expected next drafter
   const getExpectedNextDrafter = useCallback((currentTurn, teams) => {
@@ -1823,7 +1852,7 @@ if (resolvedTeamIndex === undefined) {
     }
 
     // Check if FLEX is available for eligible positions
-    if (!getPlayerFromRoster(roster, 'FLEX') && ['RB', 'WR', 'TE'].includes(playerPos)) {
+    if (sportConfig.flexEligible.length > 0 && !getPlayerFromRoster(roster, 'FLEX') && sportConfig.flexEligible.includes(playerPos)) {
       availableSlots.push('FLEX');
     }
 
@@ -2554,7 +2583,7 @@ useEffect(() => {
             </div>
             
             <div className="roster-display">
-              {['QB', 'RB', 'WR', 'TE', 'FLEX'].map(slot => {
+              {sportConfig.positions.map(slot => {
                 const player = getPlayerFromRoster(teams?.[currentViewTeam]?.roster, slot);
                 return (
                   <div key={slot} className="roster-slot">
@@ -2800,7 +2829,7 @@ const stampId = draftedByTeam?.equipped_stamp || player.equippedStamp;
                   </div>
                   
                   <div className="roster">
-                    {['QB', 'RB', 'WR', 'TE', 'FLEX'].map(slot => (
+                    {sportConfig.positions.map(slot => (
                       <RosterSlot 
                         key={slot} 
                         slot={slot} 

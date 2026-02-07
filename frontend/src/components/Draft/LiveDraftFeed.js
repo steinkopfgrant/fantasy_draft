@@ -2,12 +2,23 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import './LiveDraftFeed.css';
 
+// Sport-specific configuration
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX']
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'C']
+  }
+};
+
 const LiveDraftFeed = ({ 
   teams = [], 
   currentTurn = 0, 
   picks = [],
   currentUserId,
-  getUserId 
+  getUserId,
+  sport = 'nfl'  // NEW: sport prop
 }) => {
   const feedRef = useRef(null);
   const [hoveredPick, setHoveredPick] = useState(null);
@@ -16,6 +27,9 @@ const LiveDraftFeed = ({
   const totalTeams = teams.length || 5;
   const totalRounds = 5;
   const totalPicks = totalTeams * totalRounds;
+  
+  // Get positions for current sport
+  const positions = SPORT_CONFIG[sport]?.positions || SPORT_CONFIG.nfl.positions;
 
   // Calculate which team picks at which slot (snake draft)
   const getTeamForPick = (pickNumber) => {
@@ -96,9 +110,8 @@ const LiveDraftFeed = ({
           
           // Last resort fallback: Use roster data (may be wrong order on reconnect)
           if (!playerInfo && (!picks || picks.length === 0)) {
-            const rosterSlots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
             let filledCount = 0;
-            for (const slot of rosterSlots) {
+            for (const slot of positions) {
               const player = team.roster[slot] || team.roster[slot.toLowerCase()];
               if (player?.name) {
                 filledCount++;
@@ -132,7 +145,7 @@ const LiveDraftFeed = ({
     }
     
     return board;
-  }, [teams, currentTurn, picks, totalTeams, totalPicks, currentUserId, getUserId]);
+  }, [teams, currentTurn, picks, totalTeams, totalPicks, currentUserId, getUserId, positions]);
 
   // Auto-scroll to keep current pick visible
   useEffect(() => {
@@ -174,7 +187,6 @@ const LiveDraftFeed = ({
     
     const team = pick.team;
     const roster = team.roster || {};
-    const slots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
     const isMyTeam = getUserId && getUserId(team) === currentUserId;
     
     return (
@@ -198,7 +210,7 @@ const LiveDraftFeed = ({
         </div>
         
         <div className="tooltip-roster">
-          {slots.map(slot => {
+          {positions.map(slot => {
             const player = roster[slot] || roster[slot.toLowerCase()];
             return (
               <div key={slot} className={`roster-row ${player ? 'filled' : 'empty'}`}>

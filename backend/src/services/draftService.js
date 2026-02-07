@@ -2,6 +2,20 @@
 const Redis = require('ioredis');
 const { PLAYER_POOLS, getMatchupString } = require('../utils/gameLogic');
 
+// Sport-specific configuration
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+    flexEligible: ['RB', 'WR', 'TE'],
+    leaderPosition: 'QB'
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'C'],
+    flexEligible: [], // NBA has no flex
+    leaderPosition: 'PG'
+  }
+};
+
 class DraftService {
   constructor() {
     if (process.env.REDIS_URL) {
@@ -21,20 +35,9 @@ class DraftService {
     console.log('Socket.IO instance set in DraftService');
   }
 
-  // ============================================
-  // ATOMIC LOCKING FOR RACE CONDITION PREVENTION
-  // ============================================
-  
-  /**
-   * Acquires an atomic lock for a pick operation.
-   * Returns true if lock acquired, false if another pick is in progress.
-   */
   async acquirePickLock(contestId, turnNumber) {
     const lockKey = `pick_lock:${contestId}:${turnNumber}`;
-    
-    // SET NX (only if not exists) with 10 second expiry
     const result = await this.redis.set(lockKey, Date.now().toString(), 'NX', 'EX', 10);
-    
     if (result === 'OK') {
       console.log(`🔒 Acquired pick lock for ${contestId} turn ${turnNumber}`);
       return true;
@@ -44,16 +47,20 @@ class DraftService {
     }
   }
 
-  /**
-   * Releases the pick lock after processing
-   */
   async releasePickLock(contestId, turnNumber) {
     const lockKey = `pick_lock:${contestId}:${turnNumber}`;
     await this.redis.del(lockKey);
     console.log(`🔓 Released pick lock for ${contestId} turn ${turnNumber}`);
   }
   
-  ensureStackedWRInBottomRight(playerBoard) {
+  // Only apply stacked WR rule for NFL
+  ensureStackedWRInBottomRight(playerBoard, sport = 'nfl') {
+    // Skip for NBA - no stacked WR rule
+    if (sport === 'nba') {
+      console.log('🏀 NBA board - skipping stacked WR rule');
+      return playerBoard;
+    }
+    
     if (!playerBoard || !Array.isArray(playerBoard) || playerBoard.length === 0) {
       return playerBoard;
     }
@@ -80,7 +87,6 @@ class DraftService {
     
     console.log(`📋 Found ${allQBs.length} QBs from teams:`, Array.from(qbTeams));
     
-    // Fallback 1: No QBs found on board
     if (qbTeams.size === 0) {
       console.log('⚠️ No QBs found on board, placing random $1 WR');
       const wrPool = PLAYER_POOLS.WR[1] || [];
@@ -113,7 +119,6 @@ class DraftService {
     
     console.log(`✅ Found ${eligibleWRs.length} WRs from QB teams across all price tiers`);
     
-    // Fallback 2: No WRs match QB teams
     if (eligibleWRs.length === 0) {
       console.log('⚠️ No WRs match QB teams, using random $1 WR');
       const wrPool = PLAYER_POOLS.WR[1] || [];
@@ -134,7 +139,6 @@ class DraftService {
       return playerBoard;
     }
     
-    // Main case: Found eligible stacked WRs
     const selectedWR = eligibleWRs[Math.floor(Math.random() * eligibleWRs.length)];
     const matchingQB = allQBs.find(qb => qb.team === selectedWR.team);
     const wrPrice = selectedWR.originalPrice;
@@ -161,23 +165,32 @@ class DraftService {
     return playerBoard;
   }
   
-async startDraft(contestId, entries, playerBoard) {
-  const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
-  const processedBoard = this.ensureStackedWRInBottomRight(playerBoard);
+  // Create empty roster based on sport
+  createEmptyRoster(sport = 'nfl') {
+    const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+    const roster = {};
+    config.positions.forEach(pos => {
+      roster[pos] = null;
+    });
+    return roster;
+  }
   
-  // DEBUG: Log what's in entries
-  console.log('🔍 ENTRIES DEBUG:', shuffledEntries.map(e => ({
-    id: e.id,
-    userId: e.userId,
-    user_id: e.user_id,
-    username: e.username,
-    keys: Object.keys(e)
-  })));
-  
-  // Fetch equipped_stamp for each user
-  const db = require('../models');
-  const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
-  // ... rest of code
+  async startDraft(contestId, entries, playerBoard, sport = 'nfl') {
+    const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
+    
+    // Only apply stacked WR rule for NFL
+    const processedBoard = this.ensureStackedWRInBottomRight(playerBoard, sport);
+    
+    console.log(`🎮 Starting ${sport.toUpperCase()} draft for contest ${contestId}`);
+    console.log('🔍 ENTRIES DEBUG:', shuffledEntries.map(e => ({
+      id: e.id,
+      userId: e.userId,
+      user_id: e.user_id,
+      username: e.username
+    })));
+    
+    const db = require('../models');
+    const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
     
     let userStamps = {};
     try {
@@ -188,13 +201,14 @@ async startDraft(contestId, entries, playerBoard) {
       users.forEach(u => {
         userStamps[u.id] = u.equipped_stamp;
       });
-      console.log('🎨🎨🎨 STAMPS DEBUG - userIds:', userIds, 'stamps:', userStamps);
+      console.log('🎨 STAMPS DEBUG - userIds:', userIds, 'stamps:', userStamps);
     } catch (err) {
       console.error('⚠️ Could not load equipped stamps:', err.message);
     }
     
     const draftState = {
       contestId,
+      sport, // Store sport in draft state
       playerBoard: processedBoard,
       entries,
       currentTurn: 0,
@@ -206,9 +220,9 @@ async startDraft(contestId, entries, playerBoard) {
           entryId: entry.id,
           userId: oddsId,
           username: entry.username,
-          draftPosition: index, // IMPORTANT: Store draft position for consistent ordering
+          draftPosition: index,
           color: this.getTeamColor(index),
-          roster: { QB: null, RB: null, WR: null, TE: null, FLEX: null },
+          roster: this.createEmptyRoster(sport), // Sport-specific roster
           budget: 15,
           bonus: 0,
           equipped_stamp: userStamps[oddsId] || null
@@ -220,25 +234,16 @@ async startDraft(contestId, entries, playerBoard) {
     
     console.log('📝 DraftService.startDraft created:', {
       contestId,
-      teamsType: typeof draftState.teams,
-      teamsIsArray: Array.isArray(draftState.teams),
+      sport,
       teamsLength: draftState.teams.length,
-      entriesLength: entries.length,
-      stamps: draftState.teams.map(t => ({ name: t.username, stamp: t.equipped_stamp }))
+      rosterSlots: Object.keys(draftState.teams[0]?.roster || {})
     });
     
     const key = `state:${contestId}`;
     await this.redis.set(key, JSON.stringify(draftState), 'EX', 86400);
     await this.redis.sadd('active_drafts', contestId);
     
-    const returnCopy = JSON.parse(JSON.stringify(draftState));
-    
-    console.log('📤 Returning COPY of draft state:', {
-      teamsType: typeof returnCopy.teams,
-      teamsLength: returnCopy.teams.length
-    });
-    
-    return returnCopy;
+    return JSON.parse(JSON.stringify(draftState));
   }
   
   createSnakeDraftOrder(numPlayers) {
@@ -279,17 +284,16 @@ async startDraft(contestId, entries, playerBoard) {
       
       if (draft && typeof draft.teams === 'number') {
         console.error('🚨 CORRUPTION DETECTED: teams is a number in Redis!');
-        console.error('Contest ID:', contestId);
-        console.error('teams value:', draft.teams);
         
         if (draft.entries && Array.isArray(draft.entries)) {
+          const sport = draft.sport || 'nfl';
           draft.teams = draft.entries.map((entry, index) => ({
             entryId: entry.id,
             userId: entry.userId || entry.user_id,
             username: entry.username,
             draftPosition: index,
             color: this.getTeamColor(index),
-            roster: entry.roster || { QB: null, RB: null, WR: null, TE: null, FLEX: null },
+            roster: entry.roster || this.createEmptyRoster(sport),
             budget: 15,
             bonus: 0
           }));
@@ -302,13 +306,6 @@ async startDraft(contestId, entries, playerBoard) {
         }
       }
       
-      console.log('📋 getDraft returning:', {
-        contestId,
-        teamsType: typeof draft.teams,
-        teamsIsArray: Array.isArray(draft.teams),
-        teamsLength: draft.teams?.length
-      });
-      
       return draft;
     } catch (error) {
       console.error('Error getting draft:', error);
@@ -316,34 +313,23 @@ async startDraft(contestId, entries, playerBoard) {
     }
   }
   
-  // ============================================
-  // UPDATED: makePick with atomic locking
-  // ============================================
   async makePick(contestId, userId, pick) {
-    // Get current draft state FIRST to know what turn we're locking
     const draft = await this.getDraft(contestId);
     if (!draft) {
       throw new Error('Draft not found');
     }
     
     const turnToLock = draft.currentTurn;
-    
-    // ============================================
-    // CRITICAL: Acquire atomic lock BEFORE processing
-    // ============================================
     const lockAcquired = await this.acquirePickLock(contestId, turnToLock);
     
     if (!lockAcquired) {
-      // Another pick is already being processed for this turn
       console.log(`🚫 Pick rejected - turn ${turnToLock} already being processed`);
       throw new Error('Pick already in progress for this turn');
     }
     
     try {
-      // Re-fetch draft state AFTER acquiring lock to ensure consistency
       const currentDraft = await this.getDraft(contestId);
       
-      // Verify turn hasn't already advanced (double-check after lock)
       if (currentDraft.currentTurn !== turnToLock) {
         console.log(`🚫 Turn already advanced from ${turnToLock} to ${currentDraft.currentTurn}`);
         throw new Error('Turn has already advanced');
@@ -351,14 +337,13 @@ async startDraft(contestId, entries, playerBoard) {
       
       const currentTeamIndex = currentDraft.draftOrder[currentDraft.currentTurn];
       const currentTeam = currentDraft.teams[currentTeamIndex];
+      const sport = currentDraft.sport || 'nfl';
       
       console.log('🔍 Turn validation:', {
         currentTurn: currentDraft.currentTurn,
-        currentTeamIndex,
+        sport,
         expectedUserId: currentTeam?.userId,
-        actualUserId: userId,
-        currentTeamName: currentTeam?.username || currentTeam?.name,
-        teamsOrder: currentDraft.teams.map(t => ({ name: t.username || t.name, index: t.draftPosition, userId: t.userId?.substring(0, 8) }))
+        actualUserId: userId
       });
       
       if (currentTeam.userId !== userId) {
@@ -369,12 +354,23 @@ async startDraft(contestId, entries, playerBoard) {
         throw new Error('Player already drafted');
       }
       
-      // FIX: QBs can ONLY go in QB slot - check both position fields
+      // Sport-specific position validation
       const playerPos = pick.player.originalPosition || pick.player.position;
-      const isQB = playerPos === 'QB' || pick.player.position === 'QB';
-      if (isQB && pick.rosterSlot !== 'QB') {
-        console.log(`🚨 BLOCKED: Cannot put QB ${pick.player.name} in ${pick.rosterSlot} slot`);
-        throw new Error('QBs can only be placed in the QB slot');
+      const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+      
+      if (sport === 'nfl') {
+        // NFL: QBs can ONLY go in QB slot
+        const isQB = playerPos === 'QB' || pick.player.position === 'QB';
+        if (isQB && pick.rosterSlot !== 'QB') {
+          console.log(`🚨 BLOCKED: Cannot put QB ${pick.player.name} in ${pick.rosterSlot} slot`);
+          throw new Error('QBs can only be placed in the QB slot');
+        }
+      } else if (sport === 'nba') {
+        // NBA: Players must go in their exact position slot (no flex)
+        if (playerPos !== pick.rosterSlot && pick.player.position !== pick.rosterSlot) {
+          console.log(`🚨 BLOCKED: Cannot put ${playerPos} ${pick.player.name} in ${pick.rosterSlot} slot`);
+          throw new Error(`${playerPos} players must be placed in the ${playerPos} slot`);
+        }
       }
       
       currentDraft.picks.push({
@@ -395,7 +391,7 @@ async startDraft(contestId, entries, playerBoard) {
       currentTeam.budget -= pick.player.price;
       
       if (pick.contestType === 'kingpin' || pick.contestType === 'firesale') {
-        const bonus = this.calculateKingpinBonus(currentTeam, pick.player);
+        const bonus = this.calculateKingpinBonus(currentTeam, pick.player, sport);
         currentTeam.bonus += bonus;
       }
       
@@ -425,16 +421,16 @@ async startDraft(contestId, entries, playerBoard) {
       return currentDraft;
       
     } finally {
-      // ALWAYS release the lock, even if an error occurred
       await this.releasePickLock(contestId, turnToLock);
     }
   }
   
-  calculateKingpinBonus(team, newPlayer) {
+  calculateKingpinBonus(team, newPlayer, sport = 'nfl') {
     let bonusAdded = 0;
     const roster = team.roster || {};
     const players = Object.values(roster).filter(p => p);
     
+    // Duplicate player bonus (works for both sports)
     const duplicates = players.filter(p => 
       p.name === newPlayer.name && p.team === newPlayer.team
     );
@@ -442,25 +438,44 @@ async startDraft(contestId, entries, playerBoard) {
       bonusAdded++;
     }
     
-    const teamQB = players.find(p => 
-      (p.position === 'QB' || p.originalPosition === 'QB') && 
-      p.team === newPlayer.team
-    );
-    const isPassCatcher = ['WR', 'TE'].includes(newPlayer.position) || 
-      ['WR', 'TE'].includes(newPlayer.originalPosition);
-    
-    if (teamQB && isPassCatcher) {
-      bonusAdded++;
-    }
-    
-    const isQB = newPlayer.position === 'QB' || newPlayer.originalPosition === 'QB';
-    if (isQB) {
-      const hasPassCatcher = players.some(p => 
-        p.team === newPlayer.team &&
-        (['WR', 'TE'].includes(p.position) || ['WR', 'TE'].includes(p.originalPosition))
+    // Stack bonus (sport-specific)
+    if (sport === 'nfl') {
+      // NFL: QB + WR/TE stack
+      const teamQB = players.find(p => 
+        (p.position === 'QB' || p.originalPosition === 'QB') && 
+        p.team === newPlayer.team
       );
-      if (hasPassCatcher) {
-        bonusAdded++;
+      const isPassCatcher = ['WR', 'TE'].includes(newPlayer.position) || 
+        ['WR', 'TE'].includes(newPlayer.originalPosition);
+      
+      if (teamQB && isPassCatcher) bonusAdded++;
+      
+      const isQB = newPlayer.position === 'QB' || newPlayer.originalPosition === 'QB';
+      if (isQB) {
+        const hasPassCatcher = players.some(p => 
+          p.team === newPlayer.team &&
+          (['WR', 'TE'].includes(p.position) || ['WR', 'TE'].includes(p.originalPosition))
+        );
+        if (hasPassCatcher) bonusAdded++;
+      }
+    } else if (sport === 'nba') {
+      // NBA: PG + SG/SF stack
+      const teamPG = players.find(p => 
+        (p.position === 'PG' || p.originalPosition === 'PG') && 
+        p.team === newPlayer.team
+      );
+      const isScorer = ['SG', 'SF'].includes(newPlayer.position) || 
+        ['SG', 'SF'].includes(newPlayer.originalPosition);
+      
+      if (teamPG && isScorer) bonusAdded++;
+      
+      const isPG = newPlayer.position === 'PG' || newPlayer.originalPosition === 'PG';
+      if (isPG) {
+        const hasScorer = players.some(p => 
+          p.team === newPlayer.team &&
+          (['SG', 'SF'].includes(p.position) || ['SG', 'SF'].includes(p.originalPosition))
+        );
+        if (hasScorer) bonusAdded++;
       }
     }
     
@@ -514,9 +529,7 @@ async startDraft(contestId, entries, playerBoard) {
       const drafts = [];
       for (const contestId of activeIds) {
         const draft = await this.getDraft(contestId);
-        if (draft) {
-          drafts.push(draft);
-        }
+        if (draft) drafts.push(draft);
       }
       return drafts;
     } catch (error) {
@@ -548,12 +561,9 @@ async startDraft(contestId, entries, playerBoard) {
   async skipTurn(contestId, userId, reason = 'timeout') {
     try {
       const draft = await this.getDraft(contestId);
-      if (!draft) {
-        throw new Error('Draft not found');
-      }
+      if (!draft) throw new Error('Draft not found');
       
       const currentTeamIndex = draft.draftOrder[draft.currentTurn];
-      const currentTeam = draft.teams[currentTeamIndex];
       
       draft.picks.push({
         teamIndex: currentTeamIndex,
@@ -575,7 +585,7 @@ async startDraft(contestId, entries, playerBoard) {
       
       if (this.io) {
         this.io.to(`draft_${contestId}`).emit('turn-skipped', {
-          userId: currentTeam.userId,
+          userId: draft.teams[currentTeamIndex].userId,
           reason: reason,
           currentTurn: draft.currentTurn
         });
@@ -592,7 +602,6 @@ async startDraft(contestId, entries, playerBoard) {
     try {
       const timerKey = `timer:${contestId}`;
       await this.redis.set(timerKey, timeRemaining, 'EX', 35);
-      
       if (this.io) {
         this.io.to(`draft_${contestId}`).emit('timer-update', timeRemaining);
       }
@@ -621,12 +630,6 @@ async startDraft(contestId, entries, playerBoard) {
         throw new Error('Invalid draft state - teams must be an array');
       }
       
-      console.log('💾 Saving draft state:', {
-        contestId: draftState.contestId,
-        teamsType: typeof draftState.teams,
-        teamsLength: draftState.teams.length
-      });
-      
       await this.redis.set(key, JSON.stringify(draftState), 'EX', 86400);
       return true;
     } catch (error) {
@@ -654,17 +657,20 @@ async startDraft(contestId, entries, playerBoard) {
     }
   }
 
-  // ============================================
-  // HELPER: Find best roster slot for a player
-  // ============================================
-  findBestSlotForPlayer(player, roster) {
+  // Sport-aware slot finder
+  findBestSlotForPlayer(player, roster, sport = 'nfl') {
     const position = player.originalPosition || player.position;
-    const slots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+    const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+    const slots = config.positions;
     
-    // Helper to check if slot is empty
     const isSlotEmpty = (slot) => !roster[slot] || !roster[slot].name;
     
-    // QBs can ONLY go in QB slot
+    if (sport === 'nba') {
+      // NBA: Players can ONLY go in their exact position slot
+      return isSlotEmpty(position) ? position : null;
+    }
+    
+    // NFL logic
     const isQB = position === 'QB' || player.position === 'QB';
     if (isQB) {
       return isSlotEmpty('QB') ? 'QB' : null;
@@ -675,36 +681,30 @@ async startDraft(contestId, entries, playerBoard) {
       return position;
     }
     
-    // Priority 2: FLEX for eligible positions (RB, WR, TE)
-    if (['RB', 'WR', 'TE'].includes(position) && isSlotEmpty('FLEX')) {
+    // Priority 2: FLEX for eligible positions
+    if (config.flexEligible.includes(position) && isSlotEmpty('FLEX')) {
       return 'FLEX';
     }
     
-    // No valid slot found
     return null;
   }
 
-  // ============================================
-  // UPDATED: autoPick with pre-selection support and FIXED algorithm
-  // Now finds the MOST EXPENSIVE player across ALL empty slots
-  // ============================================
+  // Sport-aware auto-pick
   async autoPick(contestId, userId, preSelection = null) {
     try {
       const draft = await this.getDraft(contestId);
-      if (!draft) {
-        throw new Error('Draft not found');
-      }
+      if (!draft) throw new Error('Draft not found');
       
+      const sport = draft.sport || 'nfl';
+      const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
       const turnToProcess = draft.currentTurn;
       
-      // Check if a pick is already in progress for this turn
-      // We do a quick check before doing expensive work
       const lockKey = `pick_lock:${contestId}:${turnToProcess}`;
       const existingLock = await this.redis.get(lockKey);
       
       if (existingLock) {
         console.log(`🤖 AutoPick skipped - pick already in progress for turn ${turnToProcess}`);
-        return null; // Gracefully skip - manual pick won the race
+        return null;
       }
       
       const currentTeamIndex = draft.draftOrder[turnToProcess];
@@ -717,9 +717,7 @@ async startDraft(contestId, entries, playerBoard) {
       
       const emptySlots = [];
       for (const [slot, player] of Object.entries(currentTeam.roster)) {
-        if (!player) {
-          emptySlots.push(slot);
-        }
+        if (!player) emptySlots.push(slot);
       }
       
       if (emptySlots.length === 0) {
@@ -728,32 +726,22 @@ async startDraft(contestId, entries, playerBoard) {
       }
       
       const budget = currentTeam.budget;
-      console.log(`🤖 AutoPick for ${currentTeam.username}: Budget $${budget}, Empty slots: ${emptySlots.join(', ')}`);
+      console.log(`🤖 AutoPick (${sport.toUpperCase()}) for ${currentTeam.username}: Budget $${budget}, Empty slots: ${emptySlots.join(', ')}`);
       
-      // ==========================================
-      // CHECK FOR PRE-SELECTION FIRST (passed from contestService)
-      // ==========================================
+      // Check pre-selection first
       if (preSelection) {
         const { row, col, name, position } = preSelection;
         console.log(`🎯 Checking pre-selection: ${name} at [${row}][${col}]`);
         
-        // Verify player is still available on the board
-        if (draft.playerBoard && 
-            draft.playerBoard[row] && 
-            draft.playerBoard[row][col] && 
-            !draft.playerBoard[row][col].drafted) {
-          
+        if (draft.playerBoard?.[row]?.[col] && !draft.playerBoard[row][col].drafted) {
           const boardPlayer = draft.playerBoard[row][col];
           
-          // Check if player is within budget
           if (boardPlayer.price <= budget) {
-            // Find the best roster slot for this player
-            const targetSlot = this.findBestSlotForPlayer(boardPlayer, currentTeam.roster || {});
+            const targetSlot = this.findBestSlotForPlayer(boardPlayer, currentTeam.roster || {}, sport);
             
             if (targetSlot && emptySlots.includes(targetSlot)) {
-              console.log(`🎯 AUTO-PICK using pre-selected player for ${currentTeam.username}: ${name} -> ${targetSlot}`);
+              console.log(`🎯 AUTO-PICK using pre-selected player: ${name} -> ${targetSlot}`);
               
-              // Make the pick with the pre-selected player
               const pick = {
                 player: boardPlayer,
                 rosterSlot: targetSlot,
@@ -764,33 +752,22 @@ async startDraft(contestId, entries, playerBoard) {
               };
               
               return await this.makePick(contestId, userId, pick);
-            } else {
-              console.log(`⚠️ Pre-selected player ${name} has no valid slot (need: ${position}, available: ${emptySlots.join(',')}), falling back to algorithm`);
             }
-          } else {
-            console.log(`⚠️ Pre-selected player ${name} ($${boardPlayer.price}) exceeds budget ($${budget}), falling back to algorithm`);
           }
-        } else {
-          console.log(`⚠️ Pre-selected player ${name} at [${row}][${col}] no longer available, falling back to algorithm`);
         }
+        console.log(`⚠️ Pre-selection not valid, falling back to algorithm`);
       }
-      // ==========================================
-      // END PRE-SELECTION CHECK
-      // ==========================================
       
-      // ==========================================
-      // PRIORITY-BASED AUTO-PICK ALGORITHM
-      // Fill slots in order: QB -> RB -> WR -> TE -> FLEX
-      // For each slot, pick the most expensive available player
-      // ==========================================
+      // Sport-specific priority order
       let bestPick = null;
       let bestRow = -1;
       let bestCol = -1;
       
-      const slotPriority = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+      const slotPriority = config.positions.filter(p => p !== 'FLEX');
+      if (sport === 'nfl') slotPriority.push('FLEX'); // Add FLEX at end for NFL
+      
       const prioritizedSlots = slotPriority.filter(s => emptySlots.includes(s));
       
-      // Go through slots in priority order, pick first one we can fill
       for (const targetSlot of prioritizedSlots) {
         let slotBest = null;
         let slotBestRow = -1;
@@ -800,27 +777,25 @@ async startDraft(contestId, entries, playerBoard) {
           for (let col = 0; col < draft.playerBoard[row].length; col++) {
             const player = draft.playerBoard[row][col];
             
-            if (!player || player.drafted || player.price > budget) {
-              continue;
-            }
+            if (!player || player.drafted || player.price > budget) continue;
             
             const playerPos = player.originalPosition || player.position;
             let canFillSlot = false;
             
-            if (targetSlot === 'FLEX') {
-              // QBs can NEVER go in FLEX
-              const isQB = playerPos === 'QB' || player.position === 'QB';
-              if (isQB) {
-                canFillSlot = false;
-              } else {
-                canFillSlot = ['RB', 'WR', 'TE', 'FLEX'].includes(playerPos);
-              }
-            } else {
+            if (sport === 'nba') {
+              // NBA: Exact position match only
               canFillSlot = (playerPos === targetSlot) || (player.position === targetSlot);
+            } else {
+              // NFL logic
+              if (targetSlot === 'FLEX') {
+                const isQB = playerPos === 'QB' || player.position === 'QB';
+                canFillSlot = !isQB && config.flexEligible.includes(playerPos);
+              } else {
+                canFillSlot = (playerPos === targetSlot) || (player.position === targetSlot);
+              }
             }
             
             if (canFillSlot) {
-              // Find the most expensive player for THIS slot
               if (!slotBest || player.price > slotBest.price) {
                 slotBest = { ...player };
                 slotBestRow = row;
@@ -831,13 +806,12 @@ async startDraft(contestId, entries, playerBoard) {
           }
         }
         
-        // If we found a player for this slot, use them and stop looking
         if (slotBest) {
           bestPick = slotBest;
           bestRow = slotBestRow;
           bestCol = slotBestCol;
           console.log(`🤖 AutoPick: Found ${slotBest.name} ($${slotBest.price}) for ${targetSlot} slot`);
-          break; // Stop at first slot we can fill
+          break;
         }
       }
       
@@ -856,8 +830,6 @@ async startDraft(contestId, entries, playerBoard) {
         isAutoPick: true
       };
       
-      // This will acquire its own lock via makePick
-      // If manual pick already has the lock, this will throw and we handle it gracefully
       return await this.makePick(contestId, userId, pick);
       
     } catch (error) {

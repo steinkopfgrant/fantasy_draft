@@ -3,6 +3,16 @@
 
 import React from 'react';
 
+// Sport-specific configuration
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX']
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'C']
+  }
+};
+
 /**
  * Auto-draft bar shown when a player is selected
  * Displays which player will be auto-drafted if time runs out
@@ -94,9 +104,11 @@ export const MobileConfirmModal = ({
 /**
  * Compact roster bar for mobile
  * Shows filled/empty slots at bottom of screen
+ * Now accepts positions prop for multi-sport support
  */
-export const MobileRosterBar = ({ roster, budget, bonus = 0 }) => {
-  const slots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+export const MobileRosterBar = ({ roster, budget, bonus = 0, positions }) => {
+  // Use passed positions or default to NFL
+  const slots = positions || SPORT_CONFIG.nfl.positions;
   const filledCount = slots.filter(slot => roster?.[slot]?.name).length;
   const totalSpent = 15 - (budget || 15);
   

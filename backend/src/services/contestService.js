@@ -1514,7 +1514,8 @@ class ContestService {
       const draftState = await draftService.startDraft(
         roomId,
         roomStatus.entries,
-        playerBoard
+        playerBoard,
+        roomStatus.contestSport || 'nfl'  // Pass sport to draftService
       );
 
       this.activeDrafts.set(roomId, {

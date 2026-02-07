@@ -3,6 +3,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './DraftBoard.css';
 import { getStampComponent } from './Stamps';
 
+// Sport-specific configuration
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+    flexEligible: ['RB', 'WR', 'TE'],
+    leaderPosition: 'QB'
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'C'],
+    flexEligible: [], // NBA has no flex - all positions are fixed
+    leaderPosition: 'PG'
+  }
+};
+
 const DraftBoard = ({ 
   playerBoard, 
   onPlayerSelect, 
@@ -10,7 +24,8 @@ const DraftBoard = ({
   isMyTurn, 
   draftedPlayers,
   highlightedPosition,
-  budget = 15
+  budget = 15,
+  sport = 'nfl' // NEW: sport prop with default
 }) => {
   const [selectedCell, setSelectedCell] = useState(null);
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -20,25 +35,31 @@ const DraftBoard = ({
   const [filterTeam, setFilterTeam] = useState('ALL');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 5 });
 
-  // Get available positions for the current roster
+  // Get sport config
+  const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+  const rosterSlots = sportConfig.positions;
+  const flexEligible = sportConfig.flexEligible;
+
+  // Get available positions for the current roster (sport-aware)
   const getAvailablePositions = (player) => {
     const positions = [];
     const roster = currentTeam?.roster || {};
+    const playerPos = player.originalPosition || player.position;
     
     // Check primary position
-    if (!roster[player.position]) {
-      positions.push(player.position);
+    if (!roster[playerPos]) {
+      positions.push(playerPos);
     }
     
-    // Check FLEX eligibility
-    if (!roster.FLEX && ['RB', 'WR', 'TE'].includes(player.position)) {
+    // Check FLEX eligibility (NFL only)
+    if (sport === 'nfl' && !roster.FLEX && flexEligible.includes(playerPos)) {
       positions.push('FLEX');
     }
     
     return positions;
   };
 
-  // Calculate auto-pick suggestion
+  // Calculate auto-pick suggestion (sport-aware)
   const calculateAutoPick = () => {
     if (!isMyTurn || !playerBoard) return null;
 
@@ -47,25 +68,20 @@ const DraftBoard = ({
 
     playerBoard.forEach((row, rowIndex) => {
       row.forEach((player, colIndex) => {
-        // Skip if already drafted or too expensive
         if (player.drafted || player.price > budget) return;
 
         const availablePositions = getAvailablePositions(player);
         if (availablePositions.length === 0) return;
 
-        // Calculate value score
-        // Prioritize filling required positions first
         const roster = currentTeam?.roster || {};
-        const requiredPositions = ['QB', 'RB', 'WR', 'TE'];
+        const requiredPositions = rosterSlots.filter(pos => pos !== 'FLEX');
         const filledRequired = requiredPositions.filter(pos => roster[pos]).length;
-        const isRequired = requiredPositions.includes(player.position) && !roster[player.position];
+        const playerPos = player.originalPosition || player.position;
+        const isRequired = requiredPositions.includes(playerPos) && !roster[playerPos];
         
-        // Value formula: price * position need * scarcity
         let value = player.price;
-        if (isRequired) value *= 2; // Double value for needed positions
-        if (filledRequired < 4) value *= 1.5; // Boost if still filling required spots
-        
-        // Add small random factor to break ties
+        if (isRequired) value *= 2;
+        if (filledRequired < requiredPositions.length) value *= 1.5;
         value += Math.random() * 0.1;
 
         if (value > bestValue) {
@@ -78,7 +94,6 @@ const DraftBoard = ({
     return bestPick;
   };
 
-  // Update auto-pick preview when turn changes or roster updates
   useEffect(() => {
     if (isMyTurn) {
       const autoPick = calculateAutoPick();
@@ -90,36 +105,17 @@ const DraftBoard = ({
     } else {
       setAutoPickCell(null);
     }
-  }, [isMyTurn, currentTeam, playerBoard, budget]);
+  }, [isMyTurn, currentTeam, playerBoard, budget, sport]);
 
-  // Filter players based on search criteria
   const isPlayerVisible = (player) => {
     if (!player) return false;
-    
-    // Search term filter
-    if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    
-    // Position filter
-    if (filterPosition !== 'ALL' && player.position !== filterPosition) {
-      return false;
-    }
-    
-    // Team filter
-    if (filterTeam !== 'ALL' && player.team !== filterTeam) {
-      return false;
-    }
-    
-    // Price filter
-    if (player.price < priceRange.min || player.price > priceRange.max) {
-      return false;
-    }
-    
+    if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (filterPosition !== 'ALL' && player.position !== filterPosition) return false;
+    if (filterTeam !== 'ALL' && player.team !== filterTeam) return false;
+    if (player.price < priceRange.min || player.price > priceRange.max) return false;
     return true;
   };
 
-  // Get unique teams for filter
   const uniqueTeams = useMemo(() => {
     const teams = new Set();
     playerBoard?.forEach(row => {
@@ -130,6 +126,17 @@ const DraftBoard = ({
     return Array.from(teams).sort();
   }, [playerBoard]);
 
+  const uniquePositions = useMemo(() => {
+    const positions = new Set();
+    playerBoard?.forEach(row => {
+      row.forEach(player => {
+        if (player?.position) positions.add(player.position);
+        if (player?.originalPosition) positions.add(player.originalPosition);
+      });
+    });
+    return Array.from(positions).sort();
+  }, [playerBoard]);
+
   const handleCellClick = (row, col, player) => {
     if (!isMyTurn || player.drafted || player.price > budget) return;
     
@@ -138,13 +145,11 @@ const DraftBoard = ({
 
     const cellKey = `${row}-${col}`;
     
-    // If clicking the auto-pick suggestion, confirm it
     if (cellKey === autoPickCell) {
       onPlayerSelect(row, col, player, availablePositions[0]);
       setSelectedCell(null);
       setAutoPickCell(null);
     } else {
-      // Otherwise, select this cell
       setSelectedCell(cellKey === selectedCell ? null : cellKey);
     }
   };
@@ -154,7 +159,6 @@ const DraftBoard = ({
     setSelectedCell(null);
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (!isMyTurn || !selectedCell) return;
@@ -163,21 +167,17 @@ const DraftBoard = ({
       const player = playerBoard[row][col];
       const availablePositions = getAvailablePositions(player);
       
-      // Number keys for position selection
       if (e.key >= '1' && e.key <= '5') {
-        const positions = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
-        const position = positions[parseInt(e.key) - 1];
-        if (availablePositions.includes(position)) {
+        const position = rosterSlots[parseInt(e.key) - 1];
+        if (position && availablePositions.includes(position)) {
           handlePositionSelect(row, col, player, position);
         }
       }
       
-      // Enter to confirm first available position
       if (e.key === 'Enter' && availablePositions.length > 0) {
         handlePositionSelect(row, col, player, availablePositions[0]);
       }
       
-      // Escape to cancel selection
       if (e.key === 'Escape') {
         setSelectedCell(null);
       }
@@ -185,7 +185,7 @@ const DraftBoard = ({
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isMyTurn, selectedCell, playerBoard]);
+  }, [isMyTurn, selectedCell, playerBoard, rosterSlots]);
 
   if (!playerBoard || playerBoard.length === 0) {
     return <div className="draft-board-loading">Loading player board...</div>;
@@ -211,10 +211,9 @@ const DraftBoard = ({
             className="filter-select"
           >
             <option value="ALL">All Positions</option>
-            <option value="QB">QB</option>
-            <option value="RB">RB</option>
-            <option value="WR">WR</option>
-            <option value="TE">TE</option>
+            {uniquePositions.map(pos => (
+              <option key={pos} value={pos}>{pos}</option>
+            ))}
           </select>
         </div>
 
@@ -370,7 +369,7 @@ const DraftBoard = ({
       {isMyTurn && (
         <div className="keyboard-shortcuts">
           <h4>Keyboard Shortcuts:</h4>
-          <div className="shortcut">1-5: Select position (QB, RB, WR, TE, FLEX)</div>
+          <div className="shortcut">1-5: Select position ({rosterSlots.join(', ')})</div>
           <div className="shortcut">Enter: Confirm selection</div>
           <div className="shortcut">Esc: Cancel selection</div>
         </div>
