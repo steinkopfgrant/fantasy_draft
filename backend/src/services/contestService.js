@@ -140,7 +140,7 @@ class ContestService {
     await this.redis.del(lockKey);
   }
 
-  // Get all open contests - UPDATED with Market Mover data
+  // Get all open contests - UPDATED with Market Mover data and sport field
   async getContests() {
     try {
       const contests = await db.Contest.findAll({
@@ -153,16 +153,20 @@ class ContestService {
         ]
       });
 
-      // For cash games, only show the latest open one
+      // For cash games, only show the latest open one PER SPORT
       const cashGames = contests.filter(c => c.type === 'cash');
-      const latestOpenCashGame = cashGames.length > 0 ? cashGames[0] : null;
       const otherContests = contests.filter(c => c.type !== 'cash');
       
-      const finalContests = [];
-      if (latestOpenCashGame) {
-        finalContests.push(latestOpenCashGame);
-      }
-      finalContests.push(...otherContests);
+      // Group cash games by sport and take latest of each
+      const cashBySport = {};
+      cashGames.forEach(game => {
+        const gameSport = game.sport || 'nfl';
+        if (!cashBySport[gameSport]) {
+          cashBySport[gameSport] = game;
+        }
+      });
+      
+      const finalContests = [...Object.values(cashBySport), ...otherContests];
 
       // For Market Mover contests, include FIRE SALE status
       const marketMoverService = require('./marketMoverService');
@@ -171,6 +175,7 @@ class ContestService {
       return finalContests.map(contest => ({
         id: contest.id,
         type: contest.type,
+        sport: contest.sport || 'nfl',
         name: contest.name,
         status: contest.status,
         entryFee: parseFloat(contest.entry_fee),
@@ -205,6 +210,7 @@ class ContestService {
       const result = {
         id: contest.id,
         type: contest.type,
+        sport: contest.sport || 'nfl',
         name: contest.name,
         status: contest.status,
         entryFee: parseFloat(contest.entry_fee),
@@ -242,7 +248,7 @@ class ContestService {
         },
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'entry_fee', 'prize_pool', 'player_board', 'status', 'current_entries', 'max_entries']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board', 'status', 'current_entries', 'max_entries']
         }],
         order: [['created_at', 'DESC']]
       });
@@ -253,6 +259,7 @@ class ContestService {
         contestId: entry.contest_id,
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
+        contestSport: entry.Contest?.sport || 'nfl',
         contestStatus: entry.Contest?.status,
         entryFee: entry.Contest ? parseFloat(entry.Contest.entry_fee) : 0,
         prizePool: entry.Contest ? parseFloat(entry.Contest.prize_pool) : 0,
@@ -310,7 +317,7 @@ class ContestService {
     }
   }
 
-  // Main enter contest method - UPDATED with TransactionService
+  // Main enter contest method - UPDATED with TransactionService and sport support
   async enterContest(contestId, userId, username) {
     const lockKey = `contest:${contestId}:user:${userId}`;
     const lockAcquired = await this.acquireLock(lockKey);
@@ -334,7 +341,7 @@ class ContestService {
         throw new Error('Contest not found');
       }
 
-      console.log(`Entering contest: ${contest.name} (${contest.type}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
+      console.log(`Entering contest: ${contest.name} (${contest.type}, ${contest.sport || 'nfl'}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
 
       if (contest.status !== 'open') {
         throw new Error('Contest is not accepting entries');
@@ -484,10 +491,11 @@ class ContestService {
             const marketMoverService = require('./marketMoverService');
             const mmStatus = await marketMoverService.getVotingStatus();
             
-            let newBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
+            // UPDATED: Pass sport parameter
+            let newBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
             
             await this.redis.set(boardKey, JSON.stringify(newBoard), 'EX', 86400);
-            console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
+            console.log(`Generated new Market Mover board for room ${roomId} (${contest.sport || 'nfl'}) with FIRE SALE modifiers`);
           }
         }
         
@@ -551,9 +559,22 @@ class ContestService {
           console.log(`Cash game ${contestId} is full, creating replacement...`);
           
           try {
+            // Get sport-specific cash game count
             const cashGames = await db.Contest.findAll({
               where: {
                 type: 'cash',
+                sport: contest.sport || 'nfl',
+                name: { [Op.like]: `${(contest.sport || 'nfl').toUpperCase()} Cash Game #%` }
+              },
+              attributes: ['name'],
+              transaction
+            });
+
+            // Also check old naming convention for backwards compatibility
+            const oldCashGames = await db.Contest.findAll({
+              where: {
+                type: 'cash',
+                sport: contest.sport || 'nfl',
                 name: { [Op.like]: 'Cash Game #%' }
               },
               attributes: ['name'],
@@ -561,27 +582,30 @@ class ContestService {
             });
 
             let maxNumber = 0;
-            cashGames.forEach(game => {
-              const match = game.name.match(/Cash Game #(\d+)/);
+            [...cashGames, ...oldCashGames].forEach(game => {
+              const match = game.name.match(/Cash Game #(\d+)/i);
               if (match) {
                 maxNumber = Math.max(maxNumber, parseInt(match[1]));
               }
             });
 
             const nextNumber = maxNumber + 1;
+            const sportPrefix = (contest.sport || 'nfl').toUpperCase();
             
             const { v4: uuidv4 } = require('uuid');
             const newCashGame = await db.Contest.create({
               id: uuidv4(),
               type: 'cash',
-              name: `Cash Game #${nextNumber}`,
+              sport: contest.sport || 'nfl',
+              name: `${sportPrefix} Cash Game #${nextNumber}`,
               status: 'open',
               entry_fee: contest.entry_fee,
               prize_pool: contest.prize_pool,
               max_entries: contest.max_entries,
               current_entries: 0,
               max_entries_per_user: 1,
-              player_board: generatePlayerBoard(),
+              // UPDATED: Pass sport parameter
+              player_board: generatePlayerBoard(null, [], [], contest.sport || 'nfl'),
               start_time: new Date(),
               end_time: new Date(Date.now() + 7200000),
               scoring_type: contest.scoring_type,
@@ -594,6 +618,7 @@ class ContestService {
             newCashGameData = {
               id: newCashGame.id,
               type: newCashGame.type,
+              sport: newCashGame.sport || 'nfl',
               name: newCashGame.name,
               status: newCashGame.status,
               entryFee: parseFloat(newCashGame.entry_fee),
@@ -631,6 +656,7 @@ class ContestService {
           contest: {
             id: freshContest.id,
             type: freshContest.type,
+            sport: freshContest.sport || 'nfl',
             name: freshContest.name,
             status: actualStatus,
             currentEntries: actualCurrentEntries,
@@ -696,7 +722,7 @@ class ContestService {
     console.log(`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
     
     const contest = await db.Contest.findByPk(contestId, { transaction });
-    console.log(`Contest type: ${contest?.type}, status: ${contest?.status}`);
+    console.log(`Contest type: ${contest?.type}, sport: ${contest?.sport || 'nfl'}, status: ${contest?.status}`);
     
     for (let attempt = 0; attempt < 3; attempt++) {
       const allRooms = await db.ContestEntry.findAll({
@@ -942,6 +968,7 @@ class ContestService {
           contest: {
             id: freshContest.id,
             type: freshContest.type,
+            sport: freshContest.sport || 'nfl',
             name: freshContest.name,
             status: freshContest.status,
             currentEntries: freshContest.current_entries,
@@ -1080,7 +1107,7 @@ class ContestService {
     }
   }
 
-  // getRoomStatus - unchanged
+  // getRoomStatus - UPDATED with sport support
   async getRoomStatus(roomId) {
     try {
       console.log(`\n=== GET ROOM STATUS DEBUG ===`);
@@ -1155,6 +1182,7 @@ class ContestService {
             roomId: roomId,
             contestId: roomId,
             contestType: 'cash',
+            contestSport: contest.sport || 'nfl',
             entries: entries.map((e, index) => ({
               id: e.id,
               userId: e.user_id,
@@ -1190,7 +1218,7 @@ class ContestService {
           attributes: ['username']
         }, {
           model: db.Contest,
-          attributes: ['type', 'player_board']
+          attributes: ['type', 'sport', 'player_board']
         }],
         order: [['entered_at', 'ASC']],
         limit: 5
@@ -1236,7 +1264,7 @@ class ContestService {
             attributes: ['username']
           }, {
             model: db.Contest,
-            attributes: ['type', 'player_board']
+            attributes: ['type', 'sport', 'player_board']
           }],
           order: [['draft_position', 'ASC'], ['entered_at', 'ASC']],
           limit: 5
@@ -1258,10 +1286,11 @@ class ContestService {
           } else {
             const marketMoverService = require('./marketMoverService');
             const mmStatus = await marketMoverService.getVotingStatus();
-            playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
+            // UPDATED: Pass sport parameter
+            playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
             
             await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
-            console.log(`Generated new Market Mover board for room ${roomId} with FIRE SALE modifiers`);
+            console.log(`Generated new Market Mover board for room ${roomId} (${contest.sport || 'nfl'}) with FIRE SALE modifiers`);
           }
         } else if (contest) {
           playerBoard = contest.player_board;
@@ -1272,6 +1301,7 @@ class ContestService {
           roomId: roomId,
           contestId: entries[0].contest_id,
           contestType: contest?.type,
+          contestSport: contest?.sport || 'nfl',
           entries: entries.map((e, index) => ({
             id: e.id,
             userId: e.user_id,
@@ -1315,7 +1345,8 @@ class ContestService {
             } else {
               const marketMoverService = require('./marketMoverService');
               const mmStatus = await marketMoverService.getVotingStatus();
-              playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || []);
+              // UPDATED: Pass sport parameter
+              playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
               
               await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
             }
@@ -1328,6 +1359,7 @@ class ContestService {
             roomId: roomId,
             contestId: contestId,
             contestType: contest.type,
+            contestSport: contest.sport || 'nfl',
             entries: [],
             currentPlayers: 0,
             maxPlayers: 5,
@@ -1449,10 +1481,11 @@ class ContestService {
     }
   }
 
+  // UPDATED: launchDraft with sport-aware board generation
   async launchDraft(roomId, roomStatus, contest) {
     try {
       console.log(`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
-      console.log(`Contest type: ${roomStatus.contestType}, Players: ${roomStatus.entries.length}`);
+      console.log(`Contest type: ${roomStatus.contestType}, sport: ${roomStatus.contestSport || 'nfl'}, Players: ${roomStatus.entries.length}`);
       
       if (this.activeDrafts.has(roomId)) {
         console.log(`Draft already active for room ${roomId}`);
@@ -1472,7 +1505,10 @@ class ContestService {
       let playerBoard = roomStatus.playerBoard;
       if (!playerBoard || !Array.isArray(playerBoard) || playerBoard.length === 0) {
         console.log('📋 Generating fresh player board for draft');
-        playerBoard = generatePlayerBoard('nfl');
+        // UPDATED: Get sport from contest and pass it
+        const contestData = await db.Contest.findByPk(roomStatus.contestId);
+        const sport = contestData?.sport || 'nfl';
+        playerBoard = generatePlayerBoard(null, [], [], sport);
       }
 
       const draftState = await draftService.startDraft(
@@ -1485,6 +1521,7 @@ class ContestService {
         roomId,
         contestId: roomStatus.contestId,
         contestType: roomStatus.contestType,
+        contestSport: roomStatus.contestSport || 'nfl',
         startTime: new Date(),
         participants: roomStatus.entries,
         currentTurn: 0,
@@ -1507,6 +1544,7 @@ class ContestService {
         roomId,
         contestId: roomStatus.contestId,
         contestType: roomStatus.contestType,
+        contestSport: roomStatus.contestSport || 'nfl',
         seconds: 5,
         message: 'Draft starting in 5 seconds!'
       });
@@ -1518,6 +1556,7 @@ class ContestService {
           roomId: roomId,
           contestId: roomStatus.contestId,
           contestType: roomStatus.contestType,
+          contestSport: roomStatus.contestSport || 'nfl',
           playerBoard: roomStatus.playerBoard,
           participants: roomStatus.entries.map((e, index) => ({
             entryId: e.id,
@@ -1579,7 +1618,7 @@ class ContestService {
       console.log(`⚠️ startNextPick: Draft ${roomId} not in activeDrafts, reconstructing...`);
       const entry = await db.ContestEntry.findOne({
         where: { draft_room_id: roomId, status: 'drafting' },
-        include: [{ model: db.Contest, attributes: ['id', 'type'] }]
+        include: [{ model: db.Contest, attributes: ['id', 'type', 'sport'] }]
       });
       if (!entry) {
         console.log(`❌ startNextPick: No drafting entries found for room ${roomId}`);
@@ -1588,7 +1627,8 @@ class ContestService {
       draft = {
         roomId,
         contestId: entry.contest_id,
-        contestType: entry.Contest?.type
+        contestType: entry.Contest?.type,
+        contestSport: entry.Contest?.sport || 'nfl'
       };
       this.activeDrafts.set(roomId, draft);
       console.log(`✅ startNextPick: Reconstructed draft for room ${roomId}`);
@@ -2165,7 +2205,7 @@ class ContestService {
       console.log(`⚠️ Draft ${roomId} not in activeDrafts, reconstructing from database...`);
       const entry = await db.ContestEntry.findOne({
         where: { draft_room_id: roomId, status: 'drafting' },
-        include: [{ model: db.Contest, attributes: ['id', 'type'] }]
+        include: [{ model: db.Contest, attributes: ['id', 'type', 'sport'] }]
       });
       if (!entry) {
         console.log(`❌ No drafting entries found for room ${roomId}, cannot complete`);
@@ -2174,7 +2214,8 @@ class ContestService {
       draft = {
         roomId,
         contestId: entry.contest_id,
-        contestType: entry.Contest?.type
+        contestType: entry.Contest?.type,
+        contestSport: entry.Contest?.sport || 'nfl'
       };
       this.activeDrafts.set(roomId, draft);
     }
@@ -2195,7 +2236,7 @@ class ContestService {
         attributes: ['id', 'username', 'tickets']
       }, {
         model: db.Contest,
-        attributes: ['id', 'name', 'type']
+        attributes: ['id', 'name', 'type', 'sport']
       }]
     });
 
@@ -2218,6 +2259,12 @@ class ContestService {
     let successCount = 0;
     let failCount = 0;
 
+    // Get sport-specific positions
+    const sport = entries[0]?.Contest?.sport || 'nfl';
+    const positions = sport === 'nba' 
+      ? ['PG', 'SG', 'SF', 'PF', 'C']
+      : ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+
     for (const entry of entries) {
       try {
         const userId = entry.user_id;
@@ -2225,7 +2272,7 @@ class ContestService {
         
         const cleanRoster = {};
         let playerCount = 0;
-        ['QB', 'RB', 'WR', 'TE', 'FLEX'].forEach(position => {
+        positions.forEach(position => {
           if (roster[position] && roster[position].name) {
             cleanRoster[position] = {
               name: roster[position].name,
@@ -2423,7 +2470,7 @@ class ContestService {
       const entry = await db.ContestEntry.findByPk(entryId, {
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'entry_fee', 'prize_pool', 'player_board']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board']
         }]
       });
 
@@ -2455,7 +2502,7 @@ class ContestService {
         },
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'entry_fee', 'prize_pool', 'status']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'status']
         }],
         order: [['completed_at', 'DESC']],
         limit
@@ -2465,6 +2512,7 @@ class ContestService {
         id: entry.id,
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
+        contestSport: entry.Contest?.sport || 'nfl',
         contestStatus: entry.Contest?.status,
         entryFee: entry.Contest ? parseFloat(entry.Contest.entry_fee) : 0,
         prizePool: entry.Contest ? parseFloat(entry.Contest.prize_pool) : 0,
