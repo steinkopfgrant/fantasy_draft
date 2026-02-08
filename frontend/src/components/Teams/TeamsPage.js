@@ -4,6 +4,25 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import './TeamsPage.css';
 
+// Sport-specific position configurations
+const SPORT_CONFIG = {
+  nfl: {
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+  },
+  nba: {
+    positions: ['PG', 'SG', 'SF', 'PF', 'C'],
+  },
+  mlb: {
+    positions: ['P', 'C', '1B', 'OF', 'FLEX'],
+  },
+};
+
+// Helper to get positions for a team/contest
+const getPositionsForTeam = (team) => {
+  const sport = team?.sport || team?.contestSport || 'nfl';
+  return SPORT_CONFIG[sport]?.positions || SPORT_CONFIG.nfl.positions;
+};
+
 const TeamsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -162,9 +181,10 @@ const TeamsPage = () => {
     setTeamDetails(null);
   };
 
-  const renderRoster = (roster) => {
+  // FIXED: Sport-aware roster rendering
+  const renderRoster = (roster, team) => {
     if (!roster) return null;
-    const positions = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+    const positions = getPositionsForTeam(team);
     return positions.map(pos => {
       const player = roster[pos];
       return (
@@ -269,7 +289,7 @@ const TeamsPage = () => {
                         <span className="entry-fee">Entry: ${team.entryFee.toFixed(2)}</span>
                         <span className="prize-pool">Prize: ${team.prizePool.toFixed(2)}</span>
                       </div>
-                      {team.playerCount > 0 && <div className="roster-preview">{renderRoster(team.roster)}</div>}
+                      {team.playerCount > 0 && <div className="roster-preview">{renderRoster(team.roster, team)}</div>}
                     </div>
                     <div className="team-card-footer">
                       {team.status === 'pending' || team.status === 'drafting' ? (
@@ -375,7 +395,7 @@ const TeamsPage = () => {
                       <span className="winner-label">🏆 Winning Lineup ({getWinners()[0]?.points?.toFixed(1) || '—'} pts)</span>
                       <div className="winner-mini-roster">
                         {getWinners().length > 0 && getWinners()[0].roster ? (
-                          ['QB', 'RB', 'WR', 'TE', 'FLEX'].map(pos => (
+                          getPositionsForTeam(getModalTeam()).map(pos => (
                             <span key={pos} className="winner-player">
                               {getLastName(getWinners()[0].roster[pos]?.name)}
                             </span>
@@ -394,11 +414,11 @@ const TeamsPage = () => {
                   {getModalTeam()?.rank && <div className="stat"><span className="stat-label">Final Rank</span><span className="stat-value">#{getModalTeam().rank}</span></div>}
                 </div>
 
-                {/* Your Lineup with Scores */}
+                {/* Your Lineup with Scores - FIXED: Sport-aware */}
                 <div className="modal-roster">
                   <h3>Lineup</h3>
                   <div className="roster-detail">
-                    {getModalTeam()?.roster && ['QB', 'RB', 'WR', 'TE', 'FLEX'].map(pos => {
+                    {getModalTeam()?.roster && getPositionsForTeam(getModalTeam()).map(pos => {
                       const player = getModalTeam().roster[pos];
                       return (
                         <div key={pos} className="roster-row">

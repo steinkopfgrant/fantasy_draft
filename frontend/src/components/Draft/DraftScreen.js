@@ -1627,15 +1627,26 @@ const DraftScreen = ({ showToast }) => {
         const currentTeams = currentReduxState.teams || [];
         const backendTeams = data.teams || data.entries || [];
         
+        // Check if Redux teams have actual roster data (not just empty objects)
+        const reduxHasRosters = currentTeams.some(team => 
+          team.roster && Object.values(team.roster).some(p => p?.name)
+        );
+        const backendHasRosters = backendTeams.some(team =>
+          team.roster && Object.values(team.roster).some(p => p?.name)
+        );
+        
         console.log('📊 handleDraftComplete teams check:', {
           reduxTeamsCount: currentTeams.length,
           backendTeamsCount: backendTeams.length,
-          reduxTeam0Roster: currentTeams[0]?.roster ? Object.keys(currentTeams[0].roster) : 'none',
-          backendTeam0Roster: backendTeams[0]?.roster ? Object.keys(backendTeams[0].roster) : 'none'
+          reduxHasRosters,
+          backendHasRosters,
+          reduxTeam0RosterKeys: currentTeams[0]?.roster ? Object.keys(currentTeams[0].roster) : 'none',
+          backendTeam0RosterKeys: backendTeams[0]?.roster ? Object.keys(backendTeams[0].roster) : 'none'
         });
         
-        // Use Redux teams if they have roster data, otherwise backend
-        const sourceTeams = currentTeams.length > 0 ? currentTeams : backendTeams;
+        // FIXED: Use whichever source has actual roster data
+        // Prefer Redux if it has rosters (from player-picked events), otherwise use backend
+        const sourceTeams = reduxHasRosters ? currentTeams : (backendHasRosters ? backendTeams : currentTeams);
         
         console.log('📊 Source teams for completion:', sourceTeams.map(t => ({
           name: t.name || t.username,
