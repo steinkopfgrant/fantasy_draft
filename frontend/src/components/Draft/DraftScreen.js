@@ -82,6 +82,7 @@ const DraftScreen = ({ showToast }) => {
   const hasJoinedRef = useRef(false);
   const initializationAttemptedRef = useRef(false);
   const socketHandlersRef = useRef(false);
+  const lastPickTimeRef = useRef(0);
   
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
@@ -1154,6 +1155,14 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
 
+      // CRITICAL: Skip team roster updates if we just processed a pick (within 500ms)
+      // This prevents draft-state from overwriting player-picked updates
+      const timeSinceLastPick = Date.now() - lastPickTimeRef.current;
+      const skipRosterUpdate = timeSinceLastPick < 500;
+      if (skipRosterUpdate) {
+        console.log(`⏭️ Skipping roster update from draft-state (${timeSinceLastPick}ms since last pick)`);
+      }
+
       const currentState = store.getState().draft;
       
       // ==================== TIMER SYNC ====================
@@ -1203,10 +1212,21 @@ const DraftScreen = ({ showToast }) => {
           const existingRosterCount = Object.values(existingTeam?.roster || {}).filter(p => p?.name).length;
           const newRosterCount = Object.values(newRoster || {}).filter(p => p?.name).length;
           
-          // CRITICAL: If existing roster has MORE players, start with existing and merge in new
-          // This prevents race condition where draft-state arrives before roster is fully populated
-          if (existingRosterCount > 0 || newRosterCount > 0) {
+          // CRITICAL: If we just processed a pick, preserve existing roster entirely
+          if (skipRosterUpdate && existingRosterCount > 0) {
+            finalRoster = existingTeam.roster;
+            console.log(`🔒 Preserving existing roster (${existingRosterCount} players) - skip mode`);
+          } else if (existingRosterCount > 0 || newRosterCount > 0) {
             if (existingRosterCount >= newRosterCount) {
+              // Existing has more or equal - prioritize existing, merge in any new
+              finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
+              console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
+            } else {
+              // New has more - prioritize new, merge in any existing
+              finalRoster = mergeRosterData(newRoster, existingTeam?.roster || {});
+              console.log(`🔀 Roster merge: used new (${newRosterCount} players) + merged existing (${existingRosterCount} players)`);
+            }
+          }
               // Existing has more or equal - prioritize existing, merge in any new
               finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
               console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
@@ -1395,7 +1415,10 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
       
-      // CRITICAL: Prevent duplicate picks for the same turn
+      // Mark time of pick for debouncing draft-state updates
+      lastPickTimeRef.current = Date.now();
+      
+      // CRITICAL: Prevent duplicate picks
       // This can happen when pre-select and auto-pick both fire
       const incomingTurn = data.currentTurn !== undefined ? data.currentTurn : data.turn;
       const incomingPickNumber = data.pickNumber || (incomingTurn !== undefined ? incomingTurn + 1 : null);
