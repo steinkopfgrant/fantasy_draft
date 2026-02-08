@@ -2,6 +2,16 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import socketService from '../../services/socket';
 
+// All valid roster slots across all sports
+const ALL_VALID_SLOTS = [
+  // NFL
+  'QB', 'RB', 'WR', 'TE', 'FLEX',
+  // NBA
+  'PG', 'SG', 'SF', 'PF', 'C',
+  // MLB
+  'P', '1B', '2B', '3B', 'SS', 'OF', 'DH'
+];
+
 // Function to find best auto-pick player
 const findAutoPick = (playerBoard, teams, currentTurn, draftOrder) => {
   const currentTeamIndex = draftOrder[currentTurn];
@@ -101,9 +111,9 @@ const processRosterData = (roster) => {
         return;
       }
       
-      const validSlots = ['QB', 'RB', 'WR', 'TE', 'FLEX'];
+      // FIXED: Include ALL sport positions, not just NFL
       const slotKey = key.toUpperCase();
-      if (!validSlots.includes(slotKey)) {
+      if (!ALL_VALID_SLOTS.includes(slotKey)) {
         return;
       }
       
@@ -161,8 +171,9 @@ const isProcessedByDraftScreen = (teams) => {
     const roster = team?.roster;
     if (!roster || typeof roster !== 'object') return false;
     
+    // FIXED: Check for ANY valid sport position, not just NFL
     const hasStandardizedKeys = Object.keys(roster).some(key => 
-      ['QB', 'RB', 'WR', 'TE', 'FLEX'].includes(key)
+      ALL_VALID_SLOTS.includes(key)
     );
     
     const hasValidPlayers = Object.values(roster).some(player => 
@@ -484,6 +495,8 @@ const draftSlice = createSlice({
       if (action.payload.contestId !== undefined) state.contestId = action.payload.contestId;
       if (action.payload.contestType !== undefined) state.contestType = action.payload.contestType;
       if (action.payload.connectedPlayers !== undefined) state.connectedPlayers = action.payload.connectedPlayers;
+      if (action.payload.showResults !== undefined) state.showResults = action.payload.showResults;
+      if (action.payload.sport !== undefined) state.sport = action.payload.sport;
       
       if (action.payload.users && Array.isArray(action.payload.users)) {
         state.users = action.payload.users;
