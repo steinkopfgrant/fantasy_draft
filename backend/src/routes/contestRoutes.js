@@ -952,30 +952,43 @@ if (finalPlayerCount >= 5) {
   if (contest.type === 'cash') {
     await contest.update({ status: 'closed' });
     
-    // Create replacement cash game
+    // Create replacement cash game - SPORT AWARE
     const { generatePlayerBoard } = require('../utils/gameLogic');
+    const contestSport = contest.sport || 'nfl';
+    const namePrefix = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
+    
     const cashGames = await Contest.findAll({
-      where: { type: 'cash', name: { [db.Sequelize.Op.like]: 'Cash Game #%' } },
+      where: { 
+        type: 'cash', 
+        sport: contestSport,
+        name: { [db.Sequelize.Op.like]: `${namePrefix} #%` } 
+      },
       attributes: ['name']
     });
     
     let maxNumber = 0;
     cashGames.forEach(game => {
-      const match = game.name.match(/Cash Game #(\d+)/);
+      const match = game.name.match(/#(\d+)/);
       if (match) maxNumber = Math.max(maxNumber, parseInt(match[1]));
     });
+    
+    const newName = `${namePrefix} #${maxNumber + 1}`;
+    console.log(`✅ Creating ${contestSport.toUpperCase()} replacement: ${newName}`);
     
     const newCashGame = await Contest.create({
       id: uuidv4(),
       type: 'cash',
-      name: `Cash Game #${maxNumber + 1}`,
+      sport: contestSport,
+      name: newName,
       status: 'open',
       entry_fee: contest.entry_fee,
       prize_pool: contest.prize_pool,
       max_entries: 5,
       current_entries: 0,
       max_entries_per_user: 1,
-      player_board: generatePlayerBoard(),
+      player_board: generatePlayerBoard(null, [], [], contestSport),
+      start_time: new Date(),
+      end_time: new Date(Date.now() + 7200000),
       created_at: new Date(),
       updated_at: new Date()
     });
