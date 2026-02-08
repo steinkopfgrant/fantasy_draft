@@ -1,7 +1,7 @@
 // backend/src/utils/cashGameManager.js
-const Contest = require('../models/Contest');
-const User = require('../models/User');
+const db = require('../models');
 const { generatePlayerBoard } = require('./gameLogic');
+const { Op } = require('sequelize');
 
 // Supported sports configuration
 const SPORTS_CONFIG = {
@@ -65,10 +65,13 @@ class CashGameManager {
       for (const sport of Object.keys(SPORTS_CONFIG)) {
         const config = SPORTS_CONFIG[sport];
         
-        const lastGame = await Contest.findOne({
-          type: 'cash',
-          sport: sport
-        }).sort({ createdAt: -1 });
+        const lastGame = await db.Contest.findOne({
+          where: {
+            type: 'cash',
+            sport: sport
+          },
+          order: [['created_at', 'DESC']]
+        });
         
         if (lastGame && lastGame.name) {
           // Match pattern like "Cash Game #5" or "NBA Cash Game #3"
@@ -105,10 +108,12 @@ class CashGameManager {
       }
 
       // Get open cash games for this sport
-      const openGames = await Contest.find({
-        type: 'cash',
-        sport: sport,
-        status: 'open'
+      const openGames = await db.Contest.findAll({
+        where: {
+          type: 'cash',
+          sport: sport,
+          status: 'open'
+        }
       });
       
       console.log(`Found ${openGames.length} open ${sport.toUpperCase()} cash games`);
@@ -122,12 +127,12 @@ class CashGameManager {
       // Clean up old empty games (over 1 hour old)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       const oldEmptyGames = openGames.filter(game => 
-        game.currentEntries === 0 && 
-        game.createdAt < oneHourAgo
+        game.current_entries === 0 && 
+        new Date(game.created_at) < oneHourAgo
       );
       
       for (const game of oldEmptyGames) {
-        await game.updateOne({ status: 'cancelled' });
+        await game.update({ status: 'cancelled' });
         console.log(`Cancelled old empty ${sport.toUpperCase()} game: ${game.name}`);
       }
       
@@ -145,30 +150,29 @@ class CashGameManager {
       }
 
       // Generate sport-specific player board
-      const playerBoard = await generatePlayerBoard(null, [], [], sport);
+      const playerBoard = generatePlayerBoard(null, [], [], sport);
       
       const gameNumber = this.gameCounters[sport] || 1;
       const gameName = `${config.namePrefix} #${gameNumber}`;
       
+      const { v4: uuidv4 } = require('uuid');
+      
       const contestData = {
+        id: uuidv4(),
         name: gameName,
         type: 'cash',
         status: 'open',
-        entryFee: config.entryFee,
-        maxEntries: 5,
-        currentEntries: 0,
-        prizeStructure: [
-          { place: 1, amount: config.prizeAmount, percentage: 100 }
-        ],
-        startTime: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+        entry_fee: config.entryFee,
+        prize_pool: config.prizeAmount,
+        max_entries: 5,
+        current_entries: 0,
+        start_time: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+        end_time: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
         sport: sport,
-        scoringSystem: 'standard',
-        description: `5-player winner-take-all ${sport.toUpperCase()} cash game`,
-        playerBoard: playerBoard,
-        entries: []
+        player_board: playerBoard
       };
       
-      const newGame = await Contest.create(contestData);
+      const newGame = await db.Contest.create(contestData);
       this.gameCounters[sport] = gameNumber + 1;
       
       console.log(`✅ Created new ${sport.toUpperCase()} cash game: ${newGame.name}`);
@@ -192,15 +196,15 @@ class CashGameManager {
 
   async handlePlayerJoined(contestId) {
     try {
-      const contest = await Contest.findById(contestId);
+      const contest = await db.Contest.findByPk(contestId);
       if (!contest || contest.type !== 'cash') return;
       
       const sport = contest.sport || 'nfl';
-      console.log(`${sport.toUpperCase()} cash game ${contest.name} now has ${contest.currentEntries}/${contest.maxEntries} players`);
+      console.log(`${sport.toUpperCase()} cash game ${contest.name} now has ${contest.current_entries}/${contest.max_entries} players`);
       
       // If game is full, update status
-      if (contest.currentEntries >= contest.maxEntries && contest.status === 'open') {
-        await contest.updateOne({ status: 'filled' });
+      if (contest.current_entries >= contest.max_entries && contest.status === 'open') {
+        await contest.update({ status: 'filled' });
         
         // Create a new game FOR THE SAME SPORT to replace it
         console.log(`${sport.toUpperCase()} cash game ${contest.name} is full, creating new ${sport.toUpperCase()} game...`);
@@ -209,7 +213,7 @@ class CashGameManager {
         // Notify all clients
         if (this.io) {
           this.io.emit('cashGameFilled', {
-            contestId: contest._id,
+            contestId: contest.id,
             contestName: contest.name,
             sport: sport
           });
@@ -219,9 +223,9 @@ class CashGameManager {
       // Broadcast update
       if (this.io) {
         this.io.emit('cashGameUpdate', {
-          contestId: contest._id,
-          currentEntries: contest.currentEntries,
-          maxEntries: contest.maxEntries,
+          contestId: contest.id,
+          currentEntries: contest.current_entries,
+          maxEntries: contest.max_entries,
           status: contest.status,
           sport: sport
         });
@@ -234,29 +238,38 @@ class CashGameManager {
   async checkGamesForStart() {
     try {
       // Find filled games that should start
-      const filledGames = await Contest.find({
-        type: 'cash',
-        status: 'filled'
-      }).populate('entries.draftId');
+      const filledGames = await db.Contest.findAll({
+        where: {
+          type: 'cash',
+          status: 'filled'
+        }
+      });
       
       for (const game of filledGames) {
+        const sport = game.sport || 'nfl';
+        console.log(`Checking filled ${sport.toUpperCase()} game ${game.name} for start...`);
+        
+        // Check entries for this game
+        const entries = await db.ContestEntry.findAll({
+          where: { contest_id: game.id }
+        });
+        
         // Check if all players have started drafting
-        const allDrafting = game.entries.every(entry => 
-          entry.draftId && ['active', 'completed'].includes(entry.draftId.status)
+        const allDrafting = entries.every(entry => 
+          entry.status === 'drafting' || entry.status === 'completed'
         );
         
-        if (allDrafting) {
-          const sport = game.sport || 'nfl';
+        if (allDrafting && entries.length >= game.max_entries) {
           console.log(`All players drafting in ${game.name} (${sport.toUpperCase()}), starting game...`);
           
-          await game.updateOne({ 
+          await game.update({ 
             status: 'in_progress',
-            startTime: new Date()
+            start_time: new Date()
           });
           
           if (this.io) {
             this.io.emit('cashGameStarted', {
-              contestId: game._id,
+              contestId: game.id,
               message: `${game.name} has started!`,
               sport: sport
             });
@@ -271,21 +284,27 @@ class CashGameManager {
   async checkGamesForCompletion() {
     try {
       // Find in-progress games
-      const activeGames = await Contest.find({
-        type: 'cash',
-        status: 'in_progress'
-      }).populate('entries.userId entries.draftId');
+      const activeGames = await db.Contest.findAll({
+        where: {
+          type: 'cash',
+          status: 'in_progress'
+        }
+      });
       
       console.log(`Checking ${activeGames.length} active cash games for completion`);
       
       for (const game of activeGames) {
+        const entries = await db.ContestEntry.findAll({
+          where: { contest_id: game.id }
+        });
+        
         // Check if all drafts are completed
-        const allComplete = game.entries.every(entry => 
-          entry.draftId && entry.draftId.status === 'completed'
+        const allComplete = entries.every(entry => 
+          entry.status === 'completed'
         );
         
-        if (allComplete) {
-          await this.completeCashGame(game._id);
+        if (allComplete && entries.length > 0) {
+          await this.completeCashGame(game.id);
         }
       }
       
@@ -299,8 +318,7 @@ class CashGameManager {
 
   async completeCashGame(contestId) {
     try {
-      const contest = await Contest.findById(contestId)
-        .populate('entries.userId entries.draftId');
+      const contest = await db.Contest.findByPk(contestId);
       
       if (!contest || contest.type !== 'cash' || contest.status === 'completed') {
         return;
@@ -311,69 +329,59 @@ class CashGameManager {
       
       console.log(`Completing ${sport.toUpperCase()} cash game: ${contest.name}`);
       
+      // Get entries with user info
+      const entries = await db.ContestEntry.findAll({
+        where: { contest_id: contestId },
+        include: [{ model: db.User, as: 'user' }]
+      });
+      
       // Calculate scores for each entry
       const entryScores = [];
       
-      for (const entry of contest.entries) {
-        if (entry.draftId && entry.draftId.players) {
-          // Simple scoring: sum of all player values * 10
-          let totalScore = 0;
-          entry.draftId.players.forEach(player => {
-            totalScore += (player.playerValue || 5) * 10;
-          });
-          
-          entryScores.push({
-            userId: entry.userId._id,
-            username: entry.userId.username,
-            entryId: entry._id,
-            score: totalScore
+      for (const entry of entries) {
+        // Simple scoring: sum of roster values
+        let totalScore = 0;
+        if (entry.roster) {
+          Object.values(entry.roster).forEach(player => {
+            if (player && player.price) {
+              totalScore += player.price * 10;
+            }
           });
         }
+        
+        entryScores.push({
+          oddsId: entry.user?.id,
+          username: entry.user?.username || 'Unknown',
+          entryId: entry.id,
+          score: totalScore
+        });
       }
       
       // Sort by score (highest first)
       entryScores.sort((a, b) => b.score - a.score);
       
       // Pay the winner
-      if (entryScores.length > 0) {
+      if (entryScores.length > 0 && entryScores[0].oddsId) {
         const winner = entryScores[0];
-        const winnerUser = await User.findById(winner.userId);
+        const winnerUser = await db.User.findByPk(winner.oddsId);
         
         if (winnerUser) {
-          winnerUser.balance += config.prizeAmount;
-          await winnerUser.save();
-          
+          await winnerUser.increment('balance', { by: config.prizeAmount });
           console.log(`${winner.username} won ${contest.name} (${sport.toUpperCase()}) with ${winner.score} points - $${config.prizeAmount} prize`);
         }
       }
       
-      // Update contest with results
-      contest.results = {
-        scores: entryScores.map((entry, index) => ({
-          userId: entry.userId,
-          username: entry.username,
-          score: entry.score,
-          rank: index + 1
-        })),
-        payouts: [{
-          userId: entryScores[0]?.userId,
-          username: entryScores[0]?.username,
-          amount: config.prizeAmount,
-          place: 1
-        }],
-        processedAt: new Date()
-      };
-      
-      contest.status = 'completed';
-      contest.completedAt = new Date();
-      await contest.save();
+      // Update contest status
+      await contest.update({
+        status: 'completed'
+      });
       
       // Notify everyone
       if (this.io) {
         this.io.emit('cashGameCompleted', {
-          contestId: contest._id,
+          contestId: contest.id,
           contestName: contest.name,
-          results: contest.results,
+          results: entryScores,
           sport: sport
         });
       }
@@ -388,9 +396,11 @@ class CashGameManager {
 
   async getCashGameStatus() {
     try {
-      const cashGames = await Contest.find({ type: 'cash' })
-        .sort({ createdAt: -1 })
-        .limit(20);
+      const cashGames = await db.Contest.findAll({
+        where: { type: 'cash' },
+        order: [['created_at', 'DESC']],
+        limit: 20
+      });
       
       const status = {
         total: cashGames.length,
@@ -422,14 +432,14 @@ class CashGameManager {
         }
         
         status.games.push({
-          id: game._id,
+          id: game.id,
           name: game.name,
           sport: sport,
           status: game.status,
-          currentEntries: game.currentEntries,
-          maxEntries: game.maxEntries,
-          createdAt: game.createdAt,
-          playerBoard: game.playerBoard ? 'Generated' : 'Missing'
+          currentEntries: game.current_entries,
+          maxEntries: game.max_entries,
+          createdAt: game.created_at,
+          playerBoard: game.player_board ? 'Generated' : 'Missing'
         });
       });
       
@@ -447,22 +457,24 @@ class CashGameManager {
     const config = SPORTS_CONFIG[sport] || SPORTS_CONFIG.nfl;
     const gameNumber = this.gameCounters[sport] || 1;
     
+    const { v4: uuidv4 } = require('uuid');
+    
     const contestData = {
+      id: uuidv4(),
       name: params.name || `${config.namePrefix} #${gameNumber} (Manual)`,
       type: 'cash',
-      entryFee: params.entryFee || config.entryFee,
-      maxEntries: params.maxEntries || 5,
-      currentEntries: 0,
-      prizeStructure: [{ place: 1, amount: config.prizeAmount, percentage: 100 }],
-      startTime: new Date(Date.now() + 5 * 60 * 1000),
+      entry_fee: params.entryFee || config.entryFee,
+      prize_pool: config.prizeAmount,
+      max_entries: params.maxEntries || 5,
+      current_entries: 0,
+      start_time: new Date(Date.now() + 5 * 60 * 1000),
+      end_time: new Date(Date.now() + 2 * 60 * 60 * 1000),
       status: 'open',
       sport: sport,
-      scoringSystem: params.scoringSystem || 'standard',
-      description: params.description || `Admin created ${sport.toUpperCase()} cash game`,
-      playerBoard: await generatePlayerBoard(null, [], [], sport)
+      player_board: generatePlayerBoard(null, [], [], sport)
     };
     
-    const game = await Contest.create(contestData);
+    const game = await db.Contest.create(contestData);
     this.gameCounters[sport] = gameNumber + 1;
     return game;
   }
@@ -471,23 +483,32 @@ class CashGameManager {
     const statusBySport = {};
     
     for (const sport of Object.keys(SPORTS_CONFIG)) {
-      const openGames = await Contest.countDocuments({
-        type: 'cash',
-        sport: sport,
-        status: 'open'
+      const openGames = await db.Contest.count({
+        where: {
+          type: 'cash',
+          sport: sport,
+          status: 'open'
+        }
       });
       
-      const inProgressGames = await Contest.countDocuments({
-        type: 'cash',
-        sport: sport,
-        status: 'in_progress'
+      const inProgressGames = await db.Contest.count({
+        where: {
+          type: 'cash',
+          sport: sport,
+          status: 'in_progress'
+        }
       });
       
-      const completedToday = await Contest.countDocuments({
-        type: 'cash',
-        sport: sport,
-        status: 'completed',
-        completedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const completedToday = await db.Contest.count({
+        where: {
+          type: 'cash',
+          sport: sport,
+          status: 'completed',
+          updated_at: { [Op.gte]: today }
+        }
       });
       
       statusBySport[sport] = {
