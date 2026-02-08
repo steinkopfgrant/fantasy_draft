@@ -1198,12 +1198,23 @@ const DraftScreen = ({ showToast }) => {
           const rawRoster = team.roster || team.picks || [];
           const newRoster = processRosterData(rawRoster);
           
-          // Intelligent merging
+          // Intelligent merging - ALWAYS merge, never overwrite with less data
           let finalRoster = {};
-          if (existingTeam?.roster && Object.keys(existingTeam.roster).length > 0) {
-            finalRoster = mergeRosterData(existingTeam.roster, newRoster);
-          } else {
-            finalRoster = newRoster;
+          const existingRosterCount = Object.values(existingTeam?.roster || {}).filter(p => p?.name).length;
+          const newRosterCount = Object.values(newRoster || {}).filter(p => p?.name).length;
+          
+          // CRITICAL: If existing roster has MORE players, start with existing and merge in new
+          // This prevents race condition where draft-state arrives before roster is fully populated
+          if (existingRosterCount > 0 || newRosterCount > 0) {
+            if (existingRosterCount >= newRosterCount) {
+              // Existing has more or equal - prioritize existing, merge in any new
+              finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
+              console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
+            } else {
+              // New has more - prioritize new, merge in any existing
+              finalRoster = mergeRosterData(newRoster, existingTeam?.roster || {});
+              console.log(`🔀 Roster merge: used new (${newRosterCount} players) + merged existing (${existingRosterCount} players)`);
+            }
           }
           
           // ULTRA-ROBUST BUDGET CALCULATION - NEVER RESET FROM $0
