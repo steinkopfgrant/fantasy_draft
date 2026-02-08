@@ -1155,12 +1155,20 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
 
-      // CRITICAL: Skip team roster updates if we just processed a pick (within 500ms)
+      // CRITICAL: Skip team updates entirely if we just processed a pick (within 1000ms)
       // This prevents draft-state from overwriting player-picked updates
       const timeSinceLastPick = Date.now() - lastPickTimeRef.current;
-      const skipRosterUpdate = timeSinceLastPick < 500;
-      if (skipRosterUpdate) {
-        console.log(`⏭️ Skipping roster update from draft-state (${timeSinceLastPick}ms since last pick)`);
+      if (timeSinceLastPick < 1000) {
+        console.log(`⏭️ Skipping team update from draft-state (${timeSinceLastPick}ms since last pick)`);
+        // Only update turn/timer info, not teams
+        dispatch(updateDraftState({
+          currentTurn: data.currentTurn,
+          currentPick: data.currentPick || (data.currentTurn + 1),
+          status: data.status || 'active',
+          timeRemaining: data.timeRemaining || 30,
+          timeLimit: data.timeLimit || 30
+        }));
+        return; // Exit early - don't process teams at all
       }
 
       const currentState = store.getState().draft;
