@@ -55,7 +55,6 @@ const SPORT_CONFIG = {
     positions: ['PG', 'SG', 'SF', 'PF', 'C'],
     slotPriority: ['PG', 'SG', 'SF', 'PF', 'C'],
     flexEligible: [],  // NBA has no flex
-
     budget: 15,
     rosterSize: 5,
   },
@@ -228,7 +227,7 @@ const DraftScreen = ({ showToast }) => {
     return sorted;
   }, [teams]);
 
-    // Track which stamps are unique in the room (only 1 user has it)
+  // Track which stamps are unique in the room (only 1 user has it)
   const uniqueStamps = useMemo(() => {
     if (!teams) return new Set();
     const stampCounts = {};
@@ -785,8 +784,8 @@ const DraftScreen = ({ showToast }) => {
     return standardizedRoster;
   }, [standardizeSlotName]);
 
-    // FIXED: Enhanced roster merging with duplicate prevention
-    const mergeRosterData = useCallback((oldRoster, newRoster) => {
+  // FIXED: Enhanced roster merging with duplicate prevention
+  const mergeRosterData = useCallback((oldRoster, newRoster) => {
     const current = processRosterData(oldRoster) || {};
     const incoming = processRosterData(newRoster) || {};
     
@@ -1155,7 +1154,10 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
 
-// CRITICAL: During active draft, NEVER update teams from draft-state
+      // CRITICAL: Get current state FIRST before using it
+      const currentState = store.getState().draft;
+
+      // CRITICAL: During active draft, NEVER update teams from draft-state
       // Teams should ONLY be updated via player-picked events to preserve roster data
       const isActiveDraft = data.status === 'active' || (data.currentTurn > 0 && data.currentTurn < 25);
       if (isActiveDraft && currentState.teams?.length > 0) {
@@ -1170,8 +1172,6 @@ const DraftScreen = ({ showToast }) => {
         }));
         return;
       }
-
-      const currentState = store.getState().draft;
       
       // ==================== TIMER SYNC ====================
       // Sync timer from server data
@@ -1221,7 +1221,8 @@ const DraftScreen = ({ showToast }) => {
           const newRosterCount = Object.values(newRoster || {}).filter(p => p?.name).length;
           // Intelligent roster merging
           if (existingRosterCount > 0 || newRosterCount > 0) {
-            if (existingRosterCount >= newRosterCount) {              // Existing has more or equal - prioritize existing, merge in any new
+            if (existingRosterCount >= newRosterCount) {
+              // Existing has more or equal - prioritize existing, merge in any new
               finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
               console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
             } else {
@@ -1453,12 +1454,12 @@ const DraftScreen = ({ showToast }) => {
         timestamp: data.timestamp || new Date().toISOString()
       }));
       
-// CRITICAL: Resolve teamIndex robustly - fallback to userId lookup
+      // CRITICAL: Resolve teamIndex robustly - fallback to userId lookup
       let resolvedTeamIndex = data.teamIndex;
       if (resolvedTeamIndex === undefined && data.draftPosition !== undefined) {
         resolvedTeamIndex = data.draftPosition;
       }
-if (resolvedTeamIndex === undefined) {
+      if (resolvedTeamIndex === undefined) {
         const pickedUserId = data.userId || data.user_id;
         const liveTeams = store.getState().draft.teams;
         if (pickedUserId && liveTeams) {
@@ -1468,7 +1469,7 @@ if (resolvedTeamIndex === undefined) {
       }
       console.log('🔍 Resolved teamIndex:', resolvedTeamIndex, 'from:', { teamIndex: data.teamIndex, draftPosition: data.draftPosition, userId: data.userId });
 
-// CRITICAL: Update player board to mark as drafted
+      // CRITICAL: Update player board to mark as drafted
       // Look up equipped_stamp by userId (order-independent) from event payload
       const stampUserId = data.userId || data.user_id;
       const eventTeamForStamp = data.teams?.find(t => 
@@ -1486,7 +1487,7 @@ if (resolvedTeamIndex === undefined) {
             pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position,
             // Store equipped_stamp directly on cell for first-render timing
-       equippedStamp: eventTeamForStamp?.equipped_stamp || store.getState().draft.teams?.[resolvedTeamIndex]?.equipped_stamp || null
+            equippedStamp: eventTeamForStamp?.equipped_stamp || store.getState().draft.teams?.[resolvedTeamIndex]?.equipped_stamp || null
           }
         }));
       }
@@ -1528,7 +1529,7 @@ if (resolvedTeamIndex === undefined) {
         console.log('📝 Skipping roster update for own pick (already optimistically updated)');
       }
       
-// Update draft state
+      // Update draft state
       dispatch(updateDraftState({
         currentTurn: data.currentTurn,
         currentPick: data.currentPick || (data.currentTurn + 1),
@@ -1592,20 +1593,18 @@ if (resolvedTeamIndex === undefined) {
         isMyTurn: (data.nextPlayer && getUserId(data.nextPlayer) === currentUserId) || 
                   (data.nextDrafter && getUserId(data.nextDrafter) === currentUserId) || 
                   false,
- timeRemaining: data.timeLimit || data.timeRemaining || 30
+        timeRemaining: data.timeLimit || data.timeRemaining || 30
       }));
-
-
     };
 
     const handleDraftCountdown = (data) => {
-     console.log('⏰ Draft countdown:', data);
-     if (data.roomId === roomId) {
-       const countdownValue = data.countdown || data.countdownTime || data.time || data.seconds || 5;
-       dispatch(updateDraftState({
-         status: 'countdown',
-         countdownTime: countdownValue
-       }));
+      console.log('⏰ Draft countdown:', data);
+      if (data.roomId === roomId) {
+        const countdownValue = data.countdown || data.countdownTime || data.time || data.seconds || 5;
+        dispatch(updateDraftState({
+          status: 'countdown',
+          countdownTime: countdownValue
+        }));
       }
     };
 
@@ -1643,10 +1642,11 @@ if (resolvedTeamIndex === undefined) {
             entryId: team.entryId || team.entry_id || backendTeam.entryId || backendTeam.entry_id || team.id,
             // CRITICAL: Keep existing roster if it has data
             roster: hasExistingRoster ? existingRoster : processRosterData(backendTeam.roster || backendTeam.picks || {}),
-          budget: team.budget !== undefined ? team.budget : 15,
-          bonus: team.bonus || 0,
-          color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
-        }));
+            budget: team.budget !== undefined ? team.budget : 15,
+            bonus: team.bonus || 0,
+            color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
+          };
+        });
         
         // Preserve sport from current state or infer from data
         const completedSport = data.sport || draftState?.sport || contestData?.sport || sport || 'nfl';
@@ -1753,7 +1753,7 @@ if (resolvedTeamIndex === undefined) {
     socketService.on('draft-countdown', handleDraftCountdown);
     socketService.on('draft-complete', handleDraftComplete);
     socketService.on('timer-update', handleTimerUpdate);
-    socketService.on('timer-sync', handleTimerSync);  // NEW
+    socketService.on('timer-sync', handleTimerSync);
 
     return () => {
       console.log('🧹 Cleaning up draft socket event handlers');
@@ -1767,9 +1767,9 @@ if (resolvedTeamIndex === undefined) {
       socketService.off('draft-countdown', handleDraftCountdown);
       socketService.off('draft-complete', handleDraftComplete);
       socketService.off('timer-update', handleTimerUpdate);
-      socketService.off('timer-sync', handleTimerSync);  // NEW
+      socketService.off('timer-sync', handleTimerSync);
     };
-  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining]);
+  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, draftState, contestData, sport]);
 
   // Show toast messages for errors
   useEffect(() => {
@@ -2237,149 +2237,150 @@ if (resolvedTeamIndex === undefined) {
     };
   }, [status, startTimerInterval, stopTimerInterval]);
 
-// CRITICAL: Handle mobile wake from lock/app switch - multiple fallbacks
-// Includes heartbeat that detects JS pause (most reliable for app switching)
-useEffect(() => {
-  let lastActiveAt = Date.now();
-  let lastHeartbeat = Date.now();
-  let refreshInProgress = false;
-  let heartbeatInterval = null;
-  
-  const forceRefresh = async (source) => {
-    // Debounce - don't refresh more than once per 2 seconds
-    if (refreshInProgress) {
-      console.log(`👁️ [${source}] Refresh already in progress, skipping`);
-      return;
-    }
+  // CRITICAL: Handle mobile wake from lock/app switch - multiple fallbacks
+  // Includes heartbeat that detects JS pause (most reliable for app switching)
+  useEffect(() => {
+    let lastActiveAt = Date.now();
+    let lastHeartbeat = Date.now();
+    let refreshInProgress = false;
+    let heartbeatInterval = null;
     
-    const timeSinceActive = Date.now() - lastActiveAt;
-    console.log(`👁️ [${source}] Wake detected after ${Math.round(timeSinceActive/1000)}s`);
+    const forceRefresh = async (source) => {
+      // Debounce - don't refresh more than once per 2 seconds
+      if (refreshInProgress) {
+        console.log(`👁️ [${source}] Refresh already in progress, skipping`);
+        return;
+      }
+      
+      const timeSinceActive = Date.now() - lastActiveAt;
+      console.log(`👁️ [${source}] Wake detected after ${Math.round(timeSinceActive/1000)}s`);
+      
+      refreshInProgress = true;
+      lastActiveAt = Date.now();
+      lastHeartbeat = Date.now();
+      
+      // Skip if not in a draft
+      if (!roomId || !hasJoinedRef.current) {
+        console.log(`👁️ [${source}] Not in active draft, skipping`);
+        refreshInProgress = false;
+        return;
+      }
+      
+      console.log(`👁️ [${source}] Forcing full refresh...`);
+      
+      // 1. Recalculate timer immediately
+      if (turnStartedAtRef.current) {
+        const remaining = calculateTimeRemaining();
+        dispatch(updateTimer(remaining));
+      }
+      
+      // 2. Restart timer interval
+      stopTimerInterval();
+      if (status === 'active') {
+        startTimerInterval();
+      }
+      
+      // 3. Force socket reconnect if stale for a while
+      if (timeSinceActive > 10000) {
+        console.log(`👁️ [${source}] Stale for >10s, forcing socket reconnect...`);
+        socketService.disconnect();
+        await new Promise(r => setTimeout(r, 200));
+        socketService.connect();
+        await new Promise(r => setTimeout(r, 500));
+      }
+      
+      // 4. Request fresh state
+      const requestState = () => {
+        if (socketService.isConnected()) {
+          socketService.emit('get-draft-state', { roomId });
+          lastSyncTimeRef.current = Date.now();
+        }
+      };
+      
+      requestState();
+      // Retry once more after a delay in case socket wasn't ready
+      setTimeout(requestState, 1000);
+      
+      // Allow another refresh after 2 seconds
+      setTimeout(() => {
+        refreshInProgress = false;
+      }, 2000);
+    };
     
-    refreshInProgress = true;
-    lastActiveAt = Date.now();
-    lastHeartbeat = Date.now();
+    // HEARTBEAT: Detects JS pause from app switching
+    // If interval was supposed to run every 1s but 3+ seconds passed, we were paused
+    const startHeartbeat = () => {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      
+      heartbeatInterval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = now - lastHeartbeat;
+        
+        // If more than 3 seconds since last heartbeat, JS was paused
+        if (elapsed > 3000) {
+          console.log(`💓 Heartbeat detected ${Math.round(elapsed/1000)}s gap - JS was paused`);
+          forceRefresh('heartbeat');
+        }
+        
+        lastHeartbeat = now;
+      }, 1000);
+    };
     
-    // Skip if not in a draft
-    if (!roomId || !hasJoinedRef.current) {
-      console.log(`👁️ [${source}] Not in active draft, skipping`);
-      refreshInProgress = false;
-      return;
-    }
+    startHeartbeat();
     
-    console.log(`👁️ [${source}] Forcing full refresh...`);
+    // Track when we're active
+    const markActive = () => {
+      lastActiveAt = Date.now();
+      lastHeartbeat = Date.now();
+    };
     
-    // 1. Recalculate timer immediately
-    if (turnStartedAtRef.current) {
-      const remaining = calculateTimeRemaining();
-      dispatch(updateTimer(remaining));
-    }
-    
-    // 2. Restart timer interval
-    stopTimerInterval();
-    if (status === 'active') {
-      startTimerInterval();
-    }
-    
-    // 3. Force socket reconnect if stale for a while
-    if (timeSinceActive > 10000) {
-      console.log(`👁️ [${source}] Stale for >10s, forcing socket reconnect...`);
-      socketService.disconnect();
-      await new Promise(r => setTimeout(r, 200));
-      socketService.connect();
-      await new Promise(r => setTimeout(r, 500));
-    }
-    
-    // 4. Request fresh state
-    const requestState = () => {
-      if (socketService.isConnected()) {
-        socketService.emit('get-draft-state', { roomId });
-        lastSyncTimeRef.current = Date.now();
+    // Event handlers
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('👁️ Tab hidden');
+      } else {
+        forceRefresh('visibilitychange');
       }
     };
     
-    requestState();
-    // Retry once more after a delay in case socket wasn't ready
-    setTimeout(requestState, 1000);
+    const handleFocus = () => forceRefresh('focus');
+    const handlePageShow = (e) => {
+      forceRefresh(e.persisted ? 'pageshow-bfcache' : 'pageshow');
+    };
     
-    // Allow another refresh after 2 seconds
-    setTimeout(() => {
-      refreshInProgress = false;
-    }, 2000);
-  };
-  
-  // HEARTBEAT: Detects JS pause from app switching
-  // If interval was supposed to run every 1s but 3+ seconds passed, we were paused
-  const startHeartbeat = () => {
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
-    
-    heartbeatInterval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - lastHeartbeat;
-      
-      // If more than 3 seconds since last heartbeat, JS was paused
-      if (elapsed > 3000) {
-        console.log(`💓 Heartbeat detected ${Math.round(elapsed/1000)}s gap - JS was paused`);
-        forceRefresh('heartbeat');
+    // Touch/click as last resort - user is definitely back
+    const handleInteraction = () => {
+      const timeSinceActive = Date.now() - lastActiveAt;
+      if (timeSinceActive > 3000) {
+        forceRefresh('interaction');
+      } else {
+        markActive();
       }
-      
-      lastHeartbeat = now;
-    }, 1000);
-  };
-  
-  startHeartbeat();
-  
-  // Track when we're active
-  const markActive = () => {
-    lastActiveAt = Date.now();
-    lastHeartbeat = Date.now();
-  };
-  
-  // Event handlers
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      console.log('👁️ Tab hidden');
-    } else {
-      forceRefresh('visibilitychange');
-    }
-  };
-  
-  const handleFocus = () => forceRefresh('focus');
-  const handlePageShow = (e) => {
-    forceRefresh(e.persisted ? 'pageshow-bfcache' : 'pageshow');
-  };
-  
-  // Touch/click as last resort - user is definitely back
-  const handleInteraction = () => {
-    const timeSinceActive = Date.now() - lastActiveAt;
-    if (timeSinceActive > 3000) {
-      forceRefresh('interaction');
-    } else {
-      markActive();
-    }
-  };
-  
-  // Register all event listeners
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('focus', handleFocus);
-  window.addEventListener('pageshow', handlePageShow);
-  document.addEventListener('touchstart', handleInteraction, { passive: true });
-  document.addEventListener('click', handleInteraction);
-  document.addEventListener('mousemove', markActive, { passive: true });
-  document.addEventListener('touchmove', markActive, { passive: true });
-  
-  return () => {
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.removeEventListener('focus', handleFocus);
-    window.removeEventListener('pageshow', handlePageShow);
-    document.removeEventListener('touchstart', handleInteraction);
-    document.removeEventListener('click', handleInteraction);
-    document.removeEventListener('mousemove', markActive);
-    document.removeEventListener('touchmove', markActive);
-  };
-}, [status, roomId, calculateTimeRemaining, dispatch, startTimerInterval, stopTimerInterval]);
+    };
+    
+    // Register all event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('touchstart', handleInteraction, { passive: true });
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('mousemove', markActive, { passive: true });
+    document.addEventListener('touchmove', markActive, { passive: true });
+    
+    return () => {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('touchstart', handleInteraction);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('mousemove', markActive);
+      document.removeEventListener('touchmove', markActive);
+    };
+  }, [status, roomId, calculateTimeRemaining, dispatch, startTimerInterval, stopTimerInterval]);
   // =====================================================================
-// BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
+
+  // BACKGROUND PAUSE: Toggle class on body to pause CSS animations when hidden
   // Also force reload if user has been away too long (MOBILE ONLY)
   const hiddenAtRef = useRef(null);
   useEffect(() => {
@@ -2813,59 +2814,59 @@ useEffect(() => {
                     {isAutoSuggestion && (
                       <div className="suggestion-indicator">⭐ Best Pick</div>
                     )}
-                  {player.drafted && (() => {
-  // Fallback: use draftedByColor to find team index if draftedBy is undefined
-let teamIndex = player.draftedBy;
-if (teamIndex === undefined && draftedByColor) {
-  const colorMap = { green: 0, red: 1, blue: 2, yellow: 3, purple: 4 };
-  teamIndex = colorMap[draftedByColor];
-}
-const draftedByTeam = teams?.[teamIndex];
-  console.log('🔍 STAMP DEBUG:', {
-    draftedBy: player.draftedBy,
-    draftedByTeam: draftedByTeam?.username,
-    equipped_stamp: draftedByTeam?.equipped_stamp,
-  });
-const stampId = draftedByTeam?.equipped_stamp || player.equippedStamp;
-  const StampComponent = stampId 
-    ? getStampComponent(stampId)
-    : null;
-  console.log('🔍 StampComponent:', StampComponent);
-  
+                    {player.drafted && (() => {
+                      // Fallback: use draftedByColor to find team index if draftedBy is undefined
+                      let teamIndex = player.draftedBy;
+                      if (teamIndex === undefined && draftedByColor) {
+                        const colorMap = { green: 0, red: 1, blue: 2, yellow: 3, purple: 4 };
+                        teamIndex = colorMap[draftedByColor];
+                      }
+                      const draftedByTeam = teams?.[teamIndex];
+                      console.log('🔍 STAMP DEBUG:', {
+                        draftedBy: player.draftedBy,
+                        draftedByTeam: draftedByTeam?.username,
+                        equipped_stamp: draftedByTeam?.equipped_stamp,
+                      });
+                      const stampId = draftedByTeam?.equipped_stamp || player.equippedStamp;
+                      const StampComponent = stampId 
+                        ? getStampComponent(stampId)
+                        : null;
+                      console.log('🔍 StampComponent:', StampComponent);
+                      
                       // If they have a stamp, render it
                       if (StampComponent) {
-                       console.log('🎨 RENDERING STAMP:', draftedByTeam?.equipped_stamp, 'for', player.name);
-                       return (
-                        <StampComponent
-                          player={{
-                            name: player.name,
-                            team: player.team,
-                            position: player.position,
-                            price: player.price
-                          }} 
-                          pickNumber={player.pickNumber || getTeamPickNumber(player.draftedBy)}
-                          showDrafted={true}
-                        />
+                        console.log('🎨 RENDERING STAMP:', draftedByTeam?.equipped_stamp, 'for', player.name);
+                        return (
+                          <StampComponent
+                            player={{
+                              name: player.name,
+                              team: player.team,
+                              position: player.position,
+                              price: player.price
+                            }} 
+                            pickNumber={player.pickNumber || getTeamPickNumber(player.draftedBy)}
+                            showDrafted={true}
+                          />
+                        );
+                      }
+                      
+                      // Otherwise render the default game piece
+                      return (
+                        <>
+                          {draftedByColor && (
+                            <div className={`game-piece ${draftedByColor}`}>
+                              <div className="piece-inner">
+                                {player.pickNumber || getTeamPickNumber(player.draftedBy)}
+                              </div>
+                            </div>
+                          )}
+                          {player.draftedToPosition && (
+                            <div className="drafted-position">{standardizeSlotName(player.draftedToPosition)}</div>
+                          )}
+                        </>
                       );
-                     }
-  
-                     // Otherwise render the default game piece
-                     return (
-                       <>
-                         {draftedByColor && (
-                          <div className={`game-piece ${draftedByColor}`}>
-                           <div className="piece-inner">
-                              {player.pickNumber || getTeamPickNumber(player.draftedBy)}
-                           </div>
-                         </div>
-                       )}
-                       {player.draftedToPosition && (
-                         <div className="drafted-position">{standardizeSlotName(player.draftedToPosition)}</div>
-                       )}
-                     </>
-                   );
-                 })()}
-                 </div>
+                    })()}
+                  </div>
                 );
               })}
             </div>
