@@ -2676,6 +2676,7 @@ useEffect(() => {
         picks={picks}
         currentUserId={currentUserId}
         getUserId={getUserId}
+        sport={sport}
       />
       
       <div className="draft-header">
