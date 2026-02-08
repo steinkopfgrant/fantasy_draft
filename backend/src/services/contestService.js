@@ -1507,7 +1507,7 @@ class ContestService {
         console.log('📋 Generating fresh player board for draft');
         // UPDATED: Get sport from contest and pass it
         const contestData = await db.Contest.findByPk(roomStatus.contestId);
-        const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || 'nfl';
+        const sport = contestData?.sport || 'nfl';
         playerBoard = generatePlayerBoard(null, [], [], sport);
       }
 
