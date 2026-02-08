@@ -413,7 +413,23 @@ const LobbyScreen = () => {
       });
     }
     
+    // Fixed order: NBA Cash → NFL Cash → Market Mover
+    const getContestOrder = (contest) => {
+      const sport = (contest.sport || 'nfl').toLowerCase();
+      const type = contest.type || '';
+      
+      if (type === 'cash' && sport === 'nba') return 0;  // NBA Cash first
+      if (type === 'cash' && sport === 'nfl') return 1;  // NFL Cash second
+      if (type === 'market') return 2;                    // Market Mover third
+      return 3;                                           // Everything else last
+    };
+    
     filtered.sort((a, b) => {
+      // Primary sort: fixed contest type order
+      const orderDiff = getContestOrder(a) - getContestOrder(b);
+      if (orderDiff !== 0) return orderDiff;
+      
+      // Secondary sort: user's selected sort option
       switch (sortBy) {
         case 'startTime': return new Date(a.startTime || 0) - new Date(b.startTime || 0);
         case 'entryFee': return (b.entryFee || 0) - (a.entryFee || 0);
