@@ -16,7 +16,7 @@ router.get('/active', authMiddleware, async (req, res) => {
         model: db.Contest,
         where: { status: { [Op.notIn]: ['settled'] } },
         required: true,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'sport']
       }, {
         model: db.Lineup,
         required: false,
@@ -33,6 +33,7 @@ router.get('/active', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name || 'Unknown Contest',
         contestType: entry.Contest?.type || 'cash',
         contestStatus: entry.Contest?.status || 'unknown',
+        sport: entry.Contest?.sport || 'nfl',
         entryFee: parseFloat(entry.Contest?.entry_fee || 0),
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
         status: entry.status,
@@ -64,7 +65,7 @@ router.get('/history', authMiddleware, async (req, res) => {
         model: db.Contest,
         where: { status: 'settled' },
         required: true,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'end_time']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'end_time', 'sport']
       }, {
         model: db.Lineup,
         required: false,
@@ -89,6 +90,7 @@ router.get('/history', authMiddleware, async (req, res) => {
         contestId: entry.contest_id,
         contestName: entry.Contest?.name || 'Unknown Contest',
         contestType: entry.Contest?.type || 'cash',
+        sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
         status: 'settled',
@@ -152,7 +154,7 @@ router.get('/:entryId/details', authMiddleware, async (req, res) => {
       where: { id: entryId, user_id: userId },
       include: [{
         model: db.Contest,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport']
       }, {
         model: db.Lineup,
         required: false
@@ -270,6 +272,7 @@ router.get('/:entryId/details', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
         contestStatus: entry.Contest?.status,
+        sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
         status: entry.status,
@@ -297,7 +300,7 @@ router.get('/:entryId', authMiddleware, async (req, res) => {
       where: { id: entryId, user_id: userId },
       include: [{
         model: db.Contest,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport']
       }, {
         model: db.Lineup,
         required: false
@@ -322,6 +325,7 @@ router.get('/:entryId', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
         contestStatus: entry.Contest?.status,
+        sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
         status: entry.status,
