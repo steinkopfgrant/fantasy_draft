@@ -1221,10 +1221,6 @@ const DraftScreen = ({ showToast }) => {
           const newRosterCount = Object.values(newRoster || {}).filter(p => p?.name).length;
           
           // CRITICAL: If we just processed a pick, preserve existing roster entirely
-          if (skipRosterUpdate && existingRosterCount > 0) {
-            finalRoster = existingTeam.roster;
-            console.log(`🔒 Preserving existing roster (${existingRosterCount} players) - skip mode`);
-          } else if (existingRosterCount > 0 || newRosterCount > 0) {
             if (existingRosterCount >= newRosterCount) {
               // Existing has more or equal - prioritize existing, merge in any new
               finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
