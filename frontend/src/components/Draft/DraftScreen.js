@@ -1155,20 +1155,20 @@ const DraftScreen = ({ showToast }) => {
       
       if (data.roomId !== roomId) return;
 
-      // CRITICAL: Skip team updates entirely if we just processed a pick (within 1000ms)
-      // This prevents draft-state from overwriting player-picked updates
-      const timeSinceLastPick = Date.now() - lastPickTimeRef.current;
-      if (timeSinceLastPick < 1000) {
-        console.log(`⏭️ Skipping team update from draft-state (${timeSinceLastPick}ms since last pick)`);
-        // Only update turn/timer info, not teams
+// CRITICAL: During active draft, NEVER update teams from draft-state
+      // Teams should ONLY be updated via player-picked events to preserve roster data
+      const isActiveDraft = data.status === 'active' || (data.currentTurn > 0 && data.currentTurn < 25);
+      if (isActiveDraft && currentState.teams?.length > 0) {
+        console.log(`⏭️ Active draft - updating turn/timer only, preserving teams`);
         dispatch(updateDraftState({
           currentTurn: data.currentTurn,
           currentPick: data.currentPick || (data.currentTurn + 1),
           status: data.status || 'active',
           timeRemaining: data.timeRemaining || 30,
-          timeLimit: data.timeLimit || 30
+          timeLimit: data.timeLimit || 30,
+          playerBoard: data.playerBoard || currentState.playerBoard
         }));
-        return; // Exit early - don't process teams at all
+        return;
       }
 
       const currentState = store.getState().draft;
