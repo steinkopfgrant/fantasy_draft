@@ -171,7 +171,7 @@ const DraftScreen = ({ showToast }) => {
     return null;
   };
   
-  const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || inferSportFromBoard(playerBoard) || 'nfl';
+  const sport = inferSportFromBoard(playerBoard) || contestData?.sport || contestData?.contestSport || draftState?.sport || 'nfl';
   const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
   
   console.log('🏀 SPORT DETECTION:', { 
