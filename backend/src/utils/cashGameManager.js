@@ -3,24 +3,42 @@ const Contest = require('../models/Contest');
 const User = require('../models/User');
 const { generatePlayerBoard } = require('./gameLogic');
 
+// Supported sports configuration
+const SPORTS_CONFIG = {
+  nfl: {
+    namePrefix: 'Cash Game',
+    entryFee: 2,
+    prizeAmount: 10
+  },
+  nba: {
+    namePrefix: 'NBA Cash Game',
+    entryFee: 2,
+    prizeAmount: 10
+  }
+};
+
 class CashGameManager {
   constructor(io) {
     this.io = io;
     this.isRunning = false;
     this.checkInterval = null;
-    this.gameCounter = 1;
+    // Track game counters per sport
+    this.gameCounters = {
+      nfl: 1,
+      nba: 1
+    };
   }
 
   async start() {
     if (this.isRunning) return;
     
     this.isRunning = true;
-    console.log('Cash Game Manager started');
+    console.log('Cash Game Manager started (multi-sport)');
     
-    // Initialize game counter
-    await this.initializeGameCounter();
+    // Initialize game counters for all sports
+    await this.initializeGameCounters();
     
-    // Initial check
+    // Initial check for all sports
     await this.ensureOpenCashGames();
     
     // Check every 30 seconds
@@ -41,38 +59,64 @@ class CashGameManager {
     console.log('Cash Game Manager stopped');
   }
 
-  async initializeGameCounter() {
+  async initializeGameCounters() {
     try {
-      const lastGame = await Contest.findOne({
-        type: 'cash'
-      }).sort({ createdAt: -1 });
-      
-      if (lastGame && lastGame.name) {
-        const match = lastGame.name.match(/Cash Game #(\d+)/);
-        if (match) {
-          this.gameCounter = parseInt(match[1]) + 1;
+      // Initialize counter for each sport
+      for (const sport of Object.keys(SPORTS_CONFIG)) {
+        const config = SPORTS_CONFIG[sport];
+        
+        const lastGame = await Contest.findOne({
+          type: 'cash',
+          sport: sport
+        }).sort({ createdAt: -1 });
+        
+        if (lastGame && lastGame.name) {
+          // Match pattern like "Cash Game #5" or "NBA Cash Game #3"
+          const match = lastGame.name.match(/#(\d+)/);
+          if (match) {
+            this.gameCounters[sport] = parseInt(match[1]) + 1;
+          }
         }
+        
+        console.log(`${sport.toUpperCase()} game counter initialized at: ${this.gameCounters[sport]}`);
       }
-      console.log(`Game counter initialized at: ${this.gameCounter}`);
     } catch (error) {
-      console.error('Error initializing game counter:', error);
+      console.error('Error initializing game counters:', error);
     }
   }
 
   async ensureOpenCashGames() {
     try {
-      // Get all open cash games
+      // Ensure open cash games for EACH sport
+      for (const sport of Object.keys(SPORTS_CONFIG)) {
+        await this.ensureOpenCashGameForSport(sport);
+      }
+    } catch (error) {
+      console.error('Error ensuring open cash games:', error);
+    }
+  }
+
+  async ensureOpenCashGameForSport(sport) {
+    try {
+      const config = SPORTS_CONFIG[sport];
+      if (!config) {
+        console.error(`Unknown sport: ${sport}`);
+        return;
+      }
+
+      // Get open cash games for this sport
       const openGames = await Contest.find({
         type: 'cash',
+        sport: sport,
         status: 'open'
       });
       
-      console.log(`Found ${openGames.length} open cash games`);
+      console.log(`Found ${openGames.length} open ${sport.toUpperCase()} cash games`);
       
-      // We want at least 1 open cash game
+      // We want at least 1 open cash game per sport
       if (openGames.length === 0) {
-        console.log('No open cash games found, creating one...');
-        await this.createCashGame();
+        console.log(`No open ${sport.toUpperCase()} cash games found, creating one...`);
+        await this.createCashGame(sport);
       }
       
       // Clean up old empty games (over 1 hour old)
@@ -84,54 +128,64 @@ class CashGameManager {
       
       for (const game of oldEmptyGames) {
         await game.updateOne({ status: 'cancelled' });
-        console.log(`Cancelled old empty game: ${game.name}`);
+        console.log(`Cancelled old empty ${sport.toUpperCase()} game: ${game.name}`);
       }
       
     } catch (error) {
-      console.error('Error ensuring open cash games:', error);
+      console.error(`Error ensuring open ${sport} cash games:`, error);
     }
   }
 
-  async createCashGame() {
+  async createCashGame(sport = 'nfl') {
     try {
-      // Generate unique player board for this game
-      const playerBoard = await generatePlayerBoard('nfl');
+      const config = SPORTS_CONFIG[sport];
+      if (!config) {
+        console.error(`Unknown sport: ${sport}, defaulting to NFL`);
+        sport = 'nfl';
+      }
+
+      // Generate sport-specific player board
+      const playerBoard = await generatePlayerBoard(null, [], [], sport);
+      
+      const gameNumber = this.gameCounters[sport] || 1;
+      const gameName = `${config.namePrefix} #${gameNumber}`;
       
       const contestData = {
-        name: `Cash Game #${this.gameCounter}`,
+        name: gameName,
         type: 'cash',
         status: 'open',
-        entryFee: 2,
+        entryFee: config.entryFee,
         maxEntries: 5,
         currentEntries: 0,
         prizeStructure: [
-          { place: 1, amount: 10, percentage: 100 }
+          { place: 1, amount: config.prizeAmount, percentage: 100 }
         ],
         startTime: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
-        sport: 'nfl',
+        sport: sport,
         scoringSystem: 'standard',
-        description: '5-player winner-take-all cash game',
-        playerBoard: playerBoard, // Store the generated board
+        description: `5-player winner-take-all ${sport.toUpperCase()} cash game`,
+        playerBoard: playerBoard,
         entries: []
       };
       
       const newGame = await Contest.create(contestData);
-      this.gameCounter++;
+      this.gameCounters[sport] = gameNumber + 1;
       
-      console.log(`Created new cash game: ${newGame.name}`);
+      console.log(`✅ Created new ${sport.toUpperCase()} cash game: ${newGame.name}`);
       
       // Emit to all connected clients
       if (this.io) {
         this.io.emit('newCashGame', {
           contest: newGame,
-          message: `New cash game available: ${newGame.name}`
+          sport: sport,
+          message: `New ${sport.toUpperCase()} cash game available: ${newGame.name}`
         });
       }
       
       return newGame;
       
     } catch (error) {
-      console.error('Error creating cash game:', error);
+      console.error(`Error creating ${sport} cash game:`, error);
       throw error;
     }
   }
@@ -141,21 +195,23 @@ class CashGameManager {
       const contest = await Contest.findById(contestId);
       if (!contest || contest.type !== 'cash') return;
       
-      console.log(`Cash game ${contest.name} now has ${contest.currentEntries}/${contest.maxEntries} players`);
+      const sport = contest.sport || 'nfl';
+      console.log(`${sport.toUpperCase()} cash game ${contest.name} now has ${contest.currentEntries}/${contest.maxEntries} players`);
       
       // If game is full, update status
       if (contest.currentEntries >= contest.maxEntries && contest.status === 'open') {
         await contest.updateOne({ status: 'filled' });
         
-        // Create a new game to replace it
-        console.log(`Cash game ${contest.name} is full, creating new one...`);
-        await this.createCashGame();
+        // Create a new game FOR THE SAME SPORT to replace it
+        console.log(`${sport.toUpperCase()} cash game ${contest.name} is full, creating new ${sport.toUpperCase()} game...`);
+        await this.createCashGame(sport);
         
         // Notify all clients
         if (this.io) {
           this.io.emit('cashGameFilled', {
             contestId: contest._id,
-            contestName: contest.name
+            contestName: contest.name,
+            sport: sport
           });
         }
       }
@@ -166,7 +222,8 @@ class CashGameManager {
           contestId: contest._id,
           currentEntries: contest.currentEntries,
           maxEntries: contest.maxEntries,
-          status: contest.status
+          status: contest.status,
+          sport: sport
         });
       }
     } catch (error) {
@@ -189,7 +246,8 @@ class CashGameManager {
         );
         
         if (allDrafting) {
-          console.log(`All players drafting in ${game.name}, starting game...`);
+          const sport = game.sport || 'nfl';
+          console.log(`All players drafting in ${game.name} (${sport.toUpperCase()}), starting game...`);
           
           await game.updateOne({ 
             status: 'in_progress',
@@ -199,7 +257,8 @@ class CashGameManager {
           if (this.io) {
             this.io.emit('cashGameStarted', {
               contestId: game._id,
-              message: `${game.name} has started!`
+              message: `${game.name} has started!`,
+              sport: sport
             });
           }
         }
@@ -247,7 +306,10 @@ class CashGameManager {
         return;
       }
       
-      console.log(`Completing cash game: ${contest.name}`);
+      const sport = contest.sport || 'nfl';
+      const config = SPORTS_CONFIG[sport] || SPORTS_CONFIG.nfl;
+      
+      console.log(`Completing ${sport.toUpperCase()} cash game: ${contest.name}`);
       
       // Calculate scores for each entry
       const entryScores = [];
@@ -278,10 +340,10 @@ class CashGameManager {
         const winnerUser = await User.findById(winner.userId);
         
         if (winnerUser) {
-          winnerUser.balance += 10; // Prize amount
+          winnerUser.balance += config.prizeAmount;
           await winnerUser.save();
           
-          console.log(`${winner.username} won ${contest.name} with ${winner.score} points - $10 prize`);
+          console.log(`${winner.username} won ${contest.name} (${sport.toUpperCase()}) with ${winner.score} points - $${config.prizeAmount} prize`);
         }
       }
       
@@ -296,7 +358,7 @@ class CashGameManager {
         payouts: [{
           userId: entryScores[0]?.userId,
           username: entryScores[0]?.username,
-          amount: 10,
+          amount: config.prizeAmount,
           place: 1
         }],
         processedAt: new Date()
@@ -311,12 +373,13 @@ class CashGameManager {
         this.io.emit('cashGameCompleted', {
           contestId: contest._id,
           contestName: contest.name,
-          results: contest.results
+          results: contest.results,
+          sport: sport
         });
       }
       
-      // Ensure a new game is available
-      await this.ensureOpenCashGames();
+      // Ensure a new game is available FOR THIS SPORT
+      await this.ensureOpenCashGameForSport(sport);
       
     } catch (error) {
       console.error('Error completing cash game:', error);
@@ -338,17 +401,30 @@ class CashGameManager {
           completed: 0,
           cancelled: 0
         },
+        bySport: {},
         games: []
       };
       
+      // Initialize sport tracking
+      for (const sport of Object.keys(SPORTS_CONFIG)) {
+        status.bySport[sport] = { open: 0, filled: 0, in_progress: 0, completed: 0 };
+      }
+      
       cashGames.forEach(game => {
+        const sport = game.sport || 'nfl';
+        
         if (status.byStatus[game.status] !== undefined) {
           status.byStatus[game.status]++;
+        }
+        
+        if (status.bySport[sport] && status.bySport[sport][game.status] !== undefined) {
+          status.bySport[sport][game.status]++;
         }
         
         status.games.push({
           id: game._id,
           name: game.name,
+          sport: sport,
           status: game.status,
           currentEntries: game.currentEntries,
           maxEntries: game.maxEntries,
@@ -367,49 +443,66 @@ class CashGameManager {
 
   // Admin methods for debugging
   async forceCreateCashGame(params = {}) {
+    const sport = params.sport || 'nfl';
+    const config = SPORTS_CONFIG[sport] || SPORTS_CONFIG.nfl;
+    const gameNumber = this.gameCounters[sport] || 1;
+    
     const contestData = {
-      name: params.name || `Cash Game #${this.gameCounter} (Manual)`,
+      name: params.name || `${config.namePrefix} #${gameNumber} (Manual)`,
       type: 'cash',
-      entryFee: params.entryFee || 2,
+      entryFee: params.entryFee || config.entryFee,
       maxEntries: params.maxEntries || 5,
       currentEntries: 0,
-      prizeStructure: [{ place: 1, amount: 10, percentage: 100 }],
+      prizeStructure: [{ place: 1, amount: config.prizeAmount, percentage: 100 }],
       startTime: new Date(Date.now() + 5 * 60 * 1000),
       status: 'open',
-      sport: params.sport || 'nfl',
+      sport: sport,
       scoringSystem: params.scoringSystem || 'standard',
-      description: params.description || 'Admin created cash game',
-      playerBoard: await generatePlayerBoard('nfl')
+      description: params.description || `Admin created ${sport.toUpperCase()} cash game`,
+      playerBoard: await generatePlayerBoard(null, [], [], sport)
     };
     
     const game = await Contest.create(contestData);
-    this.gameCounter++;
+    this.gameCounters[sport] = gameNumber + 1;
     return game;
   }
 
   async getStatus() {
-    const openGames = await Contest.countDocuments({
-      type: 'cash',
-      status: 'open'
-    });
+    const statusBySport = {};
     
-    const inProgressGames = await Contest.countDocuments({
-      type: 'cash',
-      status: 'in_progress'
-    });
-    
-    const completedToday = await Contest.countDocuments({
-      type: 'cash',
-      status: 'completed',
-      completedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
-    });
+    for (const sport of Object.keys(SPORTS_CONFIG)) {
+      const openGames = await Contest.countDocuments({
+        type: 'cash',
+        sport: sport,
+        status: 'open'
+      });
+      
+      const inProgressGames = await Contest.countDocuments({
+        type: 'cash',
+        sport: sport,
+        status: 'in_progress'
+      });
+      
+      const completedToday = await Contest.countDocuments({
+        type: 'cash',
+        sport: sport,
+        status: 'completed',
+        completedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      });
+      
+      statusBySport[sport] = {
+        openGames,
+        inProgressGames,
+        completedToday,
+        gameCounter: this.gameCounters[sport]
+      };
+    }
     
     return {
       isRunning: this.isRunning,
-      openGames,
-      inProgressGames,
-      completedToday,
-      gameCounter: this.gameCounter
+      sports: Object.keys(SPORTS_CONFIG),
+      bySport: statusBySport,
+      gameCounters: this.gameCounters
     };
   }
 }
