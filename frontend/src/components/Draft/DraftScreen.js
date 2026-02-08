@@ -52,9 +52,10 @@ const SPORT_CONFIG = {
     rosterSize: 5,
   },
   nba: {
-    positions: ['PG', 'SG', 'SF', 'PF', 'FLEX'],
-    slotPriority: ['PG', 'SG', 'SF', 'PF', 'FLEX'],
-    flexEligible: ['PG', 'SG', 'SF', 'PF'],
+    positions: ['PG', 'SG', 'SF', 'PF', 'C'],
+    slotPriority: ['PG', 'SG', 'SF', 'PF', 'C'],
+    flexEligible: [],  // NBA has no flex
+
     budget: 15,
     rosterSize: 5,
   },
@@ -158,7 +159,8 @@ const DraftScreen = ({ showToast }) => {
     error
   } = draftState;
 
-  const sport = contestData?.sport || 'nfl';
+  // Get sport configuration - check draft state and contest data
+  const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || 'nfl';
   const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
 
   const socketConnected = useSelector(state => state.socket.connected);
@@ -731,7 +733,7 @@ const DraftScreen = ({ showToast }) => {
         }
         
         // Skip non-player keys like 'picks'
-        if (key === 'picks' || !['QB', 'RB', 'WR', 'TE', 'FLEX'].includes(standardizeSlotName(key))) {
+        if (key === 'picks' || !['QB', 'RB', 'WR', 'TE', 'FLEX', 'PG', 'SG', 'SF', 'PF', 'C'].includes(standardizeSlotName(key))) {
           console.log(`⏭️ Skipping non-roster key: ${key}`);
           return;
         }
@@ -2812,6 +2814,7 @@ const stampId = draftedByTeam?.equipped_stamp || player.equippedStamp;
             roster={safeMyTeam?.roster}
             budget={safeMyTeam?.budget}
             bonus={safeMyTeam?.bonus}
+            positions={sportConfig.positions}
           />
         ) : (
           /* Desktop: Full team view */
