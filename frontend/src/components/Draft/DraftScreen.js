@@ -160,8 +160,26 @@ const DraftScreen = ({ showToast }) => {
   } = draftState;
 
   // Get sport configuration - check draft state and contest data
-  const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || 'nfl';
+  // Detect sport from draftState, contestData, OR infer from playerBoard
+  const inferSportFromBoard = (board) => {
+    if (!board || !Array.isArray(board) || board.length === 0) return null;
+    const firstPlayer = board[0]?.[0] || board[0];
+    if (!firstPlayer) return null;
+    const pos = (firstPlayer.position || '').toUpperCase();
+    if (['PG', 'SG', 'SF', 'PF', 'C'].includes(pos)) return 'nba';
+    if (['QB', 'RB', 'WR', 'TE'].includes(pos)) return 'nfl';
+    return null;
+  };
+  
+  const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || inferSportFromBoard(playerBoard) || 'nfl';
   const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+  
+  console.log('🏀 SPORT DETECTION:', { 
+    draftStateSport: draftState?.sport, 
+    contestDataSport: contestData?.sport,
+    inferredSport: inferSportFromBoard(playerBoard),
+    finalSport: sport 
+  });
 
   const socketConnected = useSelector(state => state.socket.connected);
 
