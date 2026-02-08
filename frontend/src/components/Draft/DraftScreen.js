@@ -1227,15 +1227,6 @@ const DraftScreen = ({ showToast }) => {
               console.log(`🔀 Roster merge: used new (${newRosterCount} players) + merged existing (${existingRosterCount} players)`);
             }
           }
-              // Existing has more or equal - prioritize existing, merge in any new
-              finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
-              console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
-            } else {
-              // New has more - prioritize new, merge in any existing
-              finalRoster = mergeRosterData(newRoster, existingTeam?.roster || {});
-              console.log(`🔀 Roster merge: used new (${newRosterCount} players) + merged existing (${existingRosterCount} players)`);
-            }
-          }
           
           // ULTRA-ROBUST BUDGET CALCULATION - NEVER RESET FROM $0
           let finalBudget = 15; // Default budget
