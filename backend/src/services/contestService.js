@@ -557,6 +557,7 @@ class ContestService {
         
         if (contest.type === 'cash') {
           console.log(`Cash game ${contestId} is full, creating replacement...`);
+          console.log(`🔍 REGEN DEBUG: contest.sport = "${contest.sport}", contest.name = "${contest.name}"`);
           
           try {
             // Get sport from contest
