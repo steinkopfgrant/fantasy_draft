@@ -769,7 +769,8 @@ class SocketHandler {
         draftOrder: draft.draftOrder || [],
         picks: draft.picks || [],
         status: draft.status || 'pending',
-        participants: draft.participants || []
+        participants: draft.participants || [],
+        sport: draft.sport || 'nfl'
       };
 
       // ✅ FIX: Merge in live timer info from contestService
@@ -923,7 +924,8 @@ class SocketHandler {
         draftOrder: draft.draftOrder || [],
         picks: draft.picks || [],
         status: draft.status || 'pending',
-        participants: draft.participants || []
+        participants: draft.participants || [],
+        sport: draft.sport || 'nfl'
       };
 
       // ✅ FIX: Merge in live timer info from contestService
