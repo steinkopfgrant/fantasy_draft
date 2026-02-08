@@ -158,7 +158,8 @@ const DraftScreen = ({ showToast }) => {
     error
   } = draftState;
 
-  const sport = contestData?.sport || 'nfl';
+  // Get sport configuration - check draft state and contest data
+  const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || 'nfl';
   const sportConfig = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
 
   const socketConnected = useSelector(state => state.socket.connected);

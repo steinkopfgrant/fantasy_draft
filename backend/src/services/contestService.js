@@ -559,45 +559,45 @@ class ContestService {
           console.log(`Cash game ${contestId} is full, creating replacement...`);
           
           try {
-            // Get sport-specific cash game count
+            // Get sport from contest
+            const contestSport = contest.sport || 'nfl';
+            
+            // Use consistent naming: NFL = "Cash Game #X", NBA = "NBA Cash Game #X"
+            const namePrefix = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
+            
+            console.log(`🔄 Regenerating ${contestSport.toUpperCase()} cash game, looking for pattern: "${namePrefix} #%"`);
+            
+            // Get all cash games for this sport with matching pattern
             const cashGames = await db.Contest.findAll({
               where: {
                 type: 'cash',
-                sport: contest.sport || 'nfl',
-                name: { [Op.like]: `${(contest.sport || 'nfl').toUpperCase()} Cash Game #%` }
-              },
-              attributes: ['name'],
-              transaction
-            });
-
-            // Also check old naming convention for backwards compatibility
-            const oldCashGames = await db.Contest.findAll({
-              where: {
-                type: 'cash',
-                sport: contest.sport || 'nfl',
-                name: { [Op.like]: 'Cash Game #%' }
+                sport: contestSport,
+                name: { [Op.like]: `${namePrefix} #%` }
               },
               attributes: ['name'],
               transaction
             });
 
             let maxNumber = 0;
-            [...cashGames, ...oldCashGames].forEach(game => {
-              const match = game.name.match(/Cash Game #(\d+)/i);
+            cashGames.forEach(game => {
+              const match = game.name.match(/#(\d+)/i);
               if (match) {
                 maxNumber = Math.max(maxNumber, parseInt(match[1]));
               }
             });
 
             const nextNumber = maxNumber + 1;
-            const sportPrefix = (contest.sport || 'nfl').toUpperCase();
+            const newName = `${namePrefix} #${nextNumber}`;
+            
+            console.log(`🔄 Creating new cash game: ${newName} (sport: ${contestSport})`);
+            const sportPrefix = contestSport.toUpperCase(); // Keep for any other uses
             
             const { v4: uuidv4 } = require('uuid');
             const newCashGame = await db.Contest.create({
               id: uuidv4(),
               type: 'cash',
-              sport: contest.sport || 'nfl',
-              name: `${sportPrefix} Cash Game #${nextNumber}`,
+              sport: contestSport,
+              name: newName,
               status: 'open',
               entry_fee: contest.entry_fee,
               prize_pool: contest.prize_pool,
@@ -605,20 +605,20 @@ class ContestService {
               current_entries: 0,
               max_entries_per_user: 1,
               // UPDATED: Pass sport parameter
-              player_board: generatePlayerBoard(null, [], [], contest.sport || 'nfl'),
+              player_board: generatePlayerBoard(null, [], [], contestSport),
               start_time: new Date(),
               end_time: new Date(Date.now() + 7200000),
               scoring_type: contest.scoring_type,
               max_salary: 15
             }, { transaction });
             
-            console.log(`Successfully created new cash game: ${newCashGame.id} (${newCashGame.name})`);
+            console.log(`✅ Successfully created new cash game: ${newCashGame.id} (${newCashGame.name}) for ${contestSport.toUpperCase()}`);
             
             newCashGameCreated = true;
             newCashGameData = {
               id: newCashGame.id,
               type: newCashGame.type,
-              sport: newCashGame.sport || 'nfl',
+              sport: contestSport,
               name: newCashGame.name,
               status: newCashGame.status,
               entryFee: parseFloat(newCashGame.entry_fee),
@@ -1507,7 +1507,7 @@ class ContestService {
         console.log('📋 Generating fresh player board for draft');
         // UPDATED: Get sport from contest and pass it
         const contestData = await db.Contest.findByPk(roomStatus.contestId);
-        const sport = contestData?.sport || 'nfl';
+        const sport = draftState?.sport || contestData?.sport || contestData?.contestSport || 'nfl';
         playerBoard = generatePlayerBoard(null, [], [], sport);
       }
 
