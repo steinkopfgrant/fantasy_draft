@@ -1157,15 +1157,18 @@ const DraftScreen = ({ showToast }) => {
       // CRITICAL: Get current state FIRST before using it
       const currentState = store.getState().draft;
 
-      // CRITICAL: During active draft, NEVER update teams from draft-state
+      // CRITICAL: Skip team updates during active OR completed draft
       // Teams should ONLY be updated via player-picked events to preserve roster data
+      // Once completed, handleDraftComplete already set the teams correctly
       const isActiveDraft = data.status === 'active' || (data.currentTurn > 0 && data.currentTurn < 25);
-      if (isActiveDraft && currentState.teams?.length > 0) {
-        console.log(`⏭️ Active draft - updating turn/timer only, preserving teams`);
+      const isCompletedDraft = data.status === 'completed' || currentState.status === 'completed';
+      
+      if ((isActiveDraft || isCompletedDraft) && currentState.teams?.length > 0) {
+        console.log(`⏭️ Draft ${isCompletedDraft ? 'completed' : 'active'} - preserving teams, only updating turn/timer`);
         dispatch(updateDraftState({
           currentTurn: data.currentTurn,
           currentPick: data.currentPick || (data.currentTurn + 1),
-          status: data.status || 'active',
+          status: data.status || currentState.status,
           timeRemaining: data.timeRemaining || 30,
           timeLimit: data.timeLimit || 30,
           playerBoard: data.playerBoard || currentState.playerBoard
@@ -1619,13 +1622,26 @@ const DraftScreen = ({ showToast }) => {
       stopTimerInterval();
       
       if (data.roomId === roomId) {
-        // CRITICAL: Prefer Redux teams (which have rosters from player-picked events)
-        // over backend teams (which may have empty rosters)
-        const currentTeams = teams || [];
+        // CRITICAL: Read teams from Redux store, NOT from closure (stale closure fix)
+        const currentReduxState = store.getState().draft;
+        const currentTeams = currentReduxState.teams || [];
         const backendTeams = data.teams || data.entries || [];
+        
+        console.log('📊 handleDraftComplete teams check:', {
+          reduxTeamsCount: currentTeams.length,
+          backendTeamsCount: backendTeams.length,
+          reduxTeam0Roster: currentTeams[0]?.roster ? Object.keys(currentTeams[0].roster) : 'none',
+          backendTeam0Roster: backendTeams[0]?.roster ? Object.keys(backendTeams[0].roster) : 'none'
+        });
         
         // Use Redux teams if they have roster data, otherwise backend
         const sourceTeams = currentTeams.length > 0 ? currentTeams : backendTeams;
+        
+        console.log('📊 Source teams for completion:', sourceTeams.map(t => ({
+          name: t.name || t.username,
+          rosterKeys: t.roster ? Object.keys(t.roster) : [],
+          rosterPlayers: t.roster ? Object.values(t.roster).filter(p => p?.name).map(p => p.name) : []
+        })));
         
         const completedTeams = sourceTeams.map((team, index) => {
           // Find matching backend team for any additional data
@@ -1634,6 +1650,12 @@ const DraftScreen = ({ showToast }) => {
           // Preserve existing roster from Redux, or process backend roster
           const existingRoster = team.roster || {};
           const hasExistingRoster = Object.values(existingRoster).some(p => p?.name);
+          
+          console.log(`📊 Team ${team.name || team.username} roster check:`, {
+            hasExistingRoster,
+            existingKeys: Object.keys(existingRoster),
+            backendKeys: backendTeam.roster ? Object.keys(backendTeam.roster) : []
+          });
           
           return {
             ...team,
@@ -1649,7 +1671,12 @@ const DraftScreen = ({ showToast }) => {
         });
         
         // Preserve sport from current state or infer from data
-        const completedSport = data.sport || draftState?.sport || contestData?.sport || sport || 'nfl';
+        const completedSport = data.sport || currentReduxState?.sport || currentReduxState?.contestData?.sport || 'nfl';
+        
+        console.log('📊 Completed teams with rosters:', completedTeams.map(t => ({
+          name: t.name,
+          rosterPlayers: Object.values(t.roster || {}).filter(p => p?.name).map(p => p.name)
+        })));
         
         dispatch(updateDraftState({
           status: 'completed',
@@ -1663,12 +1690,14 @@ const DraftScreen = ({ showToast }) => {
         // ✅ CRITICAL: SAVE THE COMPLETED DRAFT TO BACKEND
         try {
           const myTeam = completedTeams.find(t => getUserId(t) === currentUserId);
-          const myEntryId = entryId || myTeam?.entryId || data.entryId;
+          // Read entryId from Redux store too (stale closure fix)
+          const reduxEntryId = currentReduxState.entryId;
+          const myEntryId = reduxEntryId || myTeam?.entryId || data.entryId;
           
           console.log('💾 Attempting to save draft...');
           console.log('My team:', myTeam);
           console.log('Entry ID options:', {
-            fromRedux: entryId,
+            fromRedux: reduxEntryId,
             fromTeam: myTeam?.entryId,
             fromData: data.entryId,
             using: myEntryId
@@ -1708,7 +1737,7 @@ const DraftScreen = ({ showToast }) => {
               hasRoster: !!(myTeam?.roster),
               hasEntryId: !!myEntryId,
               myTeam,
-              entryId,
+              entryId: reduxEntryId,
               allTeams: completedTeams
             });
             toast('Draft completed but could not save - missing entry ID', 'warning');
