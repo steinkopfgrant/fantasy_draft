@@ -1679,7 +1679,12 @@ class ContestService {
       remainingBudget = 15 - spent;
     }
     
-    const timeLimit = remainingBudget <= 0 ? 3 : 30;
+    let timeLimit = remainingBudget <= 0 ? 3 : 30;
+
+    // Bots pick in 3 seconds
+    if (currentPlayer.username?.startsWith('botuser')) {
+      timeLimit = 3;
+    }
     
     if (remainingBudget <= 0) {
       console.log(`💸 ${currentPlayer.username} has $0 budget - using ${timeLimit}s quick timer`);
