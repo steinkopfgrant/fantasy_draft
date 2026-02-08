@@ -1219,10 +1219,9 @@ const DraftScreen = ({ showToast }) => {
           let finalRoster = {};
           const existingRosterCount = Object.values(existingTeam?.roster || {}).filter(p => p?.name).length;
           const newRosterCount = Object.values(newRoster || {}).filter(p => p?.name).length;
-          
-          // CRITICAL: If we just processed a pick, preserve existing roster entirely
-            if (existingRosterCount >= newRosterCount) {
-              // Existing has more or equal - prioritize existing, merge in any new
+          // Intelligent roster merging
+          if (existingRosterCount > 0 || newRosterCount > 0) {
+            if (existingRosterCount >= newRosterCount) {              // Existing has more or equal - prioritize existing, merge in any new
               finalRoster = mergeRosterData(existingTeam?.roster || {}, newRoster);
               console.log(`🔀 Roster merge: kept existing (${existingRosterCount} players) + merged new (${newRosterCount} players)`);
             } else {
