@@ -2386,6 +2386,8 @@ class ContestService {
       this.io.to(`room_${roomId}`).emit('draft-complete', {
         roomId,
         contestId: draft.contestId,
+        teams: draft.teams,
+        sport: draft.sport || 'nfl',
         message: 'Draft completed! Good luck!'
       });
     }

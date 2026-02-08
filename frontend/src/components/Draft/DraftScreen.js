@@ -1630,11 +1630,17 @@ if (resolvedTeamIndex === undefined) {
           color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
         }));
         
+        // Preserve sport from current state or infer from data
+        const completedSport = data.sport || draftState?.sport || contestData?.sport || sport || 'nfl';
+        
         dispatch(updateDraftState({
           status: 'completed',
           showResults: true,
-          teams: completedTeams
+          teams: completedTeams,
+          sport: completedSport
         }));
+        
+        console.log('🏀 Draft complete - sport preserved:', completedSport);
         
         // ✅ CRITICAL: SAVE THE COMPLETED DRAFT TO BACKEND
         try {
