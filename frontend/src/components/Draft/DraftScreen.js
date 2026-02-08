@@ -1620,11 +1620,29 @@ if (resolvedTeamIndex === undefined) {
       stopTimerInterval();
       
       if (data.roomId === roomId) {
-        const completedTeams = (data.teams || data.entries || teams || []).map((team, index) => ({
-          ...team,
-          userId: getUserId(team),
-          entryId: team.entryId || team.entry_id || team.id, // ✅ PRESERVE ENTRY ID
-          roster: processRosterData(team.roster || team.picks || {}),
+        // CRITICAL: Prefer Redux teams (which have rosters from player-picked events)
+        // over backend teams (which may have empty rosters)
+        const currentTeams = teams || [];
+        const backendTeams = data.teams || data.entries || [];
+        
+        // Use Redux teams if they have roster data, otherwise backend
+        const sourceTeams = currentTeams.length > 0 ? currentTeams : backendTeams;
+        
+        const completedTeams = sourceTeams.map((team, index) => {
+          // Find matching backend team for any additional data
+          const backendTeam = backendTeams.find(t => getUserId(t) === getUserId(team)) || backendTeams[index] || {};
+          
+          // Preserve existing roster from Redux, or process backend roster
+          const existingRoster = team.roster || {};
+          const hasExistingRoster = Object.values(existingRoster).some(p => p?.name);
+          
+          return {
+            ...team,
+            ...backendTeam, // Merge any backend data
+            userId: getUserId(team),
+            entryId: team.entryId || team.entry_id || backendTeam.entryId || backendTeam.entry_id || team.id,
+            // CRITICAL: Keep existing roster if it has data
+            roster: hasExistingRoster ? existingRoster : processRosterData(backendTeam.roster || backendTeam.picks || {}),
           budget: team.budget !== undefined ? team.budget : 15,
           bonus: team.bonus || 0,
           color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
