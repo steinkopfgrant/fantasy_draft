@@ -158,28 +158,53 @@ if (!contestService.cleanupLocks) {
 }
 
 if (!contestService.ensureCashGameAvailable) {
-  contestService.ensureCashGameAvailable = async function() {
+  contestService.ensureCashGameAvailable = async function(sport = null) {
     try {
-      const openCashGames = await db.Contest.findAll({ where: { type: 'cash', status: 'open' } });
-      if (openCashGames.length === 0) {
-        console.log('📝 Creating new cash game...');
-        const { generatePlayerBoard } = require('./utils/playerBoard');
-        await db.Contest.create({
-          id: require('uuid').v4(),
-          name: 'Cash Game $5',
-          type: 'cash',
-          status: 'open',
-          sport: 'NFL',
-          entry_fee: 5,
-          prize_pool: 24,
-          max_entries: 100,
-          current_entries: 0,
-          scoring_type: 'standard',
-          player_board: generatePlayerBoard ? generatePlayerBoard() : {},
-          created_at: new Date(),
-          updated_at: new Date()
+      const { generatePlayerBoard } = require('./utils/gameLogic');
+      const sports = sport ? [sport] : ['nfl', 'nba'];
+      
+      for (const currentSport of sports) {
+        const openCashGames = await db.Contest.findAll({ 
+          where: { type: 'cash', status: 'open', sport: currentSport } 
         });
-        console.log('✅ New cash game created');
+        
+        if (openCashGames.length === 0) {
+          console.log(`📝 Creating new ${currentSport.toUpperCase()} cash game...`);
+          
+          // Get next number for this sport
+          const namePrefix = currentSport === 'nfl' ? 'Cash Game' : `${currentSport.toUpperCase()} Cash Game`;
+          const existingGames = await db.Contest.findAll({
+            where: { type: 'cash', sport: currentSport, name: { [db.Sequelize.Op.like]: `${namePrefix} #%` } },
+            attributes: ['name']
+          });
+          
+          let maxNumber = 0;
+          existingGames.forEach(game => {
+            const match = game.name.match(/#(\d+)/);
+            if (match) maxNumber = Math.max(maxNumber, parseInt(match[1]));
+          });
+          
+          const newName = `${namePrefix} #${maxNumber + 1}`;
+          
+          await db.Contest.create({
+            id: require('uuid').v4(),
+            name: newName,
+            type: 'cash',
+            status: 'open',
+            sport: currentSport,
+            entry_fee: 5,
+            prize_pool: 22.5,
+            max_entries: 5,
+            current_entries: 0,
+            scoring_type: 'standard',
+            player_board: generatePlayerBoard(null, [], [], currentSport),
+            start_time: new Date(),
+            end_time: new Date(Date.now() + 7200000),
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          console.log(`✅ Created ${newName}`);
+        }
       }
     } catch (error) {
       console.error('Error ensuring cash game:', error);
