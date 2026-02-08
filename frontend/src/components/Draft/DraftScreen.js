@@ -1681,8 +1681,31 @@ const DraftScreen = ({ showToast }) => {
           };
         });
         
-        // Preserve sport from current state or infer from data
-        const completedSport = data.sport || currentReduxState?.sport || currentReduxState?.contestData?.sport || 'nfl';
+        // Preserve sport from current state or infer from playerBoard/roster
+const inferSport = () => {
+  if (currentReduxState?.sport) return currentReduxState.sport;
+  if (currentReduxState?.contestData?.sport) return currentReduxState.contestData.sport;
+  if (data.sport) return data.sport;
+  
+  // Infer from playerBoard
+  const board = currentReduxState?.playerBoard || data.playerBoard;
+  if (board?.[0]?.[0]?.position) {
+    const pos = board[0][0].position.toUpperCase();
+    if (['PG', 'SG', 'SF', 'PF', 'C'].includes(pos)) return 'nba';
+    if (['QB', 'RB', 'WR', 'TE'].includes(pos)) return 'nfl';
+  }
+  
+  // Infer from roster keys
+  const anyRoster = sourceTeams[0]?.roster;
+  if (anyRoster) {
+    const keys = Object.keys(anyRoster).map(k => k.toUpperCase());
+    if (keys.some(k => ['PG', 'SG', 'SF', 'PF', 'C'].includes(k))) return 'nba';
+  }
+  
+  return 'nfl';
+};
+const completedSport = inferSport();
+console.log('🏀 Inferred sport for completion:', completedSport);
         
         console.log('📊 Completed teams with rosters:', completedTeams.map(t => ({
           name: t.name,
