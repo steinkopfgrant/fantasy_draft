@@ -32,6 +32,10 @@ class SettlementService {
 
   /**
    * Settle a single contest
+   * 
+   * CRITICAL FIX: Transaction starts FIRST, contest fetched with FOR UPDATE lock.
+   * This prevents race condition where concurrent settlements both pass the
+   * "already settled" check and pay users multiple times.
    */
   async settleContest(contestId) {
     const { Contest } = this.models;
@@ -40,29 +44,42 @@ class SettlementService {
     console.log(`🎯 STARTING SETTLEMENT FOR CONTEST: ${contestId}`);
     console.log(`${'='.repeat(60)}`);
     
-    // Get contest
-    const contest = await Contest.findByPk(contestId);
-    if (!contest) {
-      throw new Error(`Contest ${contestId} not found`);
-    }
-    
-    // Check if already settled
-    if (contest.status === 'settled') {
-      throw new Error(`Contest ${contestId} is already settled`);
-    }
-    
-    // Get the right strategy
-    const contestType = contest.type || 'cash';
-    const strategy = this.getStrategy(contestType);
-    
-    console.log(`📋 Contest: ${contest.name}`);
-    console.log(`📋 Type: ${contestType}`);
-    console.log(`📋 Status: ${contest.status}`);
-    
-    // Run settlement in transaction
-    const transaction = await this.sequelize.transaction();
+    // ================================================================
+    // CRITICAL: Start transaction FIRST, before any reads
+    // ================================================================
+    const transaction = await this.sequelize.transaction({
+      isolationLevel: this.sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+    });
     
     try {
+      // ================================================================
+      // CRITICAL: Fetch contest WITH ROW LOCK (FOR UPDATE)
+      // This blocks any other settlement attempt for this contest
+      // until this transaction completes or rolls back
+      // ================================================================
+      const contest = await Contest.findOne({
+        where: { id: contestId },
+        lock: transaction.LOCK.UPDATE,
+        transaction
+      });
+      
+      if (!contest) {
+        throw new Error(`Contest ${contestId} not found`);
+      }
+      
+      // NOW this check is protected by the row lock
+      if (contest.status === 'settled') {
+        throw new Error(`Contest ${contestId} is already settled`);
+      }
+      
+      // Get the right strategy
+      const contestType = contest.type || 'cash';
+      const strategy = this.getStrategy(contestType);
+      
+      console.log(`📋 Contest: ${contest.name}`);
+      console.log(`📋 Type: ${contestType}`);
+      console.log(`📋 Status: ${contest.status}`);
+      
       let result;
       
       // Cash games need special handling for multiple rooms

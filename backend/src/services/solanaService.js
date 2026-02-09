@@ -107,25 +107,17 @@ class SolanaService {
 
   /**
    * Verify a Solana transaction manually (user submits tx signature)
+   * 
+   * CRITICAL FIX: Relies on database unique constraint for idempotency
+   * instead of check-then-insert pattern which has a race condition.
+   * 
+   * REQUIRES: CREATE UNIQUE INDEX idx_solana_signature 
+   *           ON transactions((metadata->>'solana_signature')) 
+   *           WHERE metadata->>'solana_signature' IS NOT NULL;
    */
   async verifyTransaction(signature, userId) {
     try {
-      // Check if already processed
-      const existingTx = await this.db.Transaction.findOne({
-        where: {
-          metadata: { solana_signature: signature }
-        }
-      });
-
-      if (existingTx) {
-        return {
-          success: false,
-          error: 'Transaction already processed',
-          transaction: existingTx
-        };
-      }
-
-      // Fetch transaction from Solana
+      // Fetch transaction from Solana FIRST
       const tx = await this.connection.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0
       });
@@ -162,17 +154,36 @@ class SolanaService {
         };
       }
 
-      // Credit the user
-      const result = await this.creditDeposit(userId, depositInfo, signature);
-
-      return {
-        success: true,
-        amount: depositInfo.amount,
-        token: depositInfo.token,
-        bonusTickets: result.bonusTickets,
-        newBalance: result.newBalance,
-        transactionId: result.transactionId
-      };
+      // ================================================================
+      // CREDIT USER - Database constraint handles idempotency
+      // If signature already exists, the INSERT will fail with unique violation
+      // ================================================================
+      try {
+        const result = await this.creditDeposit(userId, depositInfo, signature);
+        
+        return {
+          success: true,
+          amount: depositInfo.amount,
+          token: depositInfo.token,
+          bonusTickets: result.bonusTickets,
+          newBalance: result.newBalance,
+          transactionId: result.transactionId
+        };
+        
+      } catch (error) {
+        // Check if it's a unique constraint violation (duplicate signature)
+        if (error.name === 'SequelizeUniqueConstraintError' || 
+            error.message?.includes('unique') ||
+            error.message?.includes('duplicate') ||
+            error.message?.includes('idx_solana_signature')) {
+          console.log(`⚠️ Duplicate Solana signature blocked by DB constraint: ${signature}`);
+          return {
+            success: false,
+            error: 'This transaction has already been processed'
+          };
+        }
+        throw error;
+      }
 
     } catch (error) {
       console.error('❌ Solana verification error:', error);
@@ -275,8 +286,16 @@ class SolanaService {
   // CREDIT DEPOSIT
   // ============================================
 
+  /**
+   * Credit deposit to user
+   * 
+   * CRITICAL: Relies on database unique constraint on metadata->>'solana_signature'
+   * If duplicate, the INSERT will fail and we catch the error in verifyTransaction
+   */
   async creditDeposit(userId, depositInfo, signature) {
-    const dbTransaction = await this.db.sequelize.transaction();
+    const dbTransaction = await this.db.sequelize.transaction({
+      isolationLevel: this.db.Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+    });
 
     try {
       // Get user with lock
@@ -304,17 +323,20 @@ class SolanaService {
       }, { transaction: dbTransaction });
 
       // Create transaction record
+      // If solana_signature already exists, this will FAIL due to unique index
+      // That's the idempotency protection!
       const txRecord = await this.db.Transaction.create({
         user_id: userId,
         type: 'deposit',
         amount: amount,
+        balance_before: currentBalance,
         balance_after: newBalance,
         status: 'completed',
         description: `Solana ${depositInfo.token} deposit`,
         metadata: {
           method: 'solana',
           token: depositInfo.token,
-          solana_signature: signature,
+          solana_signature: signature,  // UNIQUE INDEXED - duplicate will fail
           sender: depositInfo.sender,
           bonus_tickets: bonusTickets,
           network: 'solana'
@@ -409,9 +431,7 @@ class SolanaService {
 
       // Check if already in database
       const existing = await this.db.Transaction.findOne({
-        where: {
-          metadata: { solana_signature: sigInfo.signature }
-        }
+        where: this.db.sequelize.literal(`metadata->>'solana_signature' = '${sigInfo.signature}'`)
       });
 
       if (existing) {
