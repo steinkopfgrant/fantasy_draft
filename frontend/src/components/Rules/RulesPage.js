@@ -7,6 +7,7 @@ const RulesPage = () => {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('overview');
   const [expandedItems, setExpandedItems] = useState({});
+  const [scoringSport, setScoringSport] = useState('nfl'); // 'nfl' or 'nba'
 
   const toggleExpand = (key) => {
     setExpandedItems(prev => ({
@@ -76,14 +77,14 @@ const RulesPage = () => {
               <h1>Overview</h1>
               <p className="intro-text">
                 Welcome to BidBlitz! We offer snake draft fantasy contests where you compete 
-                against other players by drafting the best NFL roster within a $15 budget.
+                against other players by drafting the best NFL or NBA roster within a $15 budget.
               </p>
 
               <CollapsibleSection title="How It Works" id="how-it-works">
                 <ol>
                   <li><strong>Join a Contest</strong> - Enter a Cash Game or Market Mover contest</li>
                   <li><strong>Draft Your Team</strong> - Snake draft with 5 teams, pick players within your $15 budget</li>
-                  <li><strong>Compete</strong> - Your roster scores points based on real NFL performance</li>
+                  <li><strong>Compete</strong> - Your roster scores points based on real NFL/NBA performance</li>
                   <li><strong>Win Prizes</strong> - Top finishers win cash prizes!</li>
                 </ol>
               </CollapsibleSection>
@@ -100,13 +101,24 @@ const RulesPage = () => {
                 </div>
               </CollapsibleSection>
 
-              <CollapsibleSection title="Roster Format" id="roster-format">
+              <CollapsibleSection title="NFL Roster Format" id="nfl-roster-format">
                 <ul>
                   <li><strong>QB</strong> - 1 Quarterback</li>
                   <li><strong>RB</strong> - 1 Running Back</li>
                   <li><strong>WR</strong> - 1 Wide Receiver</li>
                   <li><strong>TE</strong> - 1 Tight End</li>
                   <li><strong>FLEX</strong> - 1 RB/WR/TE</li>
+                </ul>
+                <p className="note">Total Budget: $15 | Players priced $1-$5</p>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="NBA Roster Format" id="nba-roster-format">
+                <ul>
+                  <li><strong>PG</strong> - 1 Point Guard</li>
+                  <li><strong>SG</strong> - 1 Shooting Guard</li>
+                  <li><strong>SF</strong> - 1 Small Forward</li>
+                  <li><strong>PF</strong> - 1 Power Forward</li>
+                  <li><strong>C</strong> - 1 Center</li>
                 </ul>
                 <p className="note">Total Budget: $15 | Players priced $1-$5</p>
               </CollapsibleSection>
@@ -117,129 +129,296 @@ const RulesPage = () => {
           {activeSection === 'scoring' && (
             <section>
               <h1>Scoring</h1>
-              <p className="intro-text">
-                BidBlitz uses Half-PPR scoring with Tight End Premium (TEP) and milestone bonuses.
-              </p>
+              
+              {/* Sport Toggle */}
+              <div className="sport-toggle">
+                <button 
+                  className={`sport-btn ${scoringSport === 'nfl' ? 'active' : ''}`}
+                  onClick={() => setScoringSport('nfl')}
+                >
+                  🏈 NFL
+                </button>
+                <button 
+                  className={`sport-btn ${scoringSport === 'nba' ? 'active' : ''}`}
+                  onClick={() => setScoringSport('nba')}
+                >
+                  🏀 NBA
+                </button>
+              </div>
 
-              <CollapsibleSection title="Passing" id="passing">
-                <table className="scoring-table">
-                  <tbody>
-                    <tr>
-                      <td>Passing Yard</td>
-                      <td className="points">+0.04 pts</td>
-                      <td className="note-cell">(1 pt per 25 yards)</td>
-                    </tr>
-                    <tr>
-                      <td>Passing Touchdown</td>
-                      <td className="points">+4 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr>
-                      <td>Interception</td>
-                      <td className="points negative">-2 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr className="bonus-row">
-                      <td>300+ Passing Yards Bonus</td>
-                      <td className="points bonus">+2 pts</td>
-                      <td className="note-cell">Milestone</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CollapsibleSection>
+              {/* NFL SCORING */}
+              {scoringSport === 'nfl' && (
+                <>
+                  <p className="intro-text">
+                    BidBlitz uses Half-PPR scoring with Tight End Premium (TEP) and milestone bonuses.
+                  </p>
 
-              <CollapsibleSection title="Rushing" id="rushing">
-                <table className="scoring-table">
-                  <tbody>
-                    <tr>
-                      <td>Rushing Yard</td>
-                      <td className="points">+0.1 pts</td>
-                      <td className="note-cell">(1 pt per 10 yards)</td>
-                    </tr>
-                    <tr>
-                      <td>Rushing Touchdown</td>
-                      <td className="points">+6 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr>
-                      <td>Fumble Lost</td>
-                      <td className="points negative">-2 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr className="bonus-row">
-                      <td>100+ Rushing Yards Bonus</td>
-                      <td className="points bonus">+1 pt</td>
-                      <td className="note-cell">Milestone</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CollapsibleSection>
+                  <CollapsibleSection title="Passing" id="passing">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr>
+                          <td>Passing Yard</td>
+                          <td className="points">+0.04 pts</td>
+                          <td className="note-cell">(1 pt per 25 yards)</td>
+                        </tr>
+                        <tr>
+                          <td>Passing Touchdown</td>
+                          <td className="points">+4 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Interception</td>
+                          <td className="points negative">-2 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr className="bonus-row">
+                          <td>300+ Passing Yards Bonus</td>
+                          <td className="points bonus">+2 pts</td>
+                          <td className="note-cell">Milestone</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CollapsibleSection>
 
-              <CollapsibleSection title="Receiving" id="receiving">
-                <table className="scoring-table">
-                  <tbody>
-                    <tr>
-                      <td>Reception (RB/WR)</td>
-                      <td className="points">+0.5 pts</td>
-                      <td className="note-cell">Half PPR</td>
-                    </tr>
-                    <tr className="tep-row">
-                      <td>Reception (TE)</td>
-                      <td className="points tep">+0.75 pts</td>
-                      <td className="note-cell">TEP Bonus!</td>
-                    </tr>
-                    <tr>
-                      <td>Receiving Yard</td>
-                      <td className="points">+0.1 pts</td>
-                      <td className="note-cell">(1 pt per 10 yards)</td>
-                    </tr>
-                    <tr>
-                      <td>Receiving Touchdown</td>
-                      <td className="points">+6 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr className="bonus-row">
-                      <td>100+ Receiving Yards Bonus</td>
-                      <td className="points bonus">+1 pt</td>
-                      <td className="note-cell">Milestone</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CollapsibleSection>
+                  <CollapsibleSection title="Rushing" id="rushing">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr>
+                          <td>Rushing Yard</td>
+                          <td className="points">+0.1 pts</td>
+                          <td className="note-cell">(1 pt per 10 yards)</td>
+                        </tr>
+                        <tr>
+                          <td>Rushing Touchdown</td>
+                          <td className="points">+6 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Fumble Lost</td>
+                          <td className="points negative">-2 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr className="bonus-row">
+                          <td>100+ Rushing Yards Bonus</td>
+                          <td className="points bonus">+1 pt</td>
+                          <td className="note-cell">Milestone</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CollapsibleSection>
 
-              <CollapsibleSection title="Miscellaneous" id="misc">
-                <table className="scoring-table">
-                  <tbody>
-                    <tr>
-                      <td>2-Point Conversion (Pass/Rush/Rec)</td>
-                      <td className="points">+2 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                    <tr>
-                      <td>Fumble Lost</td>
-                      <td className="points negative">-2 pts</td>
-                      <td className="note-cell"></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CollapsibleSection>
+                  <CollapsibleSection title="Receiving" id="receiving">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr>
+                          <td>Reception (RB/WR)</td>
+                          <td className="points">+0.5 pts</td>
+                          <td className="note-cell">Half PPR</td>
+                        </tr>
+                        <tr className="tep-row">
+                          <td>Reception (TE)</td>
+                          <td className="points tep">+0.75 pts</td>
+                          <td className="note-cell">TEP Bonus!</td>
+                        </tr>
+                        <tr>
+                          <td>Receiving Yard</td>
+                          <td className="points">+0.1 pts</td>
+                          <td className="note-cell">(1 pt per 10 yards)</td>
+                        </tr>
+                        <tr>
+                          <td>Receiving Touchdown</td>
+                          <td className="points">+6 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr className="bonus-row">
+                          <td>100+ Receiving Yards Bonus</td>
+                          <td className="points bonus">+1 pt</td>
+                          <td className="note-cell">Milestone</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CollapsibleSection>
 
-              <CollapsibleSection title="Scoring Summary" id="scoring-summary">
-                <div className="scoring-summary">
-                  <div className="summary-card">
-                    <h4>Format</h4>
-                    <p>Half PPR + TEP</p>
-                  </div>
-                  <div className="summary-card tep">
-                    <h4>TE Premium</h4>
-                    <p>+0.25 per catch</p>
-                  </div>
-                  <div className="summary-card bonus">
-                    <h4>Milestones</h4>
-                    <p>300 pass / 100 rush / 100 rec</p>
-                  </div>
-                </div>
-              </CollapsibleSection>
+                  <CollapsibleSection title="Miscellaneous" id="nfl-misc">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr>
+                          <td>2-Point Conversion (Pass/Rush/Rec)</td>
+                          <td className="points">+2 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Fumble Lost</td>
+                          <td className="points negative">-2 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CollapsibleSection>
+
+                  <CollapsibleSection title="Scoring Summary" id="nfl-scoring-summary">
+                    <div className="scoring-summary">
+                      <div className="summary-card">
+                        <h4>Format</h4>
+                        <p>Half PPR + TEP</p>
+                      </div>
+                      <div className="summary-card tep">
+                        <h4>TE Premium</h4>
+                        <p>+0.25 per catch</p>
+                      </div>
+                      <div className="summary-card bonus">
+                        <h4>Milestones</h4>
+                        <p>300 pass / 100 rush / 100 rec</p>
+                      </div>
+                    </div>
+                  </CollapsibleSection>
+                </>
+              )}
+
+              {/* NBA SCORING */}
+              {scoringSport === 'nba' && (
+                <>
+                  <p className="intro-text">
+                    BidBlitz NBA uses balanced scoring that rewards all-around play with milestone bonuses for double-doubles and triple-doubles.
+                  </p>
+
+                  <CollapsibleSection title="Scoring" id="nba-scoring">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr>
+                          <td>Point Scored</td>
+                          <td className="points">+1 pt</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr className="bonus-row">
+                          <td>3-Point Field Goal Made</td>
+                          <td className="points bonus">+0.5 pts</td>
+                          <td className="note-cell">Bonus per 3PM</td>
+                        </tr>
+                        <tr>
+                          <td>Rebound</td>
+                          <td className="points">+1 pt</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Assist</td>
+                          <td className="points">+1.5 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Steal</td>
+                          <td className="points">+3 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Block</td>
+                          <td className="points">+2 pts</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                        <tr>
+                          <td>Turnover</td>
+                          <td className="points negative">-1 pt</td>
+                          <td className="note-cell"></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </CollapsibleSection>
+
+                  <CollapsibleSection title="Milestone Bonuses" id="nba-milestones">
+                    <table className="scoring-table">
+                      <tbody>
+                        <tr className="bonus-row">
+                          <td>Double-Double</td>
+                          <td className="points bonus">+2 pts</td>
+                          <td className="note-cell">10+ in 2 categories</td>
+                        </tr>
+                        <tr className="bonus-row">
+                          <td>Triple-Double</td>
+                          <td className="points bonus">+4 pts</td>
+                          <td className="note-cell">10+ in 3 categories</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p className="note">Categories: Points, Rebounds, Assists, Steals, Blocks</p>
+                  </CollapsibleSection>
+
+                  <CollapsibleSection title="Scoring Summary" id="nba-scoring-summary">
+                    <div className="scoring-summary">
+                      <div className="summary-card">
+                        <h4>Points</h4>
+                        <p>1 pt each (+0.5 for 3PM)</p>
+                      </div>
+                      <div className="summary-card">
+                        <h4>Rebounds</h4>
+                        <p>1 pt each</p>
+                      </div>
+                      <div className="summary-card">
+                        <h4>Assists</h4>
+                        <p>1.5 pts each</p>
+                      </div>
+                      <div className="summary-card">
+                        <h4>Steals</h4>
+                        <p>3 pts each</p>
+                      </div>
+                      <div className="summary-card">
+                        <h4>Blocks</h4>
+                        <p>2 pts each</p>
+                      </div>
+                      <div className="summary-card negative">
+                        <h4>Turnovers</h4>
+                        <p>-1 pt each</p>
+                      </div>
+                    </div>
+                  </CollapsibleSection>
+
+                  <CollapsibleSection title="Scoring Comparison" id="nba-comparison">
+                    <p>BidBlitz scoring is designed to balance all positions:</p>
+                    <table className="scoring-table comparison-table">
+                      <thead>
+                        <tr>
+                          <th>Stat</th>
+                          <th>DraftKings</th>
+                          <th>FanDuel</th>
+                          <th>BidBlitz</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Rebounds</td>
+                          <td>1.25</td>
+                          <td>1.2</td>
+                          <td className="highlight">1.0</td>
+                        </tr>
+                        <tr>
+                          <td>Blocks</td>
+                          <td>2</td>
+                          <td>3</td>
+                          <td className="highlight">2</td>
+                        </tr>
+                        <tr>
+                          <td>Steals</td>
+                          <td>2</td>
+                          <td>3</td>
+                          <td className="highlight">3</td>
+                        </tr>
+                        <tr>
+                          <td>Double-Double</td>
+                          <td>1.5</td>
+                          <td>—</td>
+                          <td className="highlight">2</td>
+                        </tr>
+                        <tr>
+                          <td>Triple-Double</td>
+                          <td>3</td>
+                          <td>—</td>
+                          <td className="highlight">4</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p className="note">Lower rebound scoring prevents center dominance while rewarding versatile players.</p>
+                  </CollapsibleSection>
+                </>
+              )}
             </section>
           )}
 
@@ -384,7 +563,7 @@ const RulesPage = () => {
             <section>
               <h1>Lineup Requirements</h1>
 
-              <CollapsibleSection title="Roster Positions" id="positions">
+              <CollapsibleSection title="NFL Roster Positions" id="nfl-positions">
                 <table className="position-table">
                   <thead>
                     <tr>
@@ -418,6 +597,45 @@ const RulesPage = () => {
                       <td>FLEX</td>
                       <td>1</td>
                       <td>RB, WR, or TE</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="NBA Roster Positions" id="nba-positions">
+                <table className="position-table">
+                  <thead>
+                    <tr>
+                      <th>Position</th>
+                      <th>Count</th>
+                      <th>Eligible Players</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>PG</td>
+                      <td>1</td>
+                      <td>Point Guards only</td>
+                    </tr>
+                    <tr>
+                      <td>SG</td>
+                      <td>1</td>
+                      <td>Shooting Guards only</td>
+                    </tr>
+                    <tr>
+                      <td>SF</td>
+                      <td>1</td>
+                      <td>Small Forwards only</td>
+                    </tr>
+                    <tr>
+                      <td>PF</td>
+                      <td>1</td>
+                      <td>Power Forwards only</td>
+                    </tr>
+                    <tr>
+                      <td>C</td>
+                      <td>1</td>
+                      <td>Centers only</td>
                     </tr>
                   </tbody>
                 </table>

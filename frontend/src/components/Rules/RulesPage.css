@@ -103,6 +103,40 @@
   margin-bottom: 2rem;
 }
 
+/* Sport Toggle */
+.sport-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem;
+  background: #0a0e1b;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.sport-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: #8892b0;
+}
+
+.sport-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sport-btn.active {
+  background: linear-gradient(135deg, #00d4ff 0%, #667eea 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
 /* Collapsible Sections */
 .collapsible-section {
   margin-bottom: 1rem;
@@ -217,6 +251,45 @@
   background: rgba(255, 68, 255, 0.1);
 }
 
+/* Comparison Table */
+.comparison-table {
+  margin-top: 1rem;
+}
+
+.comparison-table thead th {
+  text-align: center;
+  padding: 0.75rem;
+  background: #0a0e1b;
+  color: #8892b0;
+  font-weight: 600;
+  border-bottom: 2px solid #2a3f4e;
+}
+
+.comparison-table thead th:first-child {
+  text-align: left;
+}
+
+.comparison-table thead th:last-child {
+  color: #00d4ff;
+}
+
+.comparison-table tbody td {
+  text-align: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #2a3f4e;
+  color: #8892b0;
+}
+
+.comparison-table tbody td:first-child {
+  text-align: left;
+  color: #ffffff;
+}
+
+.comparison-table tbody td.highlight {
+  color: #00d4ff;
+  font-weight: 600;
+}
+
 /* Scoring Summary Cards */
 .scoring-summary {
   display: grid;
@@ -253,6 +326,10 @@
 
 .summary-card.bonus p {
   color: #ffaa44;
+}
+
+.summary-card.negative p {
+  color: #ff4444;
 }
 
 /* Contest Type Cards */
@@ -405,7 +482,7 @@
   }
   
   .scoring-summary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   
   .voting-info {
@@ -430,6 +507,19 @@
     font-size: 1.5rem;
   }
   
+  .scoring-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .sport-toggle {
+    width: 100%;
+  }
+  
+  .sport-btn {
+    flex: 1;
+    padding: 0.6rem 1rem;
+  }
+  
   .payout-table {
     font-size: 0.85rem;
   }
@@ -437,5 +527,9 @@
   .payout-table th,
   .payout-table td {
     padding: 0.5rem;
+  }
+  
+  .comparison-table {
+    font-size: 0.85rem;
   }
 }
