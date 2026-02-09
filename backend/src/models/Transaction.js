@@ -80,6 +80,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(255),
       allowNull: true
     },
+    stripe_event_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
     // ============================================
     // Reference to related entity
     reference_type: {
