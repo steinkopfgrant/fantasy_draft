@@ -34,12 +34,12 @@ router.post('/stripe',
       return res.status(400).json({ error: `Webhook Error: ${error.message}` });
     }
 
-    console.log(`📨 Stripe webhook: ${event.type}`);
+    console.log(`📨 Stripe webhook: ${event.type} (${event.id})`);
 
     try {
       switch (event.type) {
         case 'payment_intent.succeeded':
-          await handlePaymentSucceeded(event.data.object);
+          await handlePaymentSucceeded(event.data.object, event.id);
           break;
 
         case 'payment_intent.payment_failed':
@@ -52,7 +52,7 @@ router.post('/stripe',
           break;
 
         case 'charge.refunded':
-          await handleRefund(event.data.object);
+          await handleRefund(event.data.object, event.id);
           break;
 
         case 'charge.dispute.created':
@@ -79,9 +79,15 @@ router.post('/stripe',
 
 /**
  * Handle successful payment - CREDIT USER BALANCE HERE
+ * 
+ * FIXED: Uses stripe_event_id for idempotency instead of payment_intent_id.
+ * Each webhook delivery has a unique event.id, so this prevents double-processing
+ * even if Stripe retries or sends duplicates.
  */
-async function handlePaymentSucceeded(paymentIntent) {
-  const transaction = await db.sequelize.transaction();
+async function handlePaymentSucceeded(paymentIntent, eventId) {
+  const transaction = await db.sequelize.transaction({
+    isolationLevel: db.Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+  });
 
   try {
     const { id: paymentIntentId, amount, metadata } = paymentIntent;
@@ -93,17 +99,19 @@ async function handlePaymentSucceeded(paymentIntent) {
       return;
     }
 
-    // Check idempotency - already processed?
+    // ================================================================
+    // IDEMPOTENCY CHECK via stripe_event_id
+    // This is safer than checking payment_intent_id because:
+    // 1. event.id is unique per webhook delivery
+    // 2. Checked inside SERIALIZABLE transaction with lock
+    // ================================================================
     const existing = await db.Transaction.findOne({
-      where: {
-        stripe_payment_intent_id: paymentIntentId,
-        status: 'completed'
-      },
+      where: { stripe_event_id: eventId },
       transaction
     });
 
     if (existing) {
-      console.log(`ℹ️ Payment ${paymentIntentId} already processed`);
+      console.log(`ℹ️ Webhook ${eventId} already processed`);
       await transaction.rollback();
       return;
     }
@@ -148,10 +156,11 @@ async function handlePaymentSucceeded(paymentIntent) {
       lifetime_deposits: parseFloat(user.lifetime_deposits || 0) + creditAmount
     }, { transaction });
 
-    // Update transaction
+    // Update transaction with stripe_event_id for idempotency
     await pendingTx.update({
       status: 'completed',
       balance_after: newBalance,
+      stripe_event_id: eventId,  // CRITICAL: Prevents duplicate processing
       stripe_charge_id: paymentIntent.latest_charge,
       metadata: {
         ...pendingTx.metadata,
@@ -215,12 +224,28 @@ async function handlePaymentFailed(paymentIntent) {
 
 /**
  * Handle refund - debit user balance
+ * 
+ * FIXED: Uses stripe_event_id for idempotency
  */
-async function handleRefund(charge) {
-  const transaction = await db.sequelize.transaction();
+async function handleRefund(charge, eventId) {
+  const transaction = await db.sequelize.transaction({
+    isolationLevel: db.Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+  });
 
   try {
     const { payment_intent: paymentIntentId, amount_refunded } = charge;
+
+    // Check if this exact webhook event was already processed
+    const existingEvent = await db.Transaction.findOne({
+      where: { stripe_event_id: eventId },
+      transaction
+    });
+
+    if (existingEvent) {
+      console.log(`ℹ️ Refund webhook ${eventId} already processed`);
+      await transaction.rollback();
+      return;
+    }
 
     // Find original deposit
     const originalTx = await db.Transaction.findOne({
@@ -234,21 +259,6 @@ async function handleRefund(charge) {
 
     if (!originalTx) {
       console.log(`ℹ️ No completed deposit for refund: ${paymentIntentId}`);
-      await transaction.rollback();
-      return;
-    }
-
-    // Check if refund already processed
-    const existingRefund = await db.Transaction.findOne({
-      where: {
-        stripe_payment_intent_id: paymentIntentId,
-        type: 'refund'
-      },
-      transaction
-    });
-
-    if (existingRefund) {
-      console.log(`ℹ️ Refund already processed: ${paymentIntentId}`);
       await transaction.rollback();
       return;
     }
@@ -268,7 +278,7 @@ async function handleRefund(charge) {
       lifetime_deposits: Math.max(0, parseFloat(user.lifetime_deposits || 0) - refundAmount)
     }, { transaction });
 
-    // Create refund record
+    // Create refund record with stripe_event_id
     await db.Transaction.create({
       user_id: user.id,
       type: 'refund',
@@ -276,6 +286,7 @@ async function handleRefund(charge) {
       balance_after: newBalance,
       status: 'completed',
       stripe_payment_intent_id: paymentIntentId,
+      stripe_event_id: eventId,  // CRITICAL: Prevents duplicate processing
       description: `Refund: $${refundAmount}`,
       metadata: {
         original_transaction_id: originalTx.id
