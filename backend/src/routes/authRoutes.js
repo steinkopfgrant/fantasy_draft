@@ -5,7 +5,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../models');
 const authMiddleware = require('../middleware/auth');
-const { loginLimiter, registerLimiter, accountLockout } = require('../middleware/rateLimit');
+const { authLimiter } = require('../middleware/rateLimit');
 
 // ============================================
 // SECURITY: Validate JWT_SECRET exists at startup
@@ -40,14 +40,15 @@ const generateToken = (user) => {
 
 // ============================================
 // POST /register - Create new account
+// Rate limited: 20 attempts per 15 minutes
 // ============================================
-router.post('/register', /* registerLimiter, */ async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
     console.log('\n=== REGISTRATION ATTEMPT ===');
     console.log('Username:', username);
-    console.log('Email:', email ? email.substring(0, 3) + '***' : 'not provided'); // Mask email in logs
+    console.log('Email:', email ? email.substring(0, 3) + '***' : 'not provided');
     console.log('Timestamp:', new Date().toISOString());
     console.log('IP Address:', req.ip);
     
@@ -148,8 +149,9 @@ router.post('/register', /* registerLimiter, */ async (req, res) => {
 
 // ============================================
 // POST /login - Authenticate user
+// Rate limited: 20 attempts per 15 minutes
 // ============================================
-router.post('/login', /* loginLimiter, accountLockout(5, 15 * 60 * 1000), */ async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, username, password } = req.body;
     
