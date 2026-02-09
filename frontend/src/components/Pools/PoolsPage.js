@@ -8,6 +8,7 @@ const PoolsPage = () => {
   const [pools, setPools] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sport, setSport] = useState('NFL');
   const [filters, setFilters] = useState({
     5: 'ALL',
     4: 'ALL',
@@ -17,17 +18,30 @@ const PoolsPage = () => {
   });
 
   const prices = [5, 4, 3, 2, 1];
-  const positions = ['ALL', 'QB', 'RB', 'WR', 'TE'];
+  const nflPositions = ['ALL', 'QB', 'RB', 'WR', 'TE'];
+  const nbaPositions = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C'];
+  const positions = sport === 'NFL' ? nflPositions : nbaPositions;
 
   useEffect(() => {
     fetchPools();
-  }, []);
+  }, [sport]);
+
+  // Reset filters when sport changes
+  useEffect(() => {
+    setFilters({
+      5: 'ALL',
+      4: 'ALL',
+      3: 'ALL',
+      2: 'ALL',
+      1: 'ALL'
+    });
+  }, [sport]);
 
   const fetchPools = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/pools', {
+      const response = await axios.get(`/api/pools?sport=${sport}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setPools(response.data.pools);
@@ -50,13 +64,18 @@ const PoolsPage = () => {
   };
 
   const getPositionColor = (position) => {
-    switch (position) {
-      case 'QB': return '#ef4444';
-      case 'RB': return '#22c55e';
-      case 'WR': return '#3b82f6';
-      case 'TE': return '#f59e0b';
-      default: return '#8892b0';
-    }
+    // NFL positions
+    if (position === 'QB') return '#ef4444';
+    if (position === 'RB') return '#22c55e';
+    if (position === 'WR') return '#3b82f6';
+    if (position === 'TE') return '#f59e0b';
+    // NBA positions
+    if (position === 'PG') return '#ef4444';
+    if (position === 'SG') return '#f59e0b';
+    if (position === 'SF') return '#22c55e';
+    if (position === 'PF') return '#3b82f6';
+    if (position === 'C') return '#8b5cf6';
+    return '#8892b0';
   };
 
   const getPriceGradient = (price) => {
@@ -112,7 +131,7 @@ const PoolsPage = () => {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        marginBottom: '2rem'
+        marginBottom: '1.5rem'
       }}>
         <button
           onClick={() => navigate(-1)}
@@ -133,12 +152,70 @@ const PoolsPage = () => {
           color: '#00d4ff', 
           margin: 0,
           fontSize: '1.8rem',
-          textAlign: 'center'
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
         }}>
-          🎱 Player Pools
+          {sport === 'NFL' ? '🏈' : '🏀'} Player Pools
         </h1>
         
         <div style={{ width: '80px' }}></div>
+      </div>
+
+      {/* Sport Toggle */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '1.5rem'
+      }}>
+        <div style={{
+          display: 'flex',
+          gap: '0.25rem',
+          padding: '0.25rem',
+          background: '#1a1f2e',
+          borderRadius: '8px',
+          border: '1px solid #2a2f3e'
+        }}>
+          <button
+            onClick={() => setSport('NFL')}
+            style={{
+              padding: '0.6rem 1.5rem',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: sport === 'NFL' 
+                ? 'linear-gradient(135deg, #00d4ff 0%, #667eea 100%)' 
+                : 'transparent',
+              color: sport === 'NFL' ? '#ffffff' : '#8892b0',
+              boxShadow: sport === 'NFL' ? '0 4px 15px rgba(0, 212, 255, 0.3)' : 'none'
+            }}
+          >
+            🏈 NFL
+          </button>
+          <button
+            onClick={() => setSport('NBA')}
+            style={{
+              padding: '0.6rem 1.5rem',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: sport === 'NBA' 
+                ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' 
+                : 'transparent',
+              color: sport === 'NBA' ? '#ffffff' : '#8892b0',
+              boxShadow: sport === 'NBA' ? '0 4px 15px rgba(245, 158, 11, 0.3)' : 'none'
+            }}
+          >
+            🏀 NBA
+          </button>
+        </div>
       </div>
 
       {/* Price Rows */}
@@ -294,7 +371,7 @@ const PoolsPage = () => {
                     padding: '1rem',
                     fontSize: '0.9rem'
                   }}>
-                    No players at this price point
+                    No {sport} players at this price point
                   </div>
                 )}
               </div>
