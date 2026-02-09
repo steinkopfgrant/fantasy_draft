@@ -263,10 +263,12 @@ router.post('/manual', authMiddleware, async (req, res) => {
     }
     
     // Start transaction
-    const transaction = await db.sequelize.transaction();
+    const transaction = await db.sequelize.transaction({
+      isolationLevel: db.Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+    });
     
     try {
-      // Get target user
+      // Get target user with lock
       const targetUser = await db.User.findByPk(targetUserId, {
         lock: transaction.LOCK.UPDATE,
         transaction
@@ -290,17 +292,26 @@ router.post('/manual', authMiddleware, async (req, res) => {
       // Update user balance
       await targetUser.update({ balance: newBalance }, { transaction });
       
-      // Create transaction record
+      // Create transaction record with full audit trail
       const txRecord = await db.Transaction.create({
         user_id: targetUserId,
         type,
         amount: txAmount,
+        balance_before: currentBalance,
         balance_after: newBalance,
+        status: 'completed',
         description: `${description} (by admin: ${adminUser.username})`,
-        created_by: adminUserId
+        admin_user_id: adminUserId,
+        metadata: {
+          admin_action: true,
+          admin_username: adminUser.username,
+          timestamp: new Date().toISOString()
+        }
       }, { transaction });
       
       await transaction.commit();
+      
+      console.log(`🔧 Admin ${adminUser.username} created ${type} transaction: $${txAmount} for user ${targetUser.username}`);
       
       res.json({
         success: true,
@@ -308,6 +319,7 @@ router.post('/manual', authMiddleware, async (req, res) => {
           id: txRecord.id,
           type: txRecord.type,
           amount: txAmount,
+          balanceBefore: currentBalance,
           balanceAfter: newBalance,
           description: txRecord.description,
           createdAt: txRecord.created_at

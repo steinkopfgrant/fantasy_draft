@@ -664,9 +664,27 @@ router.delete('/withdraw/:id', async (req, res) => {
     }
 
     // Restore balance
-    const user = await db.User.findByPk(userId, { transaction });
-    const newBalance = parseFloat(user.balance) + parseFloat(withdrawal.amount);
+    const user = await db.User.findByPk(userId, {
+      lock: transaction.LOCK.UPDATE,
+      transaction
+    });
+    const previousBalance = parseFloat(user.balance);
+    const newBalance = previousBalance + parseFloat(withdrawal.amount);
     await user.update({ balance: newBalance }, { transaction });
+
+    // Create refund transaction record
+    await db.Transaction.create({
+      user_id: userId,
+      type: 'withdrawal_cancelled',
+      amount: parseFloat(withdrawal.amount),
+      balance_before: previousBalance,
+      balance_after: newBalance,
+      status: 'completed',
+      description: `Withdrawal cancelled - funds restored`,
+      reference_type: 'withdrawal',
+      reference_id: withdrawal.id,
+      metadata: { original_withdrawal_id: withdrawal.id }
+    }, { transaction });
 
     // Update status
     await withdrawal.update({ status: 'cancelled' }, { transaction });
