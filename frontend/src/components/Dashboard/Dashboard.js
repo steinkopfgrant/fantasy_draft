@@ -3,49 +3,163 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { selectAuthUser } from '../../store/slices/authSlice';
+import { subscribeToPush, unsubscribeFromPush } from '../../services/pushNotifications';
 
 const Dashboard = ({ showToast }) => {
   const user = useSelector(selectAuthUser);
   const navigate = useNavigate();
-  const [marketMoverData, setMarketMoverData] = useState({
-    votingActive: false,
-    currentBidUpPlayer: null,
-    leaderboard: []
-  });
-  const [loading, setLoading] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState('checking');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchMarketMoverSummary();
-    }
-  }, [user]);
+    checkNotificationStatus();
+  }, []);
 
-  const fetchMarketMoverSummary = async () => {
+  const checkNotificationStatus = async () => {
+    // Check if iOS
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    setIsIOS(iOS);
+    
+    // Check if running as standalone PWA
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || 
+                       window.navigator.standalone === true;
+    setIsStandalone(standalone);
+
+    // Check if push notifications are supported
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setNotificationStatus('unsupported');
+      return;
+    }
+
+    // Check permission status
+    if (Notification.permission === 'denied') {
+      setNotificationStatus('denied');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      // Check if actually subscribed
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        setNotificationStatus(subscription ? 'enabled' : 'disabled');
+      } catch (error) {
+        setNotificationStatus('disabled');
+      }
+      return;
+    }
+
+    setNotificationStatus('disabled');
+  };
+
+  const handleEnableNotifications = async () => {
+    setIsSubscribing(true);
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/market-mover/status', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMarketMoverData({
-          votingActive: data.votingActive || false,
-          currentBidUpPlayer: data.currentBidUpPlayer,
-          leaderboard: data.leaderboard || []
-        });
+      await subscribeToPush(token);
+      setNotificationStatus('enabled');
+      if (showToast) {
+        showToast('Notifications enabled! You\'ll be notified when drafts start.', 'success');
       }
     } catch (error) {
-      console.error('Error fetching MarketMover summary:', error);
+      console.error('Failed to enable notifications:', error);
+      if (error.message.includes('denied')) {
+        setNotificationStatus('denied');
+        if (showToast) {
+          showToast('Notification permission denied. Please enable in browser settings.', 'error');
+        }
+      } else {
+        if (showToast) {
+          showToast('Failed to enable notifications: ' + error.message, 'error');
+        }
+      }
     } finally {
-      setLoading(false);
+      setIsSubscribing(false);
     }
   };
 
-  const handleMarketMoverClick = () => {
-    navigate('/market-mover');
+  const handleDisableNotifications = async () => {
+    setIsSubscribing(true);
+    try {
+      const token = localStorage.getItem('token');
+      await unsubscribeFromPush(token);
+      setNotificationStatus('disabled');
+      if (showToast) {
+        showToast('Notifications disabled.', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to disable notifications:', error);
+    } finally {
+      setIsSubscribing(false);
+    }
   };
+
+  const getNotificationContent = () => {
+    if (notificationStatus === 'checking') {
+      return {
+        icon: '⏳',
+        title: 'Checking...',
+        description: 'Checking notification status...',
+        button: null
+      };
+    }
+
+    if (notificationStatus === 'unsupported') {
+      return {
+        icon: '❌',
+        title: 'Not Supported',
+        description: 'Push notifications are not supported on this browser.',
+        button: null
+      };
+    }
+
+    if (isIOS && !isStandalone) {
+      return {
+        icon: '📱',
+        title: 'Add to Home Screen',
+        description: 'To enable notifications on iOS, add BidBlitz to your home screen first. Tap the share button and select "Add to Home Screen".',
+        button: null
+      };
+    }
+
+    if (notificationStatus === 'denied') {
+      return {
+        icon: '🚫',
+        title: 'Blocked',
+        description: 'Notifications are blocked. Please enable them in your browser settings.',
+        button: null
+      };
+    }
+
+    if (notificationStatus === 'enabled') {
+      return {
+        icon: '🔔',
+        title: 'Enabled',
+        description: 'You\'ll receive notifications when drafts start and when it\'s your turn.',
+        button: {
+          text: 'Disable Notifications',
+          action: handleDisableNotifications,
+          style: 'secondary'
+        }
+      };
+    }
+
+    // disabled
+    return {
+      icon: '🔕',
+      title: 'Disabled',
+      description: 'Enable notifications to know when your draft starts and when it\'s your turn to pick.',
+      button: {
+        text: 'Enable Notifications',
+        action: handleEnableNotifications,
+        style: 'primary'
+      }
+    };
+  };
+
+  const notifContent = getNotificationContent();
 
   // Admin panel navigation function
   const handleAdminClick = () => {
@@ -100,95 +214,67 @@ const Dashboard = ({ showToast }) => {
           </div>
         </div>
         
-        {/* MarketMover Summary Card */}
+        {/* Notifications Card */}
         <div style={{ 
           padding: '2rem', 
-          background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%)',
-          border: '2px solid #00d4ff', 
-          borderRadius: '16px',
-          cursor: 'pointer',
-          transition: 'all 0.3s'
-        }}
-        onClick={handleMarketMoverClick}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-5px)';
-          e.currentTarget.style.boxShadow = '0 10px 30px rgba(0, 212, 255, 0.3)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = 'none';
-        }}
-        >
-          <h3 style={{ color: '#00d4ff', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            📈 Market Mover
+          background: notificationStatus === 'enabled' 
+            ? 'linear-gradient(135deg, rgba(68, 255, 68, 0.1) 0%, rgba(0, 212, 255, 0.1) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 170, 68, 0.1) 0%, rgba(255, 107, 107, 0.1) 100%)',
+          border: `2px solid ${notificationStatus === 'enabled' ? '#44ff44' : '#ffaa44'}`, 
+          borderRadius: '16px'
+        }}>
+          <h3 style={{ color: '#00d4ff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {notifContent.icon} Notifications
           </h3>
           
-          {loading ? (
-            <p style={{ color: '#8892b0' }}>Loading...</p>
-          ) : (
-            <>
-              <div style={{ marginBottom: '1rem' }}>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.5rem',
-                  marginBottom: '0.5rem' 
-                }}>
-                  <span style={{ 
-                    fontSize: '0.8rem',
-                    color: marketMoverData.votingActive ? '#44ff44' : '#666666',
-                    fontWeight: 'bold'
-                  }}>
-                    {marketMoverData.votingActive ? '🗳️ VOTING ACTIVE' : '🔒 VOTING CLOSED'}
-                  </span>
-                </div>
-                
-                {marketMoverData.currentBidUpPlayer && (
-                  <div style={{ 
-                    background: 'rgba(255, 170, 68, 0.2)',
-                    padding: '0.75rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem'
-                  }}>
-                    <div style={{ fontSize: '0.8rem', color: '#ffaa44', marginBottom: '0.25rem' }}>
-                      🔥 Current BID UP:
-                    </div>
-                    <div style={{ color: '#ffffff', fontWeight: 'bold' }}>
-                      {marketMoverData.currentBidUpPlayer.name}
-                    </div>
-                  </div>
-                )}
-                
-                {marketMoverData.leaderboard.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '0.8rem', color: '#8892b0', marginBottom: '0.5rem' }}>
-                      Vote Leaders:
-                    </div>
-                    {marketMoverData.leaderboard.slice(0, 3).map((leader, index) => (
-                      <div key={index} style={{ 
-                        fontSize: '0.8rem', 
-                        color: '#ffffff',
-                        marginBottom: '0.25rem' 
-                      }}>
-                        {index + 1}. {leader.name} ({leader.votes})
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <div style={{ 
-                background: '#00d4ff',
-                color: '#0a0e1b',
-                padding: '0.5rem 1rem',
-                borderRadius: '20px',
-                textAlign: 'center',
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.5rem',
+            marginBottom: '1rem' 
+          }}>
+            <span style={{ 
+              fontSize: '0.9rem',
+              color: notificationStatus === 'enabled' ? '#44ff44' : '#ffaa44',
+              fontWeight: 'bold'
+            }}>
+              {notifContent.title}
+            </span>
+          </div>
+          
+          <p style={{ 
+            color: '#8892b0', 
+            fontSize: '0.9rem',
+            marginBottom: '1.5rem',
+            lineHeight: '1.5'
+          }}>
+            {notifContent.description}
+          </p>
+          
+          {notifContent.button && (
+            <button
+              onClick={notifContent.button.action}
+              disabled={isSubscribing}
+              style={{ 
+                width: '100%',
+                padding: '0.75rem 1rem',
+                background: notifContent.button.style === 'primary' 
+                  ? '#00d4ff'
+                  : '#2a2f3e',
+                color: notifContent.button.style === 'primary' 
+                  ? '#0a0e1b'
+                  : '#8892b0',
+                border: 'none',
+                borderRadius: '8px',
                 fontWeight: 'bold',
-                fontSize: '0.9rem'
-              }}>
-                Click to Enter Market Mover Hub
-              </div>
-            </>
+                fontSize: '0.9rem',
+                cursor: isSubscribing ? 'not-allowed' : 'pointer',
+                opacity: isSubscribing ? 0.7 : 1,
+                transition: 'all 0.3s'
+              }}
+            >
+              {isSubscribing ? 'Processing...' : notifContent.button.text}
+            </button>
           )}
         </div>
         
@@ -234,7 +320,34 @@ const Dashboard = ({ showToast }) => {
               📋 Rules & Scoring
             </button>
             
-            {/* PLAYER POOLS BUTTON - Shows for everyone */}
+            {/* Market Mover Button */}
+            <button 
+              onClick={() => navigate('/market-mover')}
+              style={{ 
+                width: '100%',
+                padding: '1rem',
+                background: 'linear-gradient(135deg, #00d4ff 0%, #667eea 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 10px rgba(0, 212, 255, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.boxShadow = '0 4px 20px rgba(0, 212, 255, 0.5)';
+                e.target.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.boxShadow = '0 2px 10px rgba(0, 212, 255, 0.3)';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              📈 Market Mover
+            </button>
+            
+            {/* PLAYER POOLS BUTTON */}
             <button 
               onClick={() => navigate('/pools')}
               style={{ 
@@ -267,21 +380,21 @@ const Dashboard = ({ showToast }) => {
               style={{ 
                 width: '100%',
                 padding: '1rem',
-                background: 'linear-gradient(135deg, #00d4ff 0%, #0099cc 100%)',
-                color: '#0a0e1b',
+                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 transition: 'all 0.3s',
-                boxShadow: '0 2px 10px rgba(0, 212, 255, 0.3)'
+                boxShadow: '0 2px 10px rgba(168, 85, 247, 0.3)'
               }}
               onMouseEnter={(e) => {
-                e.target.style.boxShadow = '0 4px 20px rgba(0, 212, 255, 0.5)';
+                e.target.style.boxShadow = '0 4px 20px rgba(168, 85, 247, 0.5)';
                 e.target.style.transform = 'translateY(-2px)';
               }}
               onMouseLeave={(e) => {
-                e.target.style.boxShadow = '0 2px 10px rgba(0, 212, 255, 0.3)';
+                e.target.style.boxShadow = '0 2px 10px rgba(168, 85, 247, 0.3)';
                 e.target.style.transform = 'translateY(0)';
               }}
             >
@@ -364,7 +477,7 @@ const Dashboard = ({ showToast }) => {
         </div>
       </div>
 
-      {/* Floating Admin Button (Alternative placement) - Only for specific user */}
+      {/* Floating Admin Button - Only for specific user */}
       {user?.username === 'aaaaaa' && (
         <button 
           onClick={handleAdminClick}
