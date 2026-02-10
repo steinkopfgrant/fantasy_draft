@@ -8,12 +8,18 @@ import './TeamsPage.css';
 const SPORT_CONFIG = {
   nfl: {
     positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'],
+    label: 'NFL',
+    icon: '🏈',
   },
   nba: {
     positions: ['PG', 'SG', 'SF', 'PF', 'C'],
+    label: 'NBA',
+    icon: '🏀',
   },
   mlb: {
     positions: ['P', 'C', '1B', 'OF', 'FLEX'],
+    label: 'MLB',
+    icon: '⚾',
   },
 };
 
@@ -23,14 +29,21 @@ const getPositionsForTeam = (team) => {
   return SPORT_CONFIG[sport]?.positions || SPORT_CONFIG.nfl.positions;
 };
 
+// Helper to get the sport key for a team
+const getTeamSport = (team) => {
+  return (team?.sport || team?.contestSport || 'nfl').toLowerCase();
+};
+
 const TeamsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'active';
   const initialFilter = searchParams.get('filter') || 'all';
+  const initialSport = searchParams.get('sport') || 'all';
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [contestFilter, setContestFilter] = useState(initialFilter);
+  const [sportFilter, setSportFilter] = useState(initialSport);
   const [activeTeams, setActiveTeams] = useState([]);
   const [historyTeams, setHistoryTeams] = useState([]);
   const [historySummary, setHistorySummary] = useState(null);
@@ -114,36 +127,83 @@ const TeamsPage = () => {
     });
   }, [contestFilter]);
 
+  // Filter teams by sport
+  const filterBySport = useCallback((teams) => {
+    if (sportFilter === 'all') return teams;
+    return teams.filter(team => getTeamSport(team) === sportFilter);
+  }, [sportFilter]);
+
+  // Combined filter: contest type + sport
+  const applyFilters = useCallback((teams) => {
+    return filterBySport(filterByContestType(teams));
+  }, [filterByContestType, filterBySport]);
+
   // Filtered teams
   const filteredActiveTeams = useMemo(() => 
-    filterByContestType(activeTeams), 
-    [activeTeams, filterByContestType]
+    applyFilters(activeTeams), 
+    [activeTeams, applyFilters]
   );
   
   const filteredHistoryTeams = useMemo(() => 
-    filterByContestType(historyTeams),
-    [historyTeams, filterByContestType]
+    applyFilters(historyTeams),
+    [historyTeams, applyFilters]
   );
 
-  // Count teams by type for badges
-  const activeCountsByType = useMemo(() => ({
-    all: activeTeams.length,
-    cash: activeTeams.filter(t => t.contestType?.toLowerCase() === 'cash').length,
-    market: activeTeams.filter(t => ['market', 'bash'].includes(t.contestType?.toLowerCase())).length,
-  }), [activeTeams]);
+  // Determine which sports are present in the current teams
+  const currentTeams = activeTab === 'active' ? activeTeams : historyTeams;
+  
+  const availableSports = useMemo(() => {
+    const sports = new Set(currentTeams.map(t => getTeamSport(t)));
+    return Array.from(sports).sort();
+  }, [currentTeams]);
+
+  // Count teams by type for badges (respects sport filter)
+  const sportFilteredTeams = useMemo(() => 
+    filterBySport(currentTeams),
+    [currentTeams, filterBySport]
+  );
+
+  const countsByType = useMemo(() => ({
+    all: sportFilteredTeams.length,
+    cash: sportFilteredTeams.filter(t => t.contestType?.toLowerCase() === 'cash').length,
+    market: sportFilteredTeams.filter(t => ['market', 'bash'].includes(t.contestType?.toLowerCase())).length,
+  }), [sportFilteredTeams]);
+
+  // Count teams by sport for badges (respects contest type filter)
+  const typeFilteredTeams = useMemo(() => 
+    filterByContestType(currentTeams),
+    [currentTeams, filterByContestType]
+  );
+
+  const countsBySport = useMemo(() => {
+    const counts = { all: typeFilteredTeams.length };
+    for (const sport of availableSports) {
+      counts[sport] = typeFilteredTeams.filter(t => getTeamSport(t) === sport).length;
+    }
+    return counts;
+  }, [typeFilteredTeams, availableSports]);
+
+  const updateSearchParams = (tab, filter, sport) => {
+    const params = { tab, filter };
+    if (sport !== 'all') params.sport = sport;
+    setSearchParams(params);
+  };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setSearchParams({ tab, filter: contestFilter });
+    updateSearchParams(tab, contestFilter, sportFilter);
   };
 
   const handleFilterChange = (filter) => {
     setContestFilter(filter);
-    setSearchParams({ tab: activeTab, filter });
-    // Reset pagination when filter changes
-    if (activeTab === 'history') {
-      setHistoryPage(1);
-    }
+    updateSearchParams(activeTab, filter, sportFilter);
+    if (activeTab === 'history') setHistoryPage(1);
+  };
+
+  const handleSportChange = (sport) => {
+    setSportFilter(sport);
+    updateSearchParams(activeTab, contestFilter, sport);
+    if (activeTab === 'history') setHistoryPage(1);
   };
 
   const formatContestType = (type) => {
@@ -203,6 +263,19 @@ const TeamsPage = () => {
   // Get short last name for compact display
   const getLastName = (name) => name?.split(' ').pop() || '—';
 
+  // Build the empty state message based on active filters
+  const getEmptyMessage = () => {
+    const parts = [];
+    if (contestFilter !== 'all') {
+      parts.push(contestFilter === 'cash' ? 'Cash Game' : 'Market Mover');
+    }
+    if (sportFilter !== 'all') {
+      parts.push(SPORT_CONFIG[sportFilter]?.label || sportFilter.toUpperCase());
+    }
+    if (parts.length === 0) return activeTab === 'active' ? 'No Active Teams' : 'No Contest History';
+    return `No ${parts.join(' ')} ${activeTab === 'active' ? 'Teams' : 'History'}`;
+  };
+
   return (
     <div className="teams-page">
       <div className="teams-header">
@@ -226,35 +299,65 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {/* Contest Type Filter */}
-      <div className="contest-filter">
-        <button
-          className={`filter-btn ${contestFilter === 'all' ? 'active' : ''}`}
-          onClick={() => handleFilterChange('all')}
-        >
-          All
-          {activeTab === 'active' && activeCountsByType.all > 0 && (
-            <span className="filter-count">{activeCountsByType.all}</span>
-          )}
-        </button>
-        <button
-          className={`filter-btn cash ${contestFilter === 'cash' ? 'active' : ''}`}
-          onClick={() => handleFilterChange('cash')}
-        >
-          💵 Cash Games
-          {activeTab === 'active' && activeCountsByType.cash > 0 && (
-            <span className="filter-count">{activeCountsByType.cash}</span>
-          )}
-        </button>
-        <button
-          className={`filter-btn market ${contestFilter === 'market' ? 'active' : ''}`}
-          onClick={() => handleFilterChange('market')}
-        >
-          📈 Market Mover
-          {activeTab === 'active' && activeCountsByType.market > 0 && (
-            <span className="filter-count">{activeCountsByType.market}</span>
-          )}
-        </button>
+      {/* Filter Bar */}
+      <div className="filter-bar">
+        {/* Contest Type Filter */}
+        <div className="contest-filter">
+          <button
+            className={`filter-btn ${contestFilter === 'all' ? 'active' : ''}`}
+            onClick={() => handleFilterChange('all')}
+          >
+            All
+            {countsByType.all > 0 && (
+              <span className="filter-count">{countsByType.all}</span>
+            )}
+          </button>
+          <button
+            className={`filter-btn cash ${contestFilter === 'cash' ? 'active' : ''}`}
+            onClick={() => handleFilterChange('cash')}
+          >
+            💵 Cash Games
+            {countsByType.cash > 0 && (
+              <span className="filter-count">{countsByType.cash}</span>
+            )}
+          </button>
+          <button
+            className={`filter-btn market ${contestFilter === 'market' ? 'active' : ''}`}
+            onClick={() => handleFilterChange('market')}
+          >
+            📈 Market Mover
+            {countsByType.market > 0 && (
+              <span className="filter-count">{countsByType.market}</span>
+            )}
+          </button>
+        </div>
+
+        {/* Sport Filter — only show if more than 1 sport exists */}
+        {availableSports.length > 1 && (
+          <div className="sport-filter">
+            <button
+              className={`filter-btn sport ${sportFilter === 'all' ? 'active' : ''}`}
+              onClick={() => handleSportChange('all')}
+            >
+              All Sports
+              {countsBySport.all > 0 && (
+                <span className="filter-count">{countsBySport.all}</span>
+              )}
+            </button>
+            {availableSports.map(sport => (
+              <button
+                key={sport}
+                className={`filter-btn sport ${sportFilter === sport ? 'active' : ''}`}
+                onClick={() => handleSportChange(sport)}
+              >
+                {SPORT_CONFIG[sport]?.icon || '🎯'} {SPORT_CONFIG[sport]?.label || sport.toUpperCase()}
+                {(countsBySport[sport] || 0) > 0 && (
+                  <span className="filter-count">{countsBySport[sport]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -267,7 +370,7 @@ const TeamsPage = () => {
           {filteredActiveTeams.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🏈</div>
-              <h3>{contestFilter === 'all' ? 'No Active Teams' : `No Active ${contestFilter === 'cash' ? 'Cash Game' : 'Market Mover'} Teams`}</h3>
+              <h3>{getEmptyMessage()}</h3>
               <p>Join a contest to start drafting your lineup!</p>
               <button className="btn-primary" onClick={() => navigate('/lobby')}>Browse Contests</button>
             </div>
@@ -275,12 +378,18 @@ const TeamsPage = () => {
             <div className="teams-grid">
               {filteredActiveTeams.map(team => {
                 const badge = getStatusBadge(team.status, team.contestStatus);
+                const sport = getTeamSport(team);
                 return (
                   <div key={team.id} className={`team-card ${badge.class}`} onClick={() => handleTeamClick(team)}>
                     <div className="team-card-header">
                       <div className="contest-info">
                         <h3>{team.contestName}</h3>
-                        <span className="contest-type">{formatContestType(team.contestType)}</span>
+                        <div className="contest-meta">
+                          <span className="contest-type">{formatContestType(team.contestType)}</span>
+                          {sport !== 'nfl' && (
+                            <span className="sport-tag">{SPORT_CONFIG[sport]?.icon} {SPORT_CONFIG[sport]?.label}</span>
+                          )}
+                        </div>
                       </div>
                       <span className={`status-badge ${badge.class}`}>{badge.text}</span>
                     </div>
@@ -321,7 +430,7 @@ const TeamsPage = () => {
           {filteredHistoryTeams.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📊</div>
-              <h3>{contestFilter === 'all' ? 'No Contest History' : `No ${contestFilter === 'cash' ? 'Cash Game' : 'Market Mover'} History`}</h3>
+              <h3>{getEmptyMessage()}</h3>
               <p>Your settled contests will appear here.</p>
             </div>
           ) : (
@@ -339,6 +448,8 @@ const TeamsPage = () => {
                         <h3>{team.contestName}</h3>
                         <div className="history-details">
                           <span className="contest-type">{formatContestType(team.contestType)}</span>
+                          <span className="separator">•</span>
+                          <span>{SPORT_CONFIG[getTeamSport(team)]?.label || 'NFL'}</span>
                           <span className="separator">•</span>
                           <span>Entry: ${team.entryFee.toFixed(2)}</span>
                           {team.rank && <><span className="separator">•</span><span>Rank: #{team.rank}</span></>}
@@ -377,7 +488,12 @@ const TeamsPage = () => {
             
             <div className="modal-header">
               <h2>{selectedTeam.contestName}</h2>
-              <span className="contest-type">{formatContestType(selectedTeam.contestType)}</span>
+              <div className="modal-header-meta">
+                <span className="contest-type">{formatContestType(selectedTeam.contestType)}</span>
+                <span className="sport-tag">
+                  {SPORT_CONFIG[getTeamSport(selectedTeam)]?.icon} {SPORT_CONFIG[getTeamSport(selectedTeam)]?.label}
+                </span>
+              </div>
             </div>
 
             {loadingDetails ? (
