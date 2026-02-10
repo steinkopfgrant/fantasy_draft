@@ -45,5 +45,19 @@ router.post('/unsubscribe', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to unsubscribe' });
   }
 });
-
+// Test route - send yourself a notification
+router.post('/test', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    const result = await PushNotificationService.sendToUser(
+      userId,
+      '🏈 Test Notification',
+      'Push notifications are working!',
+      { type: 'test' }
+    );
+    res.json({ success: true, sent: result.sent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = router;
