@@ -112,6 +112,11 @@ const DraftScreen = ({ showToast }) => {
   const lastSyncTimeRef = useRef(0);           // Last time we synced with server
   // ==========================================================
 
+  // ==================== ROOM SWITCH DETECTION ====================
+  // Track previous roomId to detect navigation between drafts
+  const prevRoomIdRef = useRef(roomId);
+  // ==============================================================
+
   // Create a fallback toast function
   const toast = useCallback((message, type) => {
     if (showToast) {
@@ -828,6 +833,52 @@ const DraftScreen = ({ showToast }) => {
     ).length;
     return rosterCount || '';
   };
+
+  // ==================== ROOM SWITCH DETECTION ====================
+  // When roomId changes (navigating between drafts), reset all tracking refs
+  // so initialization and socket handlers run fresh for the new room
+  useEffect(() => {
+    if (prevRoomIdRef.current && prevRoomIdRef.current !== roomId) {
+      console.log('🔄 ROOM SWITCH DETECTED:', prevRoomIdRef.current, '→', roomId);
+      
+      // Leave old socket room
+      const oldRoomId = prevRoomIdRef.current;
+      socketService.emit('leave-room', { roomId: oldRoomId });
+      socketService.emit('leave-draft', { roomId: oldRoomId });
+      
+      // Reset ALL tracking refs for fresh start
+      socketHandlersRef.current = false;
+      initializationAttemptedRef.current = false;
+      hasJoinedRef.current = false;
+      timerSyncedForTurnRef.current = null;
+      turnStartedAtRef.current = null;
+      lastSyncTimeRef.current = 0;
+      isInitialMountRef.current = true;
+      
+      // Stop old timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      
+      // Reset module-level tracking
+      moduleInitializedRoomId = null;
+      moduleLastInitTime = 0;
+      
+      // Clear mobile pre-selection for old room
+      if (isMobile) {
+        try { localStorage.removeItem(`preselect_${oldRoomId}`); } catch (e) {}
+      }
+      
+      // Reset draft state in Redux
+      dispatch(resetDraft());
+      
+      console.log('✅ Room switch cleanup complete, ready for new room');
+    }
+    
+    prevRoomIdRef.current = roomId;
+  }, [roomId, dispatch, isMobile]);
+  // ==============================================================
 
   // Initialize draft on mount - with remount protection
   useEffect(() => {
