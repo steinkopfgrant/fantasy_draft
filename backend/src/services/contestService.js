@@ -2058,7 +2058,7 @@ class ContestService {
         // ====================================================================
         // AUDIT LOG: Manual Pick
         // ====================================================================
-        const userTeam = updatedDraft.teams.find(t => t.oddsUserId === oddsUserId);
+        const userTeam = updatedDraft.teams.find(t => t.userId === oddsUserId);
         DraftLogService.logPick({
           contestId: draft.contestId,
           oddsUserId: oddsUserId,
@@ -2176,7 +2176,7 @@ class ContestService {
             // ====================================================================
             // AUDIT LOG: Auto-Pick
             // ====================================================================
-            const userTeam = updatedDraft.teams.find(t => t.oddsUserId === oddsUserId);
+            const userTeam = updatedDraft.teams.find(t => t.userId === oddsUserId);
             DraftLogService.logPick({
               contestId: draft?.contestId,
               oddsUserId: oddsUserId,
@@ -2324,8 +2324,8 @@ class ContestService {
     const rosterMap = new Map();
     if (draftState && draftState.teams) {
       for (const team of draftState.teams) {
-        if (team.oddsUserId && team.roster) {
-          rosterMap.set(team.oddsUserId, team.roster);
+        if (team.userId && team.roster) {
+          rosterMap.set(team.userId, team.roster);
         }
       }
     }
