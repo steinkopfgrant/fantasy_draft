@@ -6,6 +6,7 @@ const draftService = require('./draftService');
 const lineupManager = require('./lineupManager');
 const Redis = require('ioredis');
 const DraftLogService = require('./DraftLogService');
+const PushNotificationService = require('./PushNotificationService');
 
 // Import TransactionService for proper balance tracking
 const TransactionService = require('./TransactionService');
@@ -1551,6 +1552,8 @@ class ContestService {
         seconds: 5,
         message: 'Draft starting in 5 seconds!'
       });
+      // Push notification: Draft starting
+      PushNotificationService.notifyDraftStarting(roomId, participantUserIds);
 
       setTimeout(() => {
         console.log(`📢 Emitting draft-starting to ${socketRoomId}`);
@@ -1701,6 +1704,10 @@ class ContestService {
       timeLimit: timeLimit
     }), 'EX', 3600);
 
+// Push notification: Your turn (only if not a bot)
+if (!currentPlayer.username?.startsWith('botuser')) {
+  PushNotificationService.notifyYourTurn(currentPlayer.userId, roomId, timeLimit);
+}
     if (this.io) {
       this.io.to(`room_${roomId}`).emit('draft-turn', {
         roomId,
