@@ -1842,7 +1842,7 @@ console.log('🏀 Inferred sport for completion:', completedSport);
       socketService.off('timer-update', handleTimerUpdate);
       socketService.off('timer-sync', handleTimerSync);
     };
-  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, draftState, contestData, sport]);
+  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, contestData, sport]);
 
   // Show toast messages for errors
   useEffect(() => {
