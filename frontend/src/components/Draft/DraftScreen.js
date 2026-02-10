@@ -88,14 +88,7 @@ const DraftScreen = ({ showToast }) => {
   const teamsRef = useRef([]);
   const currentTurnRef = useRef(0);
   
-  // Reset refs when room changes to prevent cross-room data contamination
-  useEffect(() => {
-    console.log('🔄 Room changed, resetting pick refs');
-    picksRef.current = [];
-    teamsRef.current = [];
-    currentTurnRef.current = 0;
-  }, [roomId]);
-  
+
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
@@ -842,10 +835,27 @@ const DraftScreen = ({ showToast }) => {
     return rosterCount || '';
   };
 
-  // Sync refs for socket handlers - keeps data current without triggering re-registration
-  useEffect(() => { picksRef.current = picks; }, [picks]);
-  useEffect(() => { teamsRef.current = teams; }, [teams]);
-  useEffect(() => { currentTurnRef.current = currentTurn; }, [currentTurn]);
+  // Sync refs for socket handlers - only when Redux has data for current room
+  useEffect(() => { 
+    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
+    if (!reduxRoomId || reduxRoomId === roomId) {
+      picksRef.current = picks; 
+    }
+  }, [picks, roomId]);
+  
+  useEffect(() => { 
+    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
+    if (!reduxRoomId || reduxRoomId === roomId) {
+      teamsRef.current = teams; 
+    }
+  }, [teams, roomId]);
+  
+  useEffect(() => { 
+    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
+    if (!reduxRoomId || reduxRoomId === roomId) {
+      currentTurnRef.current = currentTurn; 
+    }
+  }, [currentTurn, roomId]);
 
   // Initialize draft on mount - with remount protection
   useEffect(() => {
