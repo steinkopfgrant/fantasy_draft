@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { clearError } from '../../store/slices/authSlice';
 import LightningTransition, { useLightningTransition } from '../Effects/LightningTransition';
+import { subscribeToPush } from '../../services/pushNotifications';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -47,6 +48,11 @@ const Login = () => {
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
+        
+        // Subscribe to push notifications (fire and forget)
+        subscribeToPush(data.token).catch(err => 
+          console.log('Push subscription skipped:', err.message)
+        );
         
         // ⚡ Trigger lightning animation
         triggerLightning(() => {
