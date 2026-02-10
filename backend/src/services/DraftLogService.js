@@ -7,21 +7,21 @@ class DraftLogService {
   
   /**
    * Log when a draft room is created and board is generated
+   * @param {string} contestId
+   * @param {Array} board - The player board
+   * @param {Array} participants - Array of { userId, username }
    */
-  static async logDraftStarted(contestId, board, draftOrder, teams) {
+  static async logDraftStarted(contestId, board, participants) {
     try {
       await DraftLog.create({
         contest_id: contestId,
         event_type: 'draft_started',
         board_snapshot: board,
-        draft_order_snapshot: draftOrder.map((oddsUserId, index) => {
-          const team = teams.find(t => t.oddsUserId === oddsUserId);
-          return {
-            position: index + 1,
-            oddsUserId: oddsUserId,
-            oddsUsername: team?.oddsUsername || 'Unknown'
-          };
-        })
+        draft_order_snapshot: participants.map((p, index) => ({
+          position: index + 1,
+          userId: p.userId,
+          username: p.username || 'Unknown'
+        }))
       });
       console.log(`📝 Draft log: draft_started for contest ${contestId}`);
     } catch (error) {
@@ -71,10 +71,10 @@ class DraftLogService {
         username: username,
         pick_number: pickNumber,
         turn_number: turnNumber,
-        player_name: player.name,
-        player_team: player.team,
-        player_position: player.position || player.originalPosition,
-        player_price: player.price,
+        player_name: player?.name,
+        player_team: player?.team,
+        player_position: player?.position || player?.originalPosition,
+        player_price: player?.price,
         board_row: row,
         board_col: col,
         roster_snapshot: rosterAfterPick,
@@ -82,14 +82,14 @@ class DraftLogService {
         was_auto_pick: wasAutoPick,
         ip_address: ipAddress
       });
-      console.log(`📝 Draft log: ${wasAutoPick ? 'auto_pick' : 'pick'} - ${username} picked ${player.name} ($${player.price})`);
+      console.log(`📝 Draft log: ${wasAutoPick ? 'auto_pick' : 'pick'} - ${username} picked ${player?.name} ($${player?.price})`);
     } catch (error) {
       console.error('Error logging pick:', error);
     }
   }
 
   /**
-   * Log a skip (player chose to skip their turn)
+   * Log a skip (timeout or no valid picks)
    */
   static async logSkip({ 
     contestId, 
@@ -97,6 +97,7 @@ class DraftLogService {
     username, 
     pickNumber,
     turnNumber,
+    reason,
     timeRemaining,
     ipAddress = null 
   }) {
@@ -111,7 +112,7 @@ class DraftLogService {
         time_remaining: timeRemaining,
         ip_address: ipAddress
       });
-      console.log(`📝 Draft log: skip - ${username} skipped turn ${turnNumber}`);
+      console.log(`📝 Draft log: skip - ${username} skipped (${reason})`);
     } catch (error) {
       console.error('Error logging skip:', error);
     }
@@ -119,10 +120,11 @@ class DraftLogService {
 
   /**
    * Log draft completion with final rosters
+   * @param {string} contestId
+   * @param {Array} finalRosters - Array of { userId, username, roster, totalSpent }
    */
   static async logDraftComplete(contestId, finalRosters) {
     try {
-      // finalRosters should be array of { oddsUserId, oddsUsername, roster, totalSpent, budget }
       await DraftLog.create({
         contest_id: contestId,
         event_type: 'draft_complete',
@@ -172,12 +174,12 @@ class DraftLogService {
   /**
    * Get all picks for a specific user in a contest
    */
-  static async getUserPicks(contestId, oddsUserId) {
+  static async getUserPicks(contestId, userId) {
     try {
       const logs = await DraftLog.findAll({
         where: { 
           contest_id: contestId,
-          user_id: oddsUserId,
+          user_id: userId,
           event_type: ['pick', 'auto_pick', 'skip']
         },
         order: [['pick_number', 'ASC']]
