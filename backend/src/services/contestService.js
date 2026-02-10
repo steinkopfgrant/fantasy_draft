@@ -2385,7 +2385,15 @@ class ContestService {
         }
       }
     }
+// Build final rosters for audit log
+const finalRosters = draftState?.teams?.map(team => ({
+  userId: team.userId,
+  username: team.username,
+  roster: team.roster,
+  totalSpent: Object.values(team.roster || {}).reduce((sum, p) => sum + (p?.price || 0), 0)
+})) || [];
 
+DraftLogService.logDraftComplete(draft.contestId, finalRosters);this good?
     await draftService.completeDraft(roomId);
 
     if (this.io) {
