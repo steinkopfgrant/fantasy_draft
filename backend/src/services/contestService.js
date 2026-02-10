@@ -2393,7 +2393,7 @@ const finalRosters = draftState?.teams?.map(team => ({
   totalSpent: Object.values(team.roster || {}).reduce((sum, p) => sum + (p?.price || 0), 0)
 })) || [];
 
-DraftLogService.logDraftComplete(draft.contestId, finalRosters);
+DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.playerBoard);
     await draftService.completeDraft(roomId);
 
     if (this.io) {
