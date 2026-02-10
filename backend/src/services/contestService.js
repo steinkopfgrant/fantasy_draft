@@ -5,12 +5,10 @@ const { generatePlayerBoard } = require('../utils/gameLogic');
 const draftService = require('./draftService');
 const lineupManager = require('./lineupManager');
 const Redis = require('ioredis');
+const DraftLogService = require('./DraftLogService');
 
 // Import TransactionService for proper balance tracking
 const TransactionService = require('./TransactionService');
-
-// Import DraftLogService for audit trail
-const DraftLogService = require('./DraftLogService');
 
 // Constants
 const ROOM_SIZES = {
@@ -258,7 +256,7 @@ class ContestService {
 
       return entries.map(entry => ({
         id: entry.id,
-        oddsUserId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
@@ -321,8 +319,8 @@ class ContestService {
   }
 
   // Main enter contest method - UPDATED with TransactionService and sport support
-  async enterContest(contestId, oddsUserId, username) {
-    const lockKey = `contest:${contestId}:user:${oddsUserId}`;
+  async enterContest(contestId, userId, username) {
+    const lockKey = `contest:${contestId}:user:${userId}`;
     const lockAcquired = await this.acquireLock(lockKey);
     
     if (!lockAcquired) {
@@ -355,7 +353,7 @@ class ContestService {
       }
 
       // 2. Get and validate user with row lock
-      const user = await db.User.findByPk(oddsUserId, { 
+      const user = await db.User.findByPk(userId, { 
         lock: transaction.LOCK.UPDATE,
         transaction 
       });
@@ -377,7 +375,7 @@ class ContestService {
         const totalUserEntries = await db.ContestEntry.count({
           where: {
             contest_id: contestId,
-            user_id: oddsUserId,
+            user_id: userId,
             status: { [Op.notIn]: ['cancelled'] }
           },
           transaction
@@ -395,7 +393,7 @@ class ContestService {
         const existingEntry = await db.ContestEntry.findOne({
           where: {
             contest_id: contestId,
-            user_id: oddsUserId,
+            user_id: userId,
             status: { [Op.notIn]: ['cancelled'] }
           },
           transaction
@@ -408,7 +406,7 @@ class ContestService {
         const totalUserEntries = await db.ContestEntry.count({
           where: {
             contest_id: contestId,
-            user_id: oddsUserId,
+            user_id: userId,
             status: { [Op.notIn]: ['cancelled'] }
           },
           transaction
@@ -423,7 +421,7 @@ class ContestService {
 
       // 4. Check unfilled rooms for non-cash contests
       if (contest.type !== 'cash') {
-        const unfilledCount = await this.getUserUnfilledRoomsCount(oddsUserId);
+        const unfilledCount = await this.getUserUnfilledRoomsCount(userId);
         if (unfilledCount >= UNFILLED_ROOM_LIMIT) {
           throw new Error(`Maximum ${UNFILLED_ROOM_LIMIT} unfilled draft rooms allowed. Please wait for your drafts to start.`);
         }
@@ -471,7 +469,7 @@ class ContestService {
         console.log(`Cash game: Assigning position ${draftPosition} to user ${username} (${currentEntries.length + 1}/5 players after join)`);
         
         entry = await db.ContestEntry.create({
-          user_id: oddsUserId,
+          user_id: userId,
           contest_id: contestId,
           draft_room_id: roomId,
           draft_position: draftPosition,
@@ -482,7 +480,7 @@ class ContestService {
         console.log(`Created entry for ${username} with position ${draftPosition} in room ${roomId}`);
         
       } else if (['market', 'bash', 'firesale'].includes(contest.type)) {
-        const roomAssignment = await this.findOrCreateRoom(contestId, oddsUserId, transaction);
+        const roomAssignment = await this.findOrCreateRoom(contestId, userId, transaction);
         roomId = roomAssignment.roomId;
         draftPosition = roomAssignment.position;
         
@@ -503,7 +501,7 @@ class ContestService {
         }
         
         entry = await db.ContestEntry.create({
-          user_id: oddsUserId,
+          user_id: userId,
           contest_id: contestId,
           draft_room_id: roomId,
           draft_position: draftPosition,
@@ -527,7 +525,7 @@ class ContestService {
       if (entryFee > 0) {
         const txService = this.getTransactionService();
         const txResult = await txService.deductEntryFee(
-          oddsUserId,
+          userId,
           entryFee,
           contestId,
           contest.name,
@@ -696,7 +694,7 @@ class ContestService {
         id: entry.id,
         entry: {
           id: entry.id,
-          oddsUserId: entry.user_id,
+          userId: entry.user_id,
           contestId: contestId,
           draftRoomId: roomId,
           draftPosition: draftPosition,
@@ -722,8 +720,8 @@ class ContestService {
   }
 
   // findOrCreateRoom - unchanged
-  async findOrCreateRoom(contestId, oddsUserId, transaction) {
-    console.log(`\n=== FINDING ROOM FOR USER ${oddsUserId} IN CONTEST ${contestId} ===`);
+  async findOrCreateRoom(contestId, userId, transaction) {
+    console.log(`\n=== FINDING ROOM FOR USER ${userId} IN CONTEST ${contestId} ===`);
     
     const contest = await db.Contest.findByPk(contestId, { transaction });
     console.log(`Contest type: ${contest?.type}, sport: ${contest?.sport || 'nfl'}, status: ${contest?.status}`);
@@ -768,7 +766,7 @@ class ContestService {
         const userActiveInRoom = await db.ContestEntry.count({
           where: {
             draft_room_id: roomId,
-            user_id: oddsUserId,
+            user_id: userId,
             status: { [Op.in]: ['pending', 'drafting'] }
           },
           transaction
@@ -815,7 +813,7 @@ class ContestService {
             continue;
           }
 
-          const userInThisRoom = activeEntries.some(e => e.user_id === oddsUserId);
+          const userInThisRoom = activeEntries.some(e => e.user_id === userId);
           if (userInThisRoom) {
             console.log(`  ⏭️ Skipping room_${room.roomNum}: user already has active entry`);
             continue;
@@ -879,8 +877,8 @@ class ContestService {
   }
 
   // UPDATED: withdrawEntry to use TransactionService for refunds
-  async withdrawEntry(entryId, oddsUserId) {
-    const lockKey = `withdraw:${entryId}:${oddsUserId}`;
+  async withdrawEntry(entryId, userId) {
+    const lockKey = `withdraw:${entryId}:${userId}`;
     const lockAcquired = await this.acquireLock(lockKey);
     
     if (!lockAcquired) {
@@ -895,7 +893,7 @@ class ContestService {
       const entry = await db.ContestEntry.findOne({
         where: {
           id: entryId,
-          user_id: oddsUserId
+          user_id: userId
         },
         lock: transaction.LOCK.UPDATE,
         transaction
@@ -921,7 +919,7 @@ class ContestService {
       // Update entry status
       await entry.update({ status: 'cancelled' }, { transaction });
       
-      console.log(`🚪 User ${oddsUserId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
+      console.log(`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
 
       // ====================================================================
       // REFUND ENTRY FEE USING TRANSACTIONSERVICE
@@ -933,7 +931,7 @@ class ContestService {
       if (refundAmount > 0) {
         const txService = this.getTransactionService();
         const txResult = await txService.refundEntryFee(
-          oddsUserId,
+          userId,
           refundAmount,
           entry.contest_id,
           contest.name,
@@ -941,10 +939,10 @@ class ContestService {
         );
         newBalance = txResult.newBalance;
         
-        console.log(`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${oddsUserId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+        console.log(`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${userId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
       } else {
         // Free contest - no refund needed
-        const user = await db.User.findByPk(oddsUserId, { transaction });
+        const user = await db.User.findByPk(userId, { transaction });
         newBalance = parseFloat(user.balance);
         console.log(`🆓 Free contest withdrawal, no refund needed`);
       }
@@ -962,7 +960,7 @@ class ContestService {
 
       await transaction.commit();
 
-      console.log(`User ${oddsUserId} withdrew from ${contest.name}. Entries: ${contest.current_entries - 1}/${contest.max_entries}`);
+      console.log(`User ${userId} withdrew from ${contest.name}. Entries: ${contest.current_entries - 1}/${contest.max_entries}`);
 
       const freshContest = await db.Contest.findByPk(entry.contest_id);
 
@@ -997,12 +995,12 @@ class ContestService {
   }
 
   // NEW: Find the lowest priority entry to withdraw
-  async getLowestPriorityEntry(contestId, oddsUserId) {
+  async getLowestPriorityEntry(contestId, userId) {
     try {
       const userEntries = await db.ContestEntry.findAll({
         where: {
           contest_id: contestId,
-          user_id: oddsUserId,
+          user_id: userId,
           status: 'pending'
         }
       });
@@ -1036,7 +1034,7 @@ class ContestService {
         return bNum - aNum;
       });
 
-      console.log(`🎯 Lowest priority entry for user ${oddsUserId}: room ${entriesWithCounts[0].entry.draft_room_id} (${entriesWithCounts[0].roomCount}/5 players)`);
+      console.log(`🎯 Lowest priority entry for user ${userId}: room ${entriesWithCounts[0].entry.draft_room_id} (${entriesWithCounts[0].roomCount}/5 players)`);
       
       return entriesWithCounts[0].entry;
     } catch (error) {
@@ -1189,7 +1187,7 @@ class ContestService {
             contestSport: contest.sport || 'nfl',
             entries: entries.map((e, index) => ({
               id: e.id,
-              oddsUserId: e.user_id,
+              userId: e.user_id,
               username: e.User?.username || 'Unknown',
               contestId: e.contest_id,
               draftRoomId: e.draft_room_id,
@@ -1203,7 +1201,7 @@ class ContestService {
             playerBoard: contest.player_board,
             players: entries.map(e => ({
               username: e.User?.username || 'Unknown',
-              oddsUserId: e.user_id,
+              userId: e.user_id,
               position: e.draft_position
             }))
           };
@@ -1308,7 +1306,7 @@ class ContestService {
           contestSport: contest?.sport || 'nfl',
           entries: entries.map((e, index) => ({
             id: e.id,
-            oddsUserId: e.user_id,
+            userId: e.user_id,
             username: e.User?.username || 'Unknown',
             contestId: e.contest_id,
             draftRoomId: e.draft_room_id,
@@ -1322,7 +1320,7 @@ class ContestService {
           playerBoard: playerBoard,
           players: entries.map(e => ({
             username: e.User?.username || 'Unknown',
-            oddsUserId: e.user_id,
+            userId: e.user_id,
             position: e.draft_position
           }))
         };
@@ -1485,7 +1483,7 @@ class ContestService {
     }
   }
 
-  // UPDATED: launchDraft with sport-aware board generation and audit logging
+  // UPDATED: launchDraft with sport-aware board generation
   async launchDraft(roomId, roomStatus, contest) {
     try {
       console.log(`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
@@ -1514,16 +1512,6 @@ class ContestService {
         const sport = contestData?.sport || 'nfl';
         playerBoard = generatePlayerBoard(null, [], [], sport);
       }
-
-      // ====================================================================
-      // AUDIT LOG: Draft Started
-      // ====================================================================
-      DraftLogService.logDraftStarted(
-        roomStatus.contestId,
-        playerBoard,
-        roomStatus.entries.map(e => ({ oddsUserId: e.oddsUserId, username: e.username }))
-      );
-      // ====================================================================
 
       const draftState = await draftService.startDraft(
         roomId,
@@ -1575,7 +1563,7 @@ class ContestService {
           playerBoard: roomStatus.playerBoard,
           participants: roomStatus.entries.map((e, index) => ({
             entryId: e.id,
-            oddsUserId: e.oddsUserId,
+            userId: e.userId,
             username: e.username,
             draftPosition: e.draftPosition !== null ? e.draftPosition : index
           })),
@@ -1675,7 +1663,7 @@ class ContestService {
     const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
     const currentPlayer = draftState.teams[currentPlayerIndex];
     
-    if (!currentPlayer || !currentPlayer.oddsUserId) {
+    if (!currentPlayer || !currentPlayer.userId) {
       console.error(`❌ startNextPick: Invalid currentPlayer at index ${currentPlayerIndex}`);
       console.log(`  draftOrder: ${JSON.stringify(draftState.draftOrder)}`);
       console.log(`  currentTurn: ${draftState.currentTurn}`);
@@ -1709,7 +1697,7 @@ class ContestService {
     await this.redis.set(turnKey, JSON.stringify({
       turnStartedAt: turnStartedAt,
       currentTurn: draftState.currentTurn,
-      currentUserId: currentPlayer.oddsUserId,
+      currentUserId: currentPlayer.userId,
       timeLimit: timeLimit
     }), 'EX', 3600);
 
@@ -1719,7 +1707,7 @@ class ContestService {
         currentPick: draftState.currentTurn + 1,
         totalPicks,
         currentPlayer: {
-          oddsUserId: currentPlayer.oddsUserId,
+          userId: currentPlayer.userId,
           username: currentPlayer.username,
           position: currentPlayerIndex
         },
@@ -1741,14 +1729,14 @@ class ContestService {
       });
     }
 
-    const existingTimerKey = `${roomId}_${currentPlayer.oddsUserId}`;
+    const existingTimerKey = `${roomId}_${currentPlayer.userId}`;
     if (this.draftTimers.has(existingTimerKey)) {
       clearTimeout(this.draftTimers.get(existingTimerKey));
       this.draftTimers.delete(existingTimerKey);
     }
 
     const capturedRoomId = roomId;
-    const capturedUserId = currentPlayer.oddsUserId;
+    const capturedUserId = currentPlayer.userId;
     const capturedUsername = currentPlayer.username;
     const capturedTimerKey = existingTimerKey;
 
@@ -1818,13 +1806,13 @@ class ContestService {
       const currentPlayerIndex = draftState.draftOrder[draftState.currentTurn];
       const currentPlayer = draftState.teams[currentPlayerIndex];
       
-      if (!currentPlayer || !currentPlayer.oddsUserId) {
+      if (!currentPlayer || !currentPlayer.userId) {
         console.log(`⚠️ Invalid currentPlayer in checkAndRestartStalledDraft for ${roomId}`);
         await this.completeDraftForRoom(roomId);
         return { stalled: true, action: 'completed_invalid_player' };
       }
       
-      const timerKey = `${roomId}_${currentPlayer.oddsUserId}`;
+      const timerKey = `${roomId}_${currentPlayer.userId}`;
       
       if (this.draftTimers.has(timerKey)) {
         return { stalled: false, reason: 'timer_active' };
@@ -1870,7 +1858,7 @@ class ContestService {
             }
           }
           
-          await this.handleAutoPick(roomId, currentPlayer.oddsUserId);
+          await this.handleAutoPick(roomId, currentPlayer.userId);
           return { stalled: true, action: 'auto_picked' };
         }
         
@@ -1899,12 +1887,12 @@ class ContestService {
               turnStartedAt: turnStartedAt,
               serverTime: Date.now(),
               timeLimit: timeLimit,
-              currentUserId: currentPlayer.oddsUserId
+              currentUserId: currentPlayer.userId
             });
           }
           
           const capturedRoomId = roomId;
-          const capturedUserId = currentPlayer.oddsUserId;
+          const capturedUserId = currentPlayer.userId;
           const capturedTimerKey = timerKey;
           
           const timerId = setTimeout(async () => {
@@ -1989,13 +1977,12 @@ class ContestService {
     }
   }
 
-  // UPDATED: handlePlayerPick with audit logging
-  async handlePlayerPick(roomId, oddsUserId, playerData, positionData) {
+  async handlePlayerPick(roomId, userId, playerData, positionData) {
     // Prevent same user from double-picking (dual device scenario)
-    const userPickLock = `picking:${roomId}:${oddsUserId}`;
+    const userPickLock = `picking:${roomId}:${userId}`;
     const gotLock = await this.redis.set(userPickLock, '1', 'NX', 'EX', 5);
     if (!gotLock) {
-      console.log(`⚠️ User ${oddsUserId} already has pick in flight, ignoring duplicate`);
+      console.log(`⚠️ User ${userId} already has pick in flight, ignoring duplicate`);
       throw new Error('Pick already in progress');
     }
 
@@ -2005,105 +1992,85 @@ class ContestService {
         throw new Error('Draft not found');
       }
 
-      const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
-      const row = positionData?.row;
-      const col = positionData?.col;
+    const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
+    const row = positionData?.row;
+    const col = positionData?.col;
 
-      console.log(`Processing pick: Room ${roomId}, User ${oddsUserId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
+    console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
-      const timerKey = `${roomId}_${oddsUserId}`;
-      const timerId = this.draftTimers.get(timerKey);
-      if (timerId) {
-        clearTimeout(timerId);
-        this.draftTimers.delete(timerKey);
+    const timerKey = `${roomId}_${userId}`;
+    const timerId = this.draftTimers.get(timerKey);
+    if (timerId) {
+      clearTimeout(timerId);
+      this.draftTimers.delete(timerKey);
+    }
+
+    const updatedDraft = await draftService.makePick(roomId, userId, {
+      player: playerData,
+      rosterSlot: rosterSlot,
+      row: row !== undefined ? row : playerData?.row,
+      col: col !== undefined ? col : playerData?.col,
+      contestType: draft.contestType
+    });
+
+    if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
+      if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
+        updatedDraft.playerBoard[row][col].drafted = true;
+        updatedDraft.playerBoard[row][col].draftedBy = userId;
+        
+        const boardKey = `board:${roomId}`;
+        await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
+        
+        console.log(`✅ Marked player at [${row}][${col}] as drafted`);
       }
+    }
 
-      const updatedDraft = await draftService.makePick(roomId, oddsUserId, {
+    const entry = await db.ContestEntry.findOne({
+      where: {
+        draft_room_id: roomId,
+        user_id: userId,
+        status: 'drafting'
+      }
+    });
+
+    if (entry) {
+      await this.saveDraftPick(entry.id, {
         player: playerData,
         rosterSlot: rosterSlot,
-        row: row !== undefined ? row : playerData?.row,
-        col: col !== undefined ? col : playerData?.col,
-        contestType: draft.contestType
+        pickNumber: updatedDraft.picks.length,
+        isAutoPick: false
       });
+    }
 
-      if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
-        if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
-          updatedDraft.playerBoard[row][col].drafted = true;
-          updatedDraft.playerBoard[row][col].draftedBy = oddsUserId;
-          
-          const boardKey = `board:${roomId}`;
-          await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
-          
-          console.log(`✅ Marked player at [${row}][${col}] as drafted`);
-        }
-      }
-
-      const entry = await db.ContestEntry.findOne({
-        where: {
-          draft_room_id: roomId,
-          user_id: oddsUserId,
-          status: 'drafting'
-        },
-        include: [{ model: db.User, attributes: ['username'] }]
+    if (this.io) {
+      const socketRoom = `room_${roomId}`;
+      
+      this.io.to(socketRoom).emit('player-picked', {
+        roomId,
+        userId,
+        player: playerData,
+        position: rosterSlot,
+        row: row,
+        col: col,
+        pickNumber: updatedDraft.picks.length,
+        playerBoard: updatedDraft.playerBoard,
+        teams: updatedDraft.teams,
+        currentTurn: updatedDraft.currentTurn,
+        currentPick: updatedDraft.currentTurn + 1,
+        picks: updatedDraft.picks,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
       });
-
-      if (entry) {
-        await this.saveDraftPick(entry.id, {
-          player: playerData,
-          rosterSlot: rosterSlot,
-          pickNumber: updatedDraft.picks.length,
-          isAutoPick: false
-        });
-
-        // ====================================================================
-        // AUDIT LOG: Manual Pick
-        // ====================================================================
-        const userTeam = updatedDraft.teams.find(t => t.userId === oddsUserId);
-        DraftLogService.logPick({
-          contestId: draft.contestId,
-          oddsUserId: oddsUserId,
-          username: entry.User?.username,
-          pickNumber: updatedDraft.picks.length,
-          turnNumber: userTeam ? Object.keys(userTeam.roster || {}).length : null,
-          player: playerData,
-          row: row,
-          col: col,
-          rosterAfterPick: userTeam?.roster,
-          timeRemaining: null,
-          wasAutoPick: false
-        });
-        // ====================================================================
-      }
-
-      if (this.io) {
-        const socketRoom = `room_${roomId}`;
-        
-        this.io.to(socketRoom).emit('player-picked', {
-          roomId,
-          oddsUserId,
-          player: playerData,
-          position: rosterSlot,
-          row: row,
-          col: col,
-          pickNumber: updatedDraft.picks.length,
-          playerBoard: updatedDraft.playerBoard,
-          teams: updatedDraft.teams,
-          currentTurn: updatedDraft.currentTurn,
-          currentPick: updatedDraft.currentTurn + 1,
-          picks: updatedDraft.picks,
-          turnStartedAt: Date.now(),
-          serverTime: Date.now()
-        });
-        
-        this.io.to(socketRoom).emit('draft-state', {
-          ...updatedDraft,
-          playerBoard: updatedDraft.playerBoard,
-          turnStartedAt: Date.now(),
-          serverTime: Date.now()
-        });
-        
-        console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
-      }
+      
+      this.io.to(socketRoom).emit('draft-state', {
+        ...updatedDraft,
+        playerBoard: updatedDraft.playerBoard,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
+      });
+      
+      console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
+    }
 
       await this.startNextPick(roomId);
     } finally {
@@ -2112,17 +2079,14 @@ class ContestService {
     }
   }
 
-  // UPDATED: handleAutoPick with audit logging
-  async handleAutoPick(roomId, oddsUserId) {
-    console.log(`Auto-picking for user ${oddsUserId} in room ${roomId}`);
+  async handleAutoPick(roomId, userId) {
+    console.log(`Auto-picking for user ${userId} in room ${roomId}`);
     
-    const timerKey = `${roomId}_${oddsUserId}`;
+    const timerKey = `${roomId}_${userId}`;
     if (this.draftTimers.has(timerKey)) {
       clearTimeout(this.draftTimers.get(timerKey));
       this.draftTimers.delete(timerKey);
     }
-    
-    const draft = this.activeDrafts.get(roomId);
     
     try {
       // ==========================================
@@ -2130,25 +2094,25 @@ class ContestService {
       // ==========================================
       let preSelection = null;
       try {
-        const preSelectKey = `preselect:${roomId}:${oddsUserId}`;
+        const preSelectKey = `preselect:${roomId}:${userId}`;
         console.log(`📱 Checking for pre-selection with key: ${preSelectKey}`);
         const preSelectData = await this.redis.get(preSelectKey);
         console.log(`📱 Pre-selection data from Redis: ${preSelectData ? 'FOUND' : 'NOT FOUND'}`);
         
         if (preSelectData) {
           preSelection = JSON.parse(preSelectData);
-          console.log(`📱 ✅ Found pre-selection for ${oddsUserId}: ${preSelection.name} at [${preSelection.row}][${preSelection.col}]`);
+          console.log(`📱 ✅ Found pre-selection for ${userId}: ${preSelection.name} at [${preSelection.row}][${preSelection.col}]`);
           // Clear it immediately so it's not used twice
           await this.redis.del(preSelectKey);
         } else {
-          console.log(`📱 No pre-selection found for ${oddsUserId} in room ${roomId}`);
+          console.log(`📱 No pre-selection found for ${userId} in room ${roomId}`);
         }
       } catch (preSelectError) {
         console.error('❌ Error checking pre-selection:', preSelectError);
       }
       // ==========================================
       
-      const updatedDraft = await draftService.autoPick(roomId, oddsUserId, preSelection);
+      const updatedDraft = await draftService.autoPick(roomId, userId, preSelection);
       
       if (updatedDraft && this.io) {
         const lastPick = updatedDraft.picks[updatedDraft.picks.length - 1];
@@ -2158,10 +2122,9 @@ class ContestService {
           const entry = await db.ContestEntry.findOne({
             where: {
               draft_room_id: roomId,
-              user_id: oddsUserId,
+              user_id: userId,
               status: 'drafting'
-            },
-            include: [{ model: db.User, attributes: ['username'] }]
+            }
           });
 
           if (entry) {
@@ -2172,30 +2135,11 @@ class ContestService {
               isAutoPick: true
             });
             console.log(`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
-
-            // ====================================================================
-            // AUDIT LOG: Auto-Pick
-            // ====================================================================
-            const userTeam = updatedDraft.teams.find(t => t.userId === oddsUserId);
-            DraftLogService.logPick({
-              contestId: draft?.contestId,
-              oddsUserId: oddsUserId,
-              username: entry.User?.username || lastPick.username,
-              pickNumber: updatedDraft.picks.length,
-              turnNumber: userTeam ? Object.keys(userTeam.roster || {}).length : null,
-              player: lastPick.player,
-              row: lastPick.row,
-              col: lastPick.col,
-              rosterAfterPick: userTeam?.roster,
-              timeRemaining: 0,
-              wasAutoPick: true
-            });
-            // ====================================================================
           }
           
           this.io.to(socketRoom).emit('player-picked', {
             roomId,
-            oddsUserId,
+            userId,
             player: lastPick.player,
             position: lastPick.rosterSlot,
             row: lastPick.row,
@@ -2221,24 +2165,10 @@ class ContestService {
           
           console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}${lastPick.wasPreSelected ? ' (PRE-SELECTED)' : ''}`);
         } else if (lastPick && lastPick.skipped) {
-          // ====================================================================
-          // AUDIT LOG: Skip
-          // ====================================================================
-          DraftLogService.logSkip({
-            contestId: draft?.contestId,
-            oddsUserId: oddsUserId,
-            username: lastPick.username,
-            pickNumber: updatedDraft.picks.length,
-            turnNumber: null,
-            reason: lastPick.reason,
-            timeRemaining: 0
-          });
-          // ====================================================================
-
           // Emit turn-skipped event so frontend can update UI
           this.io.to(socketRoom).emit('turn-skipped', {
             roomId,
-            oddsUserId,
+            userId,
             pickNumber: updatedDraft.picks.length,
             reason: lastPick.reason,
             currentTurn: updatedDraft.currentTurn,
@@ -2255,7 +2185,7 @@ class ContestService {
             serverTime: Date.now()
           });
           
-          console.log(`⏭️ Broadcasted TURN-SKIPPED to ${socketRoom}: ${oddsUserId} (${lastPick.reason})`);
+          console.log(`⏭️ Broadcasted TURN-SKIPPED to ${socketRoom}: ${userId} (${lastPick.reason})`);
         }
       }
     } catch (error) {
@@ -2274,7 +2204,6 @@ class ContestService {
     }
   }
 
-  // UPDATED: completeDraftForRoom with audit logging
   async completeDraftForRoom(roomId) {
     console.log(`\n🔔🔔🔔 completeDraftForRoom CALLED for room ${roomId} 🔔🔔🔔`);
     
@@ -2346,8 +2275,8 @@ class ContestService {
 
     for (const entry of entries) {
       try {
-        const oddsUserId = entry.user_id;
-        const roster = rosterMap.get(oddsUserId) || {};
+        const userId = entry.user_id;
+        const roster = rosterMap.get(userId) || {};
         
         const cleanRoster = {};
         let playerCount = 0;
@@ -2359,13 +2288,13 @@ class ContestService {
               position: roster[position].position || position,
               price: roster[position].price || 0,
               value: roster[position].value || roster[position].price || 0,
-              playerId: roster[position].playerId || `${position}-${oddsUserId}`
+              playerId: roster[position].playerId || `${position}-${userId}`
             };
             playerCount++;
           }
         });
 
-        console.log(`\n💾 Saving ${entry.User?.username} (${oddsUserId}):`);
+        console.log(`\n💾 Saving ${entry.User?.username} (${userId}):`);
         console.log(`   Players: ${playerCount}`);
         console.log(`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
 
@@ -2398,7 +2327,7 @@ class ContestService {
           
           const lineup = await db.Lineup.create({
             id: uuidv4(),
-            user_id: oddsUserId,
+            user_id: userId,
             contest_entry_id: entry.id,
             contest_id: entry.contest_id,
             contest_type: entry.Contest?.type || 'cash',
@@ -2424,18 +2353,6 @@ class ContestService {
     console.log(`LINEUP SAVE RESULTS: ${successCount} succeeded, ${failCount} failed`);
     console.log(`============================================================`);
 
-    // ====================================================================
-    // AUDIT LOG: Draft Complete
-    // ====================================================================
-    const finalRosters = entries.map(e => ({
-      oddsUserId: e.user_id,
-      username: e.User?.username,
-      roster: rosterMap.get(e.user_id) || {},
-      totalSpent: Object.values(rosterMap.get(e.user_id) || {}).reduce((sum, p) => sum + (p?.price || 0), 0)
-    }));
-    DraftLogService.logDraftComplete(draft.contestId, finalRosters);
-    // ====================================================================
-
     console.log(`\n============================================================`);
     console.log(`AWARDING DRAFT COMPLETION TICKETS`);
     console.log(`============================================================`);
@@ -2455,7 +2372,7 @@ class ContestService {
             
             if (this.io) {
               this.io.emit('tickets-updated', {
-                oddsUserId: entry.User.id,
+                userId: entry.User.id,
                 tickets: result.newBalance,
                 reason: 'draft_completion'
               });
@@ -2571,7 +2488,7 @@ class ContestService {
 
       return {
         id: entry.id,
-        oddsUserId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contest: entry.Contest,
         draftRoomId: entry.draft_room_id,
@@ -2586,11 +2503,11 @@ class ContestService {
     }
   }
 
-  async getUserContestHistory(oddsUserId, limit = 50) {
+  async getUserContestHistory(userId, limit = 50) {
     try {
       const entries = await db.ContestEntry.findAll({
         where: {
-          user_id: oddsUserId,
+          user_id: userId,
           status: 'completed'
         },
         include: [{
