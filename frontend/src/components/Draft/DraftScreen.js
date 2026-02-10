@@ -88,6 +88,14 @@ const DraftScreen = ({ showToast }) => {
   const teamsRef = useRef([]);
   const currentTurnRef = useRef(0);
   
+  // Reset refs when room changes to prevent cross-room data contamination
+  useEffect(() => {
+    console.log('🔄 Room changed, resetting pick refs');
+    picksRef.current = [];
+    teamsRef.current = [];
+    currentTurnRef.current = 0;
+  }, [roomId]);
+  
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
