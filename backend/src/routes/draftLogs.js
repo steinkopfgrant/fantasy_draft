@@ -3,13 +3,9 @@
 
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/auth');
-const adminMiddleware = require('../middleware/admin');
 const DraftLogService = require('../services/DraftLogService');
 
-// All routes require admin access
-router.use(authMiddleware);
-router.use(adminMiddleware);
+// Note: Auth and admin middleware are applied in app.js when mounting this router
 
 /**
  * GET /api/admin/draft-logs/:contestId
