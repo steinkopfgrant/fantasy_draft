@@ -73,6 +73,8 @@ try {
   simRoutes.get('/status', (req, res) => res.json({ success: false, error: 'Sim routes not configured' }));
 }
 
+// Notification routes
+const notificationRoutes = require('./routes/notificationRoutes');
 // Injury routes
 let injuryRoutes;
 try {
@@ -364,6 +366,7 @@ app.use('/api/drafts', draftLimiter, draftRoutes);
 app.use('/api/teams', apiLimiter, teamRoutes);
 app.use('/api/market-mover', apiLimiter, marketMoverRoutes);
 app.use('/api/pools', apiLimiter, poolsRoutes);
+app.use('/api/notifications', apiLimiter, notificationRoutes);
 
 // Payment routes (requires auth + payment rate limiting)
 app.use('/api/payments', paymentLimiter, authMiddleware, paymentRoutes);

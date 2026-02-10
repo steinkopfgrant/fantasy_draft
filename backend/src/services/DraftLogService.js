@@ -123,13 +123,14 @@ class DraftLogService {
    * @param {string} contestId
    * @param {Array} finalRosters - Array of { userId, username, roster, totalSpent }
    */
-  static async logDraftComplete(contestId, finalRosters) {
-    try {
-      await DraftLog.create({
-        contest_id: contestId,
-        event_type: 'draft_complete',
-        roster_snapshot: finalRosters
-      });
+  static async logDraftComplete(contestId, finalRosters, playerBoard = null) {
+  try {
+    await DraftLog.create({
+      contest_id: contestId,
+      event_type: 'draft_complete',
+      roster_snapshot: finalRosters,
+      board_snapshot: playerBoard
+    });
       console.log(`📝 Draft log: draft_complete for contest ${contestId}`);
     } catch (error) {
       console.error('Error logging draft complete:', error);

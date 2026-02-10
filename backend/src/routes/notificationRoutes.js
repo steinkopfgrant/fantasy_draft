@@ -1,25 +1,7 @@
-// backend/src/routes/notificationRoutes.js
 const express = require('express');
 const router = express.Router();
+const PushNotificationService = require('../services/PushNotificationService');
 const authMiddleware = require('../middleware/auth');
-
-// For now, we'll create a basic notification service inline
-// You can move this to a separate service file later
-class BasicNotificationService {
-  async subscribeUser(userId, subscription) {
-    // TODO: Save subscription to database
-    console.log(`User ${userId} subscribed to notifications`);
-    return { success: true };
-  }
-
-  async unsubscribeUser(userId) {
-    // TODO: Remove subscription from database
-    console.log(`User ${userId} unsubscribed from notifications`);
-    return { success: true };
-  }
-}
-
-const notificationService = new BasicNotificationService();
 
 // Get VAPID public key for client
 router.get('/vapid-public-key', (req, res) => {
@@ -34,11 +16,14 @@ router.post('/subscribe', authMiddleware, async (req, res) => {
     const { subscription } = req.body;
     const userId = req.user.userId || req.user.id;
     
-    await notificationService.subscribeUser(userId, subscription);
-    
-    res.json({ success: true, message: 'Subscribed to push notifications' });
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Invalid subscription object' });
+    }
+
+    await PushNotificationService.subscribe(userId, subscription);
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error subscribing:', error);
+    console.error('Subscribe error:', error);
     res.status(500).json({ error: 'Failed to subscribe' });
   }
 });
@@ -46,28 +31,18 @@ router.post('/subscribe', authMiddleware, async (req, res) => {
 // Unsubscribe from push notifications
 router.post('/unsubscribe', authMiddleware, async (req, res) => {
   try {
+    const { endpoint } = req.body;
     const userId = req.user.userId || req.user.id;
     
-    await notificationService.unsubscribeUser(userId);
-    
-    res.json({ success: true, message: 'Unsubscribed from push notifications' });
-  } catch (error) {
-    console.error('Error unsubscribing:', error);
-    res.status(500).json({ error: 'Failed to unsubscribe' });
-  }
-});
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint required' });
+    }
 
-// Test notification (dev only)
-router.post('/test', authMiddleware, async (req, res) => {
-  if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({ error: 'Test notifications only available in development' });
-  }
-  
-  try {
-    res.json({ success: true, message: 'Test notification would be sent (not implemented yet)' });
+    await PushNotificationService.unsubscribe(userId, endpoint);
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error sending test notification:', error);
-    res.status(500).json({ error: 'Failed to send test notification' });
+    console.error('Unsubscribe error:', error);
+    res.status(500).json({ error: 'Failed to unsubscribe' });
   }
 });
 
