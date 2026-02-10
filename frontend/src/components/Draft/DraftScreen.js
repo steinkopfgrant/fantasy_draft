@@ -835,27 +835,10 @@ const DraftScreen = ({ showToast }) => {
     return rosterCount || '';
   };
 
-  // Sync refs for socket handlers - only when Redux has data for current room
-  useEffect(() => { 
-    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
-    if (!reduxRoomId || reduxRoomId === roomId) {
-      picksRef.current = picks; 
-    }
-  }, [picks, roomId]);
-  
-  useEffect(() => { 
-    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
-    if (!reduxRoomId || reduxRoomId === roomId) {
-      teamsRef.current = teams; 
-    }
-  }, [teams, roomId]);
-  
-  useEffect(() => { 
-    const reduxRoomId = store.getState().draft?.roomId || store.getState().draft?.contestData?.roomId;
-    if (!reduxRoomId || reduxRoomId === roomId) {
-      currentTurnRef.current = currentTurn; 
-    }
-  }, [currentTurn, roomId]);
+  // Sync refs for socket handlers - keeps data current without triggering re-registration
+  useEffect(() => { picksRef.current = picks; }, [picks]);
+  useEffect(() => { teamsRef.current = teams; }, [teams]);
+  useEffect(() => { currentTurnRef.current = currentTurn; }, [currentTurn]);
 
   // Initialize draft on mount - with remount protection
   useEffect(() => {
@@ -1450,8 +1433,9 @@ const DraftScreen = ({ showToast }) => {
       const incomingPickNumber = data.pickNumber || (incomingTurn !== undefined ? incomingTurn + 1 : null);
       
       if (incomingPickNumber) {
-        // Check if we already have a pick for this pickNumber (read from ref, not closure)
-        const existingPick = picksRef.current?.find(p => p.pickNumber === incomingPickNumber && p.player);
+        // Check if we already have a pick for this pickNumber - read fresh from Redux
+        const currentPicks = store.getState().draft.picks || [];
+        const existingPick = currentPicks.find(p => p.pickNumber === incomingPickNumber && p.player);
         if (existingPick) {
           console.log(`⚠️ Ignoring duplicate player-picked event for pick ${incomingPickNumber} - already have ${existingPick.player?.name}`);
           return;
