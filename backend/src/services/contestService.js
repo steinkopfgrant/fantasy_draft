@@ -1553,6 +1553,7 @@ class ContestService {
         message: 'Draft starting in 5 seconds!'
       });
       // Push notification: Draft starting
+      const participantUserIds = roomStatus.entries.map(e => e.userId);
       PushNotificationService.notifyDraftStarting(roomId, participantUserIds);
 
       setTimeout(() => {
