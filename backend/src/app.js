@@ -28,6 +28,7 @@ const draftRoutes = require('./routes/draftRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const debugRoutes = require('./routes/debugRoutes');
 const poolsRoutes = require('./routes/pools');
+const draftLogsRoutes = require('./routes/draftLogs');
 
 // Payment routes (with graceful fallback)
 let paymentRoutes, webhookRoutes, withdrawalRoutes;
@@ -375,6 +376,7 @@ app.use('/api/debug', authMiddleware, adminMiddleware, debugRoutes);
 app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
 app.use('/api/admin/payments', authMiddleware, adminMiddleware, paymentAdminRoutes);
 app.use('/api/admin', authMiddleware, adminMiddleware, injuryRoutes);
+app.use('/api/admin/draft-logs', authMiddleware, adminMiddleware, draftLogsRoutes);
 
 // Settlement admin routes
 try {
