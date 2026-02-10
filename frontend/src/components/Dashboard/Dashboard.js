@@ -10,8 +10,6 @@ const Dashboard = ({ showToast }) => {
   const navigate = useNavigate();
   const [notificationStatus, setNotificationStatus] = useState('checking');
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     checkNotificationStatus();
@@ -20,12 +18,16 @@ const Dashboard = ({ showToast }) => {
   const checkNotificationStatus = async () => {
     // Check if iOS
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setIsIOS(iOS);
     
     // Check if running as standalone PWA
     const standalone = window.matchMedia('(display-mode: standalone)').matches || 
                        window.navigator.standalone === true;
-    setIsStandalone(standalone);
+
+    // iOS requires PWA mode for push notifications
+    if (iOS && !standalone) {
+      setNotificationStatus('ios-not-standalone');
+      return;
+    }
 
     // Check if push notifications are supported
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -115,11 +117,11 @@ const Dashboard = ({ showToast }) => {
       };
     }
 
-    if (isIOS && !isStandalone) {
+    if (notificationStatus === 'ios-not-standalone') {
       return {
         icon: '📱',
         title: 'Add to Home Screen',
-        description: 'To enable notifications on iOS, add BidBlitz to your home screen first. Tap the share button and select "Add to Home Screen".',
+        description: 'To enable notifications on iOS, add BidBlitz to your home screen first. Tap the share button (□↑) and select "Add to Home Screen".',
         button: null
       };
     }
