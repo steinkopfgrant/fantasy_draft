@@ -256,7 +256,7 @@ class ContestService {
 
       return entries.map(entry => ({
         id: entry.id,
-        oddsUserId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
@@ -694,7 +694,7 @@ class ContestService {
         id: entry.id,
         entry: {
           id: entry.id,
-          oddsUserId: entry.user_id,
+          userId: entry.user_id,
           contestId: contestId,
           draftRoomId: roomId,
           draftPosition: draftPosition,
@@ -1201,7 +1201,7 @@ class ContestService {
             playerBoard: contest.player_board,
             players: entries.map(e => ({
               username: e.User?.username || 'Unknown',
-              oddsUserId: e.user_id,
+              userId: e.user_id,
               position: e.draft_position
             }))
           };
@@ -1320,7 +1320,7 @@ class ContestService {
           playerBoard: playerBoard,
           players: entries.map(e => ({
             username: e.User?.username || 'Unknown',
-            oddsUserId: e.user_id,
+            userId: e.user_id,
             position: e.draft_position
           }))
         };
@@ -1513,16 +1513,6 @@ class ContestService {
         playerBoard = generatePlayerBoard(null, [], [], sport);
       }
 
-      // ====================================================================
-      // AUDIT LOG: Draft Started
-      // ====================================================================
-      DraftLogService.logDraftStarted(
-        roomStatus.contestId,
-        playerBoard,
-        roomStatus.entries.map(e => ({ userId: e.userId, username: e.username }))
-      );
-      // ====================================================================
-
       const draftState = await draftService.startDraft(
         roomId,
         roomStatus.entries,
@@ -1573,7 +1563,7 @@ class ContestService {
           playerBoard: roomStatus.playerBoard,
           participants: roomStatus.entries.map((e, index) => ({
             entryId: e.id,
-            oddsUserId: e.oddsUserId,
+            userId: e.userId,
             username: e.username,
             draftPosition: e.draftPosition !== null ? e.draftPosition : index
           })),
@@ -1717,7 +1707,7 @@ class ContestService {
         currentPick: draftState.currentTurn + 1,
         totalPicks,
         currentPlayer: {
-          oddsUserId: currentPlayer.userId,
+          userId: currentPlayer.userId,
           username: currentPlayer.username,
           position: currentPlayerIndex
         },
@@ -2002,105 +1992,85 @@ class ContestService {
         throw new Error('Draft not found');
       }
 
-      const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
-      const row = positionData?.row;
-      const col = positionData?.col;
+    const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
+    const row = positionData?.row;
+    const col = positionData?.col;
 
-      console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
+    console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
-      const timerKey = `${roomId}_${userId}`;
-      const timerId = this.draftTimers.get(timerKey);
-      if (timerId) {
-        clearTimeout(timerId);
-        this.draftTimers.delete(timerKey);
+    const timerKey = `${roomId}_${userId}`;
+    const timerId = this.draftTimers.get(timerKey);
+    if (timerId) {
+      clearTimeout(timerId);
+      this.draftTimers.delete(timerKey);
+    }
+
+    const updatedDraft = await draftService.makePick(roomId, userId, {
+      player: playerData,
+      rosterSlot: rosterSlot,
+      row: row !== undefined ? row : playerData?.row,
+      col: col !== undefined ? col : playerData?.col,
+      contestType: draft.contestType
+    });
+
+    if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
+      if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
+        updatedDraft.playerBoard[row][col].drafted = true;
+        updatedDraft.playerBoard[row][col].draftedBy = userId;
+        
+        const boardKey = `board:${roomId}`;
+        await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
+        
+        console.log(`✅ Marked player at [${row}][${col}] as drafted`);
       }
+    }
 
-      const updatedDraft = await draftService.makePick(roomId, userId, {
+    const entry = await db.ContestEntry.findOne({
+      where: {
+        draft_room_id: roomId,
+        user_id: userId,
+        status: 'drafting'
+      }
+    });
+
+    if (entry) {
+      await this.saveDraftPick(entry.id, {
         player: playerData,
         rosterSlot: rosterSlot,
-        row: row !== undefined ? row : playerData?.row,
-        col: col !== undefined ? col : playerData?.col,
-        contestType: draft.contestType
+        pickNumber: updatedDraft.picks.length,
+        isAutoPick: false
       });
+    }
 
-      if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
-        if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
-          updatedDraft.playerBoard[row][col].drafted = true;
-          updatedDraft.playerBoard[row][col].draftedBy = userId;
-          
-          const boardKey = `board:${roomId}`;
-          await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
-          
-          console.log(`✅ Marked player at [${row}][${col}] as drafted`);
-        }
-      }
-
-      const entry = await db.ContestEntry.findOne({
-        where: {
-          draft_room_id: roomId,
-          user_id: userId,
-          status: 'drafting'
-        },
-        include: [{ model: db.User, attributes: ['username'] }]
+    if (this.io) {
+      const socketRoom = `room_${roomId}`;
+      
+      this.io.to(socketRoom).emit('player-picked', {
+        roomId,
+        userId,
+        player: playerData,
+        position: rosterSlot,
+        row: row,
+        col: col,
+        pickNumber: updatedDraft.picks.length,
+        playerBoard: updatedDraft.playerBoard,
+        teams: updatedDraft.teams,
+        currentTurn: updatedDraft.currentTurn,
+        currentPick: updatedDraft.currentTurn + 1,
+        picks: updatedDraft.picks,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
       });
-
-      if (entry) {
-        await this.saveDraftPick(entry.id, {
-          player: playerData,
-          rosterSlot: rosterSlot,
-          pickNumber: updatedDraft.picks.length,
-          isAutoPick: false
-        });
-
-        // ====================================================================
-        // AUDIT LOG: Manual Pick
-        // ====================================================================
-        const userTeam = updatedDraft.teams.find(t => t.userId === userId);
-        DraftLogService.logPick({
-          contestId: draft.contestId,
-          userId: userId,
-          username: entry.User?.username,
-          pickNumber: updatedDraft.picks.length,
-          turnNumber: userTeam ? Object.keys(userTeam.roster || {}).length : null,
-          player: playerData,
-          row: row,
-          col: col,
-          rosterAfterPick: userTeam?.roster,
-          timeRemaining: null,
-          wasAutoPick: false
-        });
-        // ====================================================================
-      }
-
-      if (this.io) {
-        const socketRoom = `room_${roomId}`;
-        
-        this.io.to(socketRoom).emit('player-picked', {
-          roomId,
-          oddsUserId: userId,
-          player: playerData,
-          position: rosterSlot,
-          row: row,
-          col: col,
-          pickNumber: updatedDraft.picks.length,
-          playerBoard: updatedDraft.playerBoard,
-          teams: updatedDraft.teams,
-          currentTurn: updatedDraft.currentTurn,
-          currentPick: updatedDraft.currentTurn + 1,
-          picks: updatedDraft.picks,
-          turnStartedAt: Date.now(),
-          serverTime: Date.now()
-        });
-        
-        this.io.to(socketRoom).emit('draft-state', {
-          ...updatedDraft,
-          playerBoard: updatedDraft.playerBoard,
-          turnStartedAt: Date.now(),
-          serverTime: Date.now()
-        });
-        
-        console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
-      }
+      
+      this.io.to(socketRoom).emit('draft-state', {
+        ...updatedDraft,
+        playerBoard: updatedDraft.playerBoard,
+        turnStartedAt: Date.now(),
+        serverTime: Date.now()
+      });
+      
+      console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
+    }
 
       await this.startNextPick(roomId);
     } finally {
@@ -2117,8 +2087,6 @@ class ContestService {
       clearTimeout(this.draftTimers.get(timerKey));
       this.draftTimers.delete(timerKey);
     }
-    
-    const draft = this.activeDrafts.get(roomId);
     
     try {
       // ==========================================
@@ -2156,8 +2124,7 @@ class ContestService {
               draft_room_id: roomId,
               user_id: userId,
               status: 'drafting'
-            },
-            include: [{ model: db.User, attributes: ['username'] }]
+            }
           });
 
           if (entry) {
@@ -2168,30 +2135,11 @@ class ContestService {
               isAutoPick: true
             });
             console.log(`💾 Saved AUTO-PICK to database: ${lastPick.player?.name} for ${entry.id}`);
-
-            // ====================================================================
-            // AUDIT LOG: Auto-Pick
-            // ====================================================================
-            const userTeam = updatedDraft.teams.find(t => t.userId === userId);
-            DraftLogService.logPick({
-              contestId: draft?.contestId,
-              userId: userId,
-              username: entry.User?.username || lastPick.username,
-              pickNumber: updatedDraft.picks.length,
-              turnNumber: userTeam ? Object.keys(userTeam.roster || {}).length : null,
-              player: lastPick.player,
-              row: lastPick.row,
-              col: lastPick.col,
-              rosterAfterPick: userTeam?.roster,
-              timeRemaining: 0,
-              wasAutoPick: true
-            });
-            // ====================================================================
           }
           
           this.io.to(socketRoom).emit('player-picked', {
             roomId,
-            oddsUserId: userId,
+            userId,
             player: lastPick.player,
             position: lastPick.rosterSlot,
             row: lastPick.row,
@@ -2217,24 +2165,10 @@ class ContestService {
           
           console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}${lastPick.wasPreSelected ? ' (PRE-SELECTED)' : ''}`);
         } else if (lastPick && lastPick.skipped) {
-          // ====================================================================
-          // AUDIT LOG: Skip
-          // ====================================================================
-          DraftLogService.logSkip({
-            contestId: draft?.contestId,
-            userId: userId,
-            username: lastPick.username,
-            pickNumber: updatedDraft.picks.length,
-            turnNumber: null,
-            reason: lastPick.reason,
-            timeRemaining: 0
-          });
-          // ====================================================================
-
           // Emit turn-skipped event so frontend can update UI
           this.io.to(socketRoom).emit('turn-skipped', {
             roomId,
-            oddsUserId: userId,
+            userId,
             pickNumber: updatedDraft.picks.length,
             reason: lastPick.reason,
             currentTurn: updatedDraft.currentTurn,
@@ -2339,13 +2273,10 @@ class ContestService {
       ? ['PG', 'SG', 'SF', 'PF', 'C']
       : ['QB', 'RB', 'WR', 'TE', 'FLEX'];
 
-    // Build final rosters for audit log
-    const finalRosters = [];
-
     for (const entry of entries) {
       try {
-        const oddsUserId = entry.user_id;
-        const roster = rosterMap.get(oddsUserId) || {};
+        const userId = entry.user_id;
+        const roster = rosterMap.get(userId) || {};
         
         const cleanRoster = {};
         let playerCount = 0;
@@ -2357,13 +2288,13 @@ class ContestService {
               position: roster[position].position || position,
               price: roster[position].price || 0,
               value: roster[position].value || roster[position].price || 0,
-              playerId: roster[position].playerId || `${position}-${oddsUserId}`
+              playerId: roster[position].playerId || `${position}-${userId}`
             };
             playerCount++;
           }
         });
 
-        console.log(`\n💾 Saving ${entry.User?.username} (${oddsUserId}):`);
+        console.log(`\n💾 Saving ${entry.User?.username} (${userId}):`);
         console.log(`   Players: ${playerCount}`);
         console.log(`   Positions: ${Object.keys(cleanRoster).join(', ') || 'none'}`);
 
@@ -2371,14 +2302,6 @@ class ContestService {
           status: 'completed',
           completed_at: new Date(),
           roster: cleanRoster
-        });
-
-        // Add to final rosters for audit log
-        finalRosters.push({
-          userId: oddsUserId,
-          username: entry.User?.username,
-          roster: cleanRoster,
-          totalSpent: Object.values(cleanRoster).reduce((sum, p) => sum + (p?.price || 0), 0)
         });
 
         if (playerCount === 0) {
@@ -2404,7 +2327,7 @@ class ContestService {
           
           const lineup = await db.Lineup.create({
             id: uuidv4(),
-            user_id: oddsUserId,
+            user_id: userId,
             contest_entry_id: entry.id,
             contest_id: entry.contest_id,
             contest_type: entry.Contest?.type || 'cash',
@@ -2430,12 +2353,6 @@ class ContestService {
     console.log(`LINEUP SAVE RESULTS: ${successCount} succeeded, ${failCount} failed`);
     console.log(`============================================================`);
 
-    // ====================================================================
-    // AUDIT LOG: Draft Complete
-    // ====================================================================
-    DraftLogService.logDraftComplete(draft.contestId, finalRosters);
-    // ====================================================================
-
     console.log(`\n============================================================`);
     console.log(`AWARDING DRAFT COMPLETION TICKETS`);
     console.log(`============================================================`);
@@ -2455,7 +2372,7 @@ class ContestService {
             
             if (this.io) {
               this.io.emit('tickets-updated', {
-                oddsUserId: entry.User.id,
+                userId: entry.User.id,
                 tickets: result.newBalance,
                 reason: 'draft_completion'
               });
@@ -2571,7 +2488,7 @@ class ContestService {
 
       return {
         id: entry.id,
-        oddsUserId: entry.user_id,
+        userId: entry.user_id,
         contestId: entry.contest_id,
         contest: entry.Contest,
         draftRoomId: entry.draft_room_id,
