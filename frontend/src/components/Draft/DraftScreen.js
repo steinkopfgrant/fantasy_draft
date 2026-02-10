@@ -83,6 +83,11 @@ const DraftScreen = ({ showToast }) => {
   const socketHandlersRef = useRef(false);
   const lastPickTimeRef = useRef(0);
   
+  // Refs for socket handler data - prevents re-registration while keeping data current
+  const picksRef = useRef([]);
+  const teamsRef = useRef([]);
+  const currentTurnRef = useRef(0);
+  
   // Add state to prevent double picks
   const [isPicking, setIsPicking] = useState(false);
   const pickTimeoutRef = useRef(null);
@@ -829,6 +834,11 @@ const DraftScreen = ({ showToast }) => {
     return rosterCount || '';
   };
 
+  // Sync refs for socket handlers - keeps data current without triggering re-registration
+  useEffect(() => { picksRef.current = picks; }, [picks]);
+  useEffect(() => { teamsRef.current = teams; }, [teams]);
+  useEffect(() => { currentTurnRef.current = currentTurn; }, [currentTurn]);
+
   // Initialize draft on mount - with remount protection
   useEffect(() => {
     console.log('=== DRAFT SCREEN MOUNTED ===', { roomId, status, hasJoined: hasJoinedRef.current });
@@ -1416,14 +1426,14 @@ const DraftScreen = ({ showToast }) => {
       // Mark time of pick for debouncing draft-state updates
       lastPickTimeRef.current = Date.now();
       
-      // CRITICAL: Prevent duplicate picks
+      // CRITICAL: Prevent duplicate picks (read from ref, not closure)
       // This can happen when pre-select and auto-pick both fire
       const incomingTurn = data.currentTurn !== undefined ? data.currentTurn : data.turn;
       const incomingPickNumber = data.pickNumber || (incomingTurn !== undefined ? incomingTurn + 1 : null);
       
       if (incomingPickNumber) {
-        // Check if we already have a pick for this pickNumber
-        const existingPick = picks?.find(p => p.pickNumber === incomingPickNumber && p.player);
+        // Check if we already have a pick for this pickNumber (read from ref, not closure)
+        const existingPick = picksRef.current?.find(p => p.pickNumber === incomingPickNumber && p.player);
         if (existingPick) {
           console.log(`⚠️ Ignoring duplicate player-picked event for pick ${incomingPickNumber} - already have ${existingPick.player?.name}`);
           return;
@@ -1445,7 +1455,7 @@ const DraftScreen = ({ showToast }) => {
       // ====================================================
       
       // CRITICAL: Add pick to picks array for LiveDraftFeed real-time updates
-      const pickNumber = data.pickNumber || data.currentTurn + 1 || (picks?.length || 0) + 1;
+      const pickNumber = data.pickNumber || data.currentTurn + 1 || (picksRef.current?.length || 0) + 1;
       dispatch(addPick({
         pickNumber,
         turn: data.currentTurn,
@@ -1486,7 +1496,7 @@ const DraftScreen = ({ showToast }) => {
           updates: {
             drafted: true,
             draftedBy: resolvedTeamIndex,
-            draftedAtTurn: data.currentTurn || currentTurn,
+            draftedAtTurn: data.currentTurn || currentTurnRef.current,
             pickNumber: pickNumber,
             draftedToPosition: data.roster_slot || data.slot || data.position,
             // Store equipped_stamp directly on cell for first-render timing
@@ -1503,12 +1513,12 @@ const DraftScreen = ({ showToast }) => {
       const isAutoPick = data.isAutoPick === true;
       
       if ((!isMyPick || isAutoPick) && data.player && data.player.name && (data.roster_slot || data.slot || data.position)) {
-        const teamIndex = teams?.findIndex(t => getUserId(t) === pickedUserId);
+        const teamIndex = teamsRef.current?.findIndex(t => getUserId(t) === pickedUserId);
         const slot = standardizeSlotName(data.roster_slot || data.slot || data.position);
         
         if (teamIndex >= 0 && slot) {
           // Check if this player is already in the roster to avoid double updates
-          const existingRoster = teams[teamIndex]?.roster || {};
+          const existingRoster = teamsRef.current[teamIndex]?.roster || {};
           const existingPlayer = existingRoster[slot];
           
           if (!existingPlayer || existingPlayer.name !== data.player.name) {
@@ -1576,7 +1586,7 @@ const DraftScreen = ({ showToast }) => {
       // CRITICAL: Add a skip marker to the picks array so LiveDraftFeed knows this turn was skipped
       const skippedPickNumber = data.skippedTurn !== undefined ? data.skippedTurn + 1 : 
                                 data.currentTurn !== undefined ? data.currentTurn : 
-                                (picks?.length || 0) + 1;
+                                (picksRef.current?.length || 0) + 1;
       
       dispatch(addPick({
         pickNumber: skippedPickNumber,
@@ -1832,7 +1842,7 @@ console.log('🏀 Inferred sport for completion:', completedSport);
       socketService.off('timer-update', handleTimerUpdate);
       socketService.off('timer-sync', handleTimerSync);
     };
-  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, teams, currentTurn, picks, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, draftState, contestData, sport]);
+  }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, draftState, contestData, sport]);
 
   // Show toast messages for errors
   useEffect(() => {
