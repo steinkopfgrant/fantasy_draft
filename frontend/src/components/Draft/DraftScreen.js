@@ -556,8 +556,42 @@ const DraftScreen = ({ showToast }) => {
       })
       .catch((err) => {
         console.error('❌ Init failed:', err);
-        toast(`Failed to initialize draft: ${err?.message || err?.error || 'Unknown error'}`, 'error');
         moduleInitializedRoomId = null;
+        
+        // On timeout, retry instead of giving up (PWA resume scenario)
+        if (err?.message?.includes('timeout') && mountedRef.current) {
+          console.log('🔄 Init timed out, retrying after reconnect...');
+          initializationAttemptedRef.current = false;
+          
+          // Wait for socket to reconnect, then retry
+          const retryTimer = setTimeout(() => {
+            if (mountedRef.current && socketConnected) {
+              console.log('🔄 Retrying draft initialization...');
+              initializationAttemptedRef.current = true;
+              moduleInitializedRoomId = roomId;
+              moduleLastInitTime = Date.now();
+              dispatch(initializeDraft({ roomId, userId: currentUserId }))
+                .unwrap()
+                .then(() => {
+                  console.log('✅ Draft initialized on retry');
+                  hasJoinedRef.current = false;
+                  socketService.emit('get-draft-state', { roomId });
+                })
+                .catch((retryErr) => {
+                  console.error('❌ Retry failed:', retryErr);
+                  toast('Could not reconnect to draft', 'error');
+                  if (mountedRef.current) navigate('/lobby');
+                });
+            } else if (mountedRef.current) {
+              toast('Could not reconnect to draft', 'error');
+              navigate('/lobby');
+            }
+          }, 2000);
+          
+          return () => clearTimeout(retryTimer);
+        }
+        
+        toast(`Failed to initialize draft: ${err?.message || err?.error || 'Unknown error'}`, 'error');
         if (mountedRef.current) navigate('/lobby');
       });
 
@@ -645,7 +679,7 @@ const DraftScreen = ({ showToast }) => {
       socketService.emit('leaving-draft');
     };
   }, [socketConnected, roomId]);
-  
+
   // Request draft state when socket is ready
   useEffect(() => {
     if (socketConnected && roomId && hasJoinedRef.current) {
