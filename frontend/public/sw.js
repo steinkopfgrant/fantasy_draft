@@ -32,20 +32,15 @@ self.addEventListener('notificationclick', function(event) {
       .then(function(clientList) {
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            // Check if already on the correct draft page
+            // Check if already on the correct draft page - just focus, no navigation
             const clientPath = new URL(client.url).pathname;
             if (clientPath === urlToOpen) {
-              // Already on correct page - just focus, don't reload
               console.log('Already on draft page, just focusing');
               return client.focus();
             }
             
-            // On a different page - use postMessage for soft navigation
-            // This tells the React app to navigate without full reload
-            client.postMessage({
-              type: 'NAVIGATE',
-              url: urlToOpen
-            });
+            // Different page - hard navigate (original behavior)
+            client.navigate(urlToOpen);
             return client.focus();
           }
         }
