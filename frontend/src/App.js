@@ -200,6 +200,22 @@ const AppContent = () => {
     };
   }, []);
 
+  // Handle service worker navigation requests (from push notification clicks)
+  useEffect(() => {
+    const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type === 'NAVIGATE') {
+        console.log('📱 Service worker requested navigation to:', event.data.url);
+        navigate(event.data.url);
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+    
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, [navigate]);
+
   // Simple toast function for AdminPanel
   const showToast = (message, type = 'info') => {
     console.log(`Toast: ${type} - ${message}`);

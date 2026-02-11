@@ -24,21 +24,32 @@ self.addEventListener('push', function(event) {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.roomId 
-    ? `/draft/${event.notification.data.roomId}`
-    : '/';
+  const roomId = event.notification.data?.roomId;
+  const urlToOpen = roomId ? `/draft/${roomId}` : '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(function(clientList) {
-        // If app is already open, focus it
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.navigate(urlToOpen);
+            // Check if already on the correct draft page
+            const clientPath = new URL(client.url).pathname;
+            if (clientPath === urlToOpen) {
+              // Already on correct page - just focus, don't reload
+              console.log('Already on draft page, just focusing');
+              return client.focus();
+            }
+            
+            // On a different page - use postMessage for soft navigation
+            // This tells the React app to navigate without full reload
+            client.postMessage({
+              type: 'NAVIGATE',
+              url: urlToOpen
+            });
             return client.focus();
           }
         }
-        // Otherwise open new window
+        // No existing window - open new one
         if (clients.openWindow) {
           return clients.openWindow(urlToOpen);
         }
