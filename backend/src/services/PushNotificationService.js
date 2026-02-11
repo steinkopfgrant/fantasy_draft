@@ -93,12 +93,16 @@ class PushNotificationService {
           }, payload);
           sent++;
         } catch (error) {
-          // Subscription expired or invalid - remove it
-          if (error.statusCode === 410 || error.statusCode === 404 || error.statusCode === 403 || error.statusCode >= 400) {
+          console.error(`Push failed for ${userId}:`, {
+            statusCode: error.statusCode,
+            message: error.message,
+            body: error.body,
+            endpoint: sub.endpoint.substring(0, 50)
+          });
+          // ONLY remove on definitive gone/not-found
+          if (error.statusCode === 410 || error.statusCode === 404) {
             await sub.destroy();
-            console.log(`🗑️ Removed bad subscription for user ${userId} (status: ${error.statusCode})`);
-          } else {
-            console.error(`Push failed for ${userId}:`, error.message);
+            console.log(`🗑️ Removed expired subscription for user ${userId}`);
           }
         }
       }
