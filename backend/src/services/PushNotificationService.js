@@ -1,68 +1,81 @@
+// backend/src/services/PushNotificationService.js
 const webpush = require('web-push');
 const db = require('../models');
 
-// Configure web-push
+// Initialize VAPID
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
-    process.env.VAPID_EMAIL || 'mailto:admin@bidblitz.com',
+    'mailto:' + (process.env.VAPID_EMAIL || 'admin@bidblitz.com'),
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
   );
-  console.log('✅ Web Push configured');
+  console.log('✅ VAPID configured for push notifications');
 } else {
-  console.log('⚠️ VAPID keys not configured - push notifications disabled');
+  console.warn('⚠️ VAPID keys not configured. Push notifications disabled.');
 }
 
 class PushNotificationService {
-  
+
   /**
-   * Save a user's push subscription
+   * Subscribe a user's device to push notifications
    */
   static async subscribe(userId, subscription) {
-    try {
-      const { endpoint, keys } = subscription;
-      
-      await db.PushSubscription.upsert({
-        user_id: userId,
-        endpoint: endpoint,
-        p256dh: keys.p256dh,
-        auth: keys.auth
-      });
-      
-      console.log(`📱 Push subscription saved for user ${userId}`);
-      return { success: true };
-    } catch (error) {
-      console.error('Error saving push subscription:', error);
-      throw error;
+    if (!userId || !subscription?.endpoint || !subscription?.keys) {
+      throw new Error('Invalid subscription data');
     }
+
+    // Upsert: update if endpoint exists, create if not
+    const [sub, created] = await db.PushSubscription.findOrCreate({
+      where: {
+        user_id: userId,
+        endpoint: subscription.endpoint
+      },
+      defaults: {
+        user_id: userId,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth
+      }
+    });
+
+    if (!created) {
+      await sub.update({
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth
+      });
+    }
+
+    console.log(`📱 Push subscription ${created ? 'created' : 'updated'} for user ${userId}`);
+    return { success: true, created };
   }
 
   /**
-   * Remove a user's push subscription
+   * Unsubscribe a device
    */
   static async unsubscribe(userId, endpoint) {
-    try {
-      await db.PushSubscription.destroy({
-        where: { user_id: userId, endpoint }
-      });
-      console.log(`📱 Push subscription removed for user ${userId}`);
-      return { success: true };
-    } catch (error) {
-      console.error('Error removing push subscription:', error);
-      throw error;
-    }
+    const deleted = await db.PushSubscription.destroy({
+      where: { user_id: userId, endpoint }
+    });
+    console.log(`📱 Removed ${deleted} subscription(s) for user ${userId}`);
+    return { success: true, deleted };
   }
 
   /**
-   * Send push to a single user
+   * Send push notification to a specific user (all their devices)
    */
   static async sendToUser(userId, title, body, data = {}) {
     try {
+      // FIX: Guard against undefined/null userId
+      if (!userId) {
+        console.error('📱 sendToUser called with undefined userId, skipping');
+        return { sent: 0 };
+      }
+
       const subscriptions = await db.PushSubscription.findAll({
         where: { user_id: userId }
       });
 
-      if (subscriptions.length === 0) {
+      if (!subscriptions || subscriptions.length === 0) {
         return { sent: 0 };
       }
 
@@ -102,17 +115,29 @@ class PushNotificationService {
    * Send push to multiple users
    */
   static async sendToUsers(userIds, title, body, data = {}) {
+    // Filter out any undefined/null userIds
+    const validIds = userIds.filter(id => !!id);
+    if (validIds.length === 0) return 0;
+
     const results = await Promise.all(
-      userIds.map(userId => this.sendToUser(userId, title, body, data))
+      validIds.map(userId => this.sendToUser(userId, title, body, data))
     );
     return results.reduce((sum, r) => sum + r.sent, 0);
   }
 
   /**
    * Notify all participants that draft is starting
+   * Accepts either:
+   *   - Array of userId strings: ['abc-123', 'def-456']
+   *   - Array of entry objects:  [{ userId: 'abc-123' }, { userId: 'def-456' }]
    */
   static async notifyDraftStarting(roomId, participants) {
-    const userIds = participants.map(p => p.userId);
+    // FIX: Handle both string arrays and object arrays
+    const userIds = participants.map(p => {
+      if (typeof p === 'string') return p;
+      return p.userId || p.user_id || p.id;
+    }).filter(id => !!id);
+
     const sent = await this.sendToUsers(
       userIds,
       '🏈 Draft Starting!',
@@ -123,35 +148,51 @@ class PushNotificationService {
   }
 
   /**
-   * Notify a user it's their turn to pick
-   * Skips notification if user is already connected to the draft room
-   * @param {string} userId - User to notify
-   * @param {string} roomId - Draft room ID
-   * @param {number} timeLimit - Seconds to pick
-   * @param {object} io - Socket.IO instance (optional, used to check if user is viewing)
+   * Notify a user it's their turn to pick.
+   * 
+   * CRITICAL: Only sends push if the user is NOT currently viewing THIS specific draft room.
+   * A user in Draft A should still get notified about Draft B.
+   * 
+   * @param {string} userId 
+   * @param {string} roomId 
+   * @param {number} timeLimit 
+   * @param {object} io - Socket.IO server instance (optional)
    */
-  static async notifyYourTurn(userId, roomId, timeLimit, io = null) {
-    // Check if user is already viewing the draft (has active socket in room)
+  static async notifyYourTurn(userId, roomId, timeLimit, io) {
+    if (!userId) {
+      console.error('📱 notifyYourTurn called with undefined userId, skipping');
+      return;
+    }
+
+    // FIX: Check if user is connected to THIS SPECIFIC room, not just any room
     if (io) {
       try {
-        const socketsInRoom = await io.in(`room_${roomId}`).fetchSockets();
-        const userInRoom = socketsInRoom.some(s => s.userId === userId);
-        if (userInRoom) {
-          console.log(`📱 Skipping push for user ${userId} - already connected to room`);
-          return { skipped: true, reason: 'user_viewing' };
+        const socketRoomId = `room_${roomId}`;
+        const socketsInRoom = await io.in(socketRoomId).fetchSockets();
+        const userInThisRoom = socketsInRoom.some(s => s.userId === userId);
+
+        if (userInThisRoom) {
+          console.log(`📱 Skipping push for user ${userId} - already connected to ${socketRoomId}`);
+          return;
+        } else {
+          console.log(`📱 User ${userId} NOT in ${socketRoomId} (${socketsInRoom.length} sockets in room) - sending push`);
         }
       } catch (err) {
-        console.error('Error checking socket room:', err);
-        // Continue to send notification if check fails
+        // If socket check fails, send the notification anyway
+        console.warn('📱 Socket room check failed, sending push anyway:', err.message);
       }
     }
 
-    await this.sendToUser(
+    const result = await this.sendToUser(
       userId,
       '⏰ Your Turn!',
-      `It's your turn to pick. You have ${timeLimit} seconds.`,
-      { type: 'your_turn', roomId }
+      `It's your turn to pick! You have ${timeLimit} seconds.`,
+      { type: 'your_turn', roomId, url: `/draft/${roomId}` }
     );
+
+    if (result.sent > 0) {
+      console.log(`📱 Your-turn push sent to ${result.sent} device(s) for user ${userId}`);
+    }
   }
 }
 
