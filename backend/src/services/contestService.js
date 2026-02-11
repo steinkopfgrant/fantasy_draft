@@ -1707,7 +1707,7 @@ class ContestService {
 
 // Push notification: Your turn (only if not a bot)
 if (!currentPlayer.username?.startsWith('botuser')) {
-  PushNotificationService.notifyYourTurn(currentPlayer.userId, roomId, timeLimit);
+  PushNotificationService.notifyYourTurn(currentPlayer.userId, roomId, timeLimit, this.io);
 }
     if (this.io) {
       this.io.to(`room_${roomId}`).emit('draft-turn', {

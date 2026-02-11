@@ -124,8 +124,28 @@ class PushNotificationService {
 
   /**
    * Notify a user it's their turn to pick
+   * Skips notification if user is already connected to the draft room
+   * @param {string} userId - User to notify
+   * @param {string} roomId - Draft room ID
+   * @param {number} timeLimit - Seconds to pick
+   * @param {object} io - Socket.IO instance (optional, used to check if user is viewing)
    */
-  static async notifyYourTurn(userId, roomId, timeLimit) {
+  static async notifyYourTurn(userId, roomId, timeLimit, io = null) {
+    // Check if user is already viewing the draft (has active socket in room)
+    if (io) {
+      try {
+        const socketsInRoom = await io.in(`room_${roomId}`).fetchSockets();
+        const userInRoom = socketsInRoom.some(s => s.userId === userId);
+        if (userInRoom) {
+          console.log(`📱 Skipping push for user ${userId} - already connected to room`);
+          return { skipped: true, reason: 'user_viewing' };
+        }
+      } catch (err) {
+        console.error('Error checking socket room:', err);
+        // Continue to send notification if check fails
+      }
+    }
+
     await this.sendToUser(
       userId,
       '⏰ Your Turn!',
