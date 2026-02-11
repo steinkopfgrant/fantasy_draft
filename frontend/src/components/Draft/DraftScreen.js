@@ -636,7 +636,16 @@ const DraftScreen = ({ showToast }) => {
       }, 500);
     }
   }, [socketConnected, status, contestData, entryId, roomId, dispatch, currentUserId, isMobile, mobileSelectPlayer]);
-
+// Track which draft room we're actively viewing (for push notification suppression)
+  useEffect(() => {
+    if (socketConnected && roomId) {
+      socketService.emit('viewing-draft', { roomId });
+    }
+    return () => {
+      socketService.emit('leaving-draft');
+    };
+  }, [socketConnected, roomId]);
+  
   // Request draft state when socket is ready
   useEffect(() => {
     if (socketConnected && roomId && hasJoinedRef.current) {

@@ -105,6 +105,17 @@ class SocketHandler {
 
       // ==========================================
 
+// Track which draft room user is actively viewing
+      socket.on('viewing-draft', (data) => {
+        socket.viewingRoomId = data?.roomId || null;
+        console.log(`👁️ ${socket.username} now viewing room ${socket.viewingRoomId}`);
+      });
+
+      socket.on('leaving-draft', () => {
+        console.log(`👁️ ${socket.username} left draft view (was ${socket.viewingRoomId})`);
+        socket.viewingRoomId = null;
+      });
+
       // Handle disconnection
       socket.on('disconnect', () => {
         this.handleDisconnect(socket);
