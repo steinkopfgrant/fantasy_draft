@@ -94,9 +94,9 @@ class PushNotificationService {
           sent++;
         } catch (error) {
           // Subscription expired or invalid - remove it
-          if (error.statusCode === 410 || error.statusCode === 404) {
+          if (error.statusCode === 410 || error.statusCode === 404 || error.statusCode === 403 || error.statusCode >= 400) {
             await sub.destroy();
-            console.log(`🗑️ Removed expired subscription for user ${userId}`);
+            console.log(`🗑️ Removed bad subscription for user ${userId} (status: ${error.statusCode})`);
           } else {
             console.error(`Push failed for ${userId}:`, error.message);
           }
