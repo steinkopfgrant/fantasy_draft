@@ -806,7 +806,7 @@ const DraftScreen = ({ showToast }) => {
           return;
         }
         // Missed picks detected - fall through to full state sync
-        console.log(`⚠️ Missed picks: server turn ${serverTurn}, client turn ${clientTurn}. Full sync.`);
+        console.log(`⚠️ Missed picks: server turn ${serverTurn}, client picks ${clientPickCount}. Full sync.`);
       }
 
       // Timer sync
