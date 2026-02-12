@@ -876,6 +876,43 @@ const DraftScreen = ({ showToast }) => {
         ? calculateTimeRemaining()
         : (data.timeRemaining ?? data.timeLimit ?? 30);
 
+      // Rebuild picks array from playerBoard if we have board data
+      const board = data.playerBoard || currentState.playerBoard;
+      if (board?.length > 0) {
+        const reconstructedPicks = [];
+        board.forEach((row, rowIdx) => {
+          row.forEach((cell, colIdx) => {
+            if (cell?.drafted && cell.draftedAtTurn !== undefined) {
+              const pickerTeam = shouldUpdateTeams 
+                ? processedTeams[cell.draftedBy] 
+                : currentState.teams?.[cell.draftedBy];
+              reconstructedPicks.push({
+                pickNumber: cell.pickNumber || (cell.draftedAtTurn + 1),
+                turn: cell.draftedAtTurn,
+                player: {
+                  name: cell.name,
+                  position: cell.position || cell.originalPosition,
+                  team: cell.team,
+                  price: cell.price
+                },
+                rosterSlot: cell.draftedToPosition || cell.position,
+                teamIndex: cell.draftedBy,
+                userId: pickerTeam ? getUserId(pickerTeam) : null,
+                isAutoPick: cell.isAutoPick || false,
+                timestamp: cell.timestamp || new Date().toISOString()
+              });
+            }
+          });
+        });
+        reconstructedPicks.sort((a, b) => (a.turn || 0) - (b.turn || 0));
+        
+        // Only use reconstructed picks if we have more than current
+        const currentPicks = currentState.picks || [];
+        if (reconstructedPicks.length > currentPicks.length) {
+          data.picks = reconstructedPicks;
+        }
+      }
+
       dispatch(updateDraftState({
         ...data,
         teams: shouldUpdateTeams ? processedTeams : undefined,
