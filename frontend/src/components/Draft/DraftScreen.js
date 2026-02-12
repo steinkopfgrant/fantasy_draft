@@ -450,8 +450,8 @@ const DraftScreen = ({ showToast }) => {
       const remaining = calculateTimeRemaining();
       dispatch(updateTimer(remaining));
 
-      // Re-sync with server every 10 seconds
-      if (Date.now() - lastSyncTimeRef.current > 10000) {
+      // Re-sync with server every 3 seconds
+      if (Date.now() - lastSyncTimeRef.current > 3000) {
         socketService.emit('get-draft-state', { roomId });
         lastSyncTimeRef.current = Date.now();
       }
@@ -788,17 +788,25 @@ const DraftScreen = ({ showToast }) => {
       const isActiveDraft = data.status === 'active' || (data.currentTurn > 0 && data.currentTurn < 25);
       const isCompletedDraft = data.status === 'completed' || currentState.status === 'completed';
 
-      // During active/completed drafts, only update turn/timer (preserve teams from player-picked events)
+      // During active/completed drafts, only update turn/timer IF we haven't missed any picks
       if ((isActiveDraft || isCompletedDraft) && currentState.teams?.length > 0) {
-        dispatch(updateDraftState({
-          currentTurn: data.currentTurn,
-          currentPick: data.currentPick || (data.currentTurn + 1),
-          status: data.status || currentState.status,
-          timeRemaining: data.timeRemaining || 30,
-          timeLimit: data.timeLimit || 30,
-          playerBoard: data.playerBoard || currentState.playerBoard
-        }));
-        return;
+        const serverTurn = data.currentTurn || 0;
+        const clientTurn = currentState.currentTurn || 0;
+        const missedPicks = serverTurn > clientTurn + 1;
+        
+        if (!missedPicks) {
+          dispatch(updateDraftState({
+            currentTurn: data.currentTurn,
+            currentPick: data.currentPick || (data.currentTurn + 1),
+            status: data.status || currentState.status,
+            timeRemaining: data.timeRemaining || 30,
+            timeLimit: data.timeLimit || 30,
+            playerBoard: data.playerBoard || currentState.playerBoard
+          }));
+          return;
+        }
+        // Missed picks detected - fall through to full state sync
+        console.log(`⚠️ Missed picks: server turn ${serverTurn}, client turn ${clientTurn}. Full sync.`);
       }
 
       // Timer sync
