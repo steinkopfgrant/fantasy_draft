@@ -882,13 +882,13 @@ const DraftScreen = ({ showToast }) => {
         const reconstructedPicks = [];
         board.forEach((row, rowIdx) => {
           row.forEach((cell, colIdx) => {
-            if (cell?.drafted && cell.draftedAtTurn !== undefined) {
+            if (cell?.drafted && cell.pickNumber) {
               const pickerTeam = shouldUpdateTeams 
                 ? processedTeams[cell.draftedBy] 
                 : currentState.teams?.[cell.draftedBy];
               reconstructedPicks.push({
-                pickNumber: cell.pickNumber || (cell.draftedAtTurn + 1),
-                turn: cell.draftedAtTurn,
+                pickNumber: cell.pickNumber,
+                turn: cell.pickNumber - 1,
                 player: {
                   name: cell.name,
                   position: cell.position || cell.originalPosition,
