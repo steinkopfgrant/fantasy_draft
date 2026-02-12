@@ -1,4 +1,4 @@
-// frontend/public/service-worker.js
+// v2 - iOS push fix
 /* eslint-disable no-restricted-globals */
 
 // Install event
@@ -16,46 +16,38 @@ self.addEventListener('activate', (event) => {
 // Push event
 self.addEventListener('push', (event) => {
   console.log('Push notification received');
-  
-  if (!event.data) {
-    console.log('No data in push notification');
-    return;
+
+  if (!event.data) return;
+
+  let data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: 'BidBlitz', body: event.data.text() };
   }
 
-  const data = event.data.json();
   const options = {
-    body: data.body,
-    icon: data.icon || '/logo192.png',
-    badge: data.badge || '/logo192.png',
-    vibrate: data.vibrate || [200, 100, 200],
-    data: data.data,
-    actions: data.actions || [],
-    tag: data.tag,
-    renotify: data.renotify || false,
-    requireInteraction: data.requireInteraction || false,
-    silent: data.silent || false,
-    timestamp: data.timestamp || Date.now()
+    body: data.body || '',
+    icon: '/logo192.png',
+    badge: '/logo192.png',
+    data: data.data || {},
+    tag: data.tag || 'bidblitz-' + Date.now()
   };
 
-  if (data.image) {
-    options.image = data.image;
-  }
-
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(data.title || 'BidBlitz', options)
   );
 });
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification clicked:', event.notification.tag);
-  
+
   event.notification.close();
 
   const data = event.notification.data || {};
   let url = '/';
 
-  // Handle action clicks
   if (event.action) {
     switch (event.action) {
       case 'draft':
@@ -66,20 +58,17 @@ self.addEventListener('notificationclick', (event) => {
         url = data.url || '/';
     }
   } else {
-    // Default click behavior
     url = data.url || '/';
   }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((windowClients) => {
-        // Check if there's already a window open
         for (let client of windowClients) {
           if (client.url === url && 'focus' in client) {
             return client.focus();
           }
         }
-        // Open new window if needed
         if (clients.openWindow) {
           return clients.openWindow(url);
         }
@@ -95,6 +84,5 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncDrafts() {
-  // Implement background sync logic here
   console.log('Syncing drafts...');
 }
