@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store } from './store/store';
 import { checkAuth, selectAuthUser, selectIsAuthenticated, selectAuthLoading } from './store/slices/authSlice';
@@ -105,6 +105,12 @@ const PublicRoute = ({ children }) => {
   }
   
   return children;
+};
+
+// Wrapper to force DraftScreen remount when roomId changes
+const DraftScreenWrapper = () => {
+  const { roomId } = useParams();
+  return <DraftScreen key={roomId} />;
 };
 
 // App Content Component (uses Redux hooks)
@@ -266,7 +272,7 @@ const AppContent = () => {
           
           <Route path="/draft/:roomId" element={
             <ProtectedRoute>
-              <DraftScreen />
+              <DraftScreenWrapper />
             </ProtectedRoute>
           } />
           
