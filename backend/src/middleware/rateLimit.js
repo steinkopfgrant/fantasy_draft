@@ -47,8 +47,3 @@ const draftLimiter = rateLimit({
 });
 
 module.exports = { authLimiter, paymentLimiter, apiLimiter, draftLimiter };
-```
-
-Then set the env var in Railway:
-```
-LOAD_TEST_SECRET=bidblitz-load-2026-secret
