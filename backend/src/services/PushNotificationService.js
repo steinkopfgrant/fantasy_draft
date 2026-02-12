@@ -172,14 +172,16 @@ class PushNotificationService {
     if (io) {
       try {
         const socketRoomId = `room_${roomId}`;
-        const socketsInRoom = await io.in(socketRoomId).fetchSockets();
-        const userInThisRoom = socketsInRoom.some(s => s.userId === userId);
+        const allSockets = await io.fetchSockets();
+        const userSockets = allSockets.filter(s => s.userId === userId);
+        const userIsViewingThisRoom = userSockets.some(s => s.viewingRoomId === roomId);
 
-        if (userInThisRoom) {
-          console.log(`📱 Skipping push for user ${userId} - already connected to ${socketRoomId}`);
+        if (userIsViewingThisRoom) {
+          console.log(`📱 Skipping push for user ${userId} - actively viewing room ${roomId}`);
           return;
         } else {
-          console.log(`📱 User ${userId} NOT in ${socketRoomId} (${socketsInRoom.length} sockets in room) - sending push`);
+          const viewingRoom = userSockets[0]?.viewingRoomId || 'none';
+          console.log(`📱 User ${userId} viewing ${viewingRoom}, not ${roomId} - sending push`);
         }
       } catch (err) {
         // If socket check fails, send the notification anyway
