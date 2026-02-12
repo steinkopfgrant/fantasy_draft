@@ -791,8 +791,8 @@ const DraftScreen = ({ showToast }) => {
       // During active/completed drafts, only update turn/timer IF we haven't missed any picks
       if ((isActiveDraft || isCompletedDraft) && currentState.teams?.length > 0) {
         const serverTurn = data.currentTurn || 0;
-        const clientTurn = currentState.currentTurn || 0;
-        const missedPicks = serverTurn > clientTurn + 1;
+        const clientPickCount = (currentState.picks || []).length;
+        const missedPicks = serverTurn > clientPickCount + 1;
         
         if (!missedPicks) {
           dispatch(updateDraftState({
