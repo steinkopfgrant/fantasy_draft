@@ -27,6 +27,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 2025
     },
+    game_start_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    closes_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     scores_locked: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -35,8 +43,8 @@ module.exports = (sequelize, DataTypes) => {
     status: {
       type: DataTypes.STRING(20),
       allowNull: false,
-      defaultValue: 'open',
-      // open -> locked -> settled
+      defaultValue: 'active'
+      // active -> closed -> settled
     },
     settled_at: {
       type: DataTypes.DATE,
@@ -49,15 +57,6 @@ module.exports = (sequelize, DataTypes) => {
     createdAt: 'created_at',
     updatedAt: 'updated_at'
   });
-
-  Slate.associate = function(models) {
-    Slate.belongsToMany(models.Contest, {
-      through: 'slate_contests',
-      foreignKey: 'slate_id',
-      otherKey: 'contest_id',
-      as: 'Contests'
-    });
-  };
 
   return Slate;
 };

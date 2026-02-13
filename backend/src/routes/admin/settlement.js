@@ -2,13 +2,9 @@
 const express = require('express');
 const router = express.Router();
 
-// These will be set when the router is initialized
 let settlementService = null;
 let scoringService = null;
 
-/**
- * Initialize the router with services
- */
 const initializeRouter = (services) => {
   settlementService = services.settlementService;
   scoringService = services.scoringService;
@@ -46,31 +42,30 @@ const checkAdmin = async (req, res, next) => {
   }
 };
 
-// Apply admin check to all routes
 router.use(checkAdmin);
 
-// ==================== SLATE MANAGEMENT ====================
+// ==================== SLATE MANAGEMENT (V2 - Upstream Controller) ====================
 
 /**
  * GET /api/admin/settlement/slates
- * List all slates with their contests
+ * List all slates with their contests (via direct FK on contests)
  */
 router.get('/slates', async (req, res) => {
   try {
     const db = require('../../models');
     
     const slates = await db.Slate.findAll({
-      include: [{
-        model: db.Contest,
-        as: 'Contests',
-        through: { attributes: [] } // exclude join table fields
-      }],
       order: [['created_at', 'DESC']]
     });
     
-    // Enrich with entry counts
     const enriched = await Promise.all(slates.map(async (slate) => {
-      const contests = await Promise.all((slate.Contests || []).map(async (c) => {
+      // Get contests via direct FK
+      const contests = await db.Contest.findAll({
+        where: { slate_id: slate.id },
+        order: [['created_at', 'DESC']]
+      });
+      
+      const contestData = await Promise.all(contests.map(async (c) => {
         let entryCount = c.current_entries || 0;
         try {
           if (db.ContestEntry) {
@@ -103,11 +98,13 @@ router.get('/slates', async (req, res) => {
         sport: slate.sport,
         week: slate.week,
         season: slate.season,
+        gameStartTime: slate.game_start_time,
+        closesAt: slate.closes_at,
         scoresLocked: slate.scores_locked,
         status: slate.status,
         settledAt: slate.settled_at,
         createdAt: slate.created_at,
-        contests
+        contests: contestData
       };
     }));
     
@@ -119,13 +116,49 @@ router.get('/slates', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/settlement/slates/active
+ * Get the currently active slate per sport (or all active slates)
+ */
+router.get('/slates/active', async (req, res) => {
+  try {
+    const db = require('../../models');
+    const { sport } = req.query;
+    
+    const where = { status: 'active' };
+    if (sport) where.sport = sport.toLowerCase();
+    
+    const slates = await db.Slate.findAll({ where });
+    
+    res.json({ 
+      success: true, 
+      slates: slates.map(s => ({
+        id: s.id,
+        name: s.name,
+        sport: s.sport,
+        week: s.week,
+        season: s.season,
+        gameStartTime: s.game_start_time,
+        closesAt: s.closes_at
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting active slates:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/admin/settlement/slates
- * Create a new slate and attach contests to it
- * Body: { name, sport, week, season, contestIds: [...] }
+ * Create a new slate (upstream controller for a sport's scoring period)
+ * Body: { name, sport, week, season, gameStartTime? }
+ * 
+ * Creating a slate makes it the ACTIVE slate for that sport.
+ * Only one active slate per sport at a time.
+ * Any existing active slate for that sport stays as-is (should be closed first).
  */
 router.post('/slates', async (req, res) => {
   try {
-    const { name, sport = 'nba', week = 1, season = 2025, contestIds = [] } = req.body;
+    const { name, sport = 'nba', week = 1, season = 2025, gameStartTime } = req.body;
     
     if (!name) {
       return res.status(400).json({ success: false, error: 'Slate name is required' });
@@ -133,42 +166,44 @@ router.post('/slates', async (req, res) => {
     
     const db = require('../../models');
     
-    // Check that none of the contests are already in another slate
-    if (contestIds.length > 0) {
-      const existing = await db.sequelize.query(
-        `SELECT contest_id FROM slate_contests WHERE contest_id IN (:ids)`,
-        { replacements: { ids: contestIds }, type: db.Sequelize.QueryTypes.SELECT }
-      );
-      
-      if (existing.length > 0) {
-        const taken = existing.map(e => e.contest_id);
-        return res.status(400).json({
-          success: false,
-          error: `${existing.length} contest(s) already assigned to another slate`,
-          takenContestIds: taken
-        });
-      }
+    // Check if there's already an active slate for this sport
+    const existingActive = await db.Slate.findOne({
+      where: { sport: sport.toLowerCase(), status: 'active' }
+    });
+    
+    if (existingActive) {
+      return res.status(400).json({
+        success: false,
+        error: `There's already an active ${sport.toUpperCase()} slate: "${existingActive.name}". Close it before creating a new one.`,
+        existingSlateId: existingActive.id
+      });
+    }
+    
+    // Calculate closes_at (5 min before game start) if gameStartTime provided
+    let closesAt = null;
+    if (gameStartTime) {
+      closesAt = new Date(new Date(gameStartTime).getTime() - 5 * 60 * 1000);
     }
     
     const slate = await db.Slate.create({
       name,
-      sport,
+      sport: sport.toLowerCase(),
       week,
-      season
+      season,
+      game_start_time: gameStartTime || null,
+      closes_at: closesAt,
+      status: 'active'
     });
     
-    // Attach contests
-    if (contestIds.length > 0) {
-      const rows = contestIds.map(cid => ({
-        slate_id: slate.id,
-        contest_id: cid,
-        created_at: new Date(),
-        updated_at: new Date()
-      }));
-      await db.sequelize.queryInterface.bulkInsert('slate_contests', rows);
-    }
+    // Auto-assign any existing unassigned cash contests for this sport to the new slate
+    const [assignedCount] = await db.sequelize.query(
+      `UPDATE contests SET slate_id = :slateId 
+       WHERE sport = :sport AND type = 'cash' AND slate_id IS NULL 
+       AND status NOT IN ('settled', 'cancelled')`,
+      { replacements: { slateId: slate.id, sport: sport.toLowerCase() } }
+    );
     
-    console.log(`📋 Created slate "${name}" with ${contestIds.length} contests`);
+    console.log(`📋 Created slate "${name}" for ${sport.toUpperCase()} (auto-assigned ${assignedCount?.rowCount || 0} existing contests)`);
     
     res.json({
       success: true,
@@ -178,8 +213,11 @@ router.post('/slates', async (req, res) => {
         sport: slate.sport,
         week: slate.week,
         season: slate.season,
-        contestCount: contestIds.length
-      }
+        gameStartTime: slate.game_start_time,
+        closesAt: slate.closes_at,
+        status: slate.status
+      },
+      autoAssigned: assignedCount?.rowCount || 0
     });
   } catch (error) {
     console.error('Error creating slate:', error);
@@ -188,14 +226,13 @@ router.post('/slates', async (req, res) => {
 });
 
 /**
- * PUT /api/admin/settlement/slates/:slateId/contests
- * Add or remove contests from a slate
- * Body: { add: [...contestIds], remove: [...contestIds] }
+ * PUT /api/admin/settlement/slates/:slateId
+ * Update slate details (name, gameStartTime, etc.)
  */
-router.put('/slates/:slateId/contests', async (req, res) => {
+router.put('/slates/:slateId', async (req, res) => {
   try {
     const { slateId } = req.params;
-    const { add = [], remove = [] } = req.body;
+    const { name, gameStartTime, week, season } = req.body;
     const db = require('../../models');
     
     const slate = await db.Slate.findByPk(slateId);
@@ -203,49 +240,130 @@ router.put('/slates/:slateId/contests', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
     
-    if (slate.status === 'settled') {
-      return res.status(400).json({ success: false, error: 'Cannot modify a settled slate' });
+    const updates = {};
+    if (name) updates.name = name;
+    if (week) updates.week = week;
+    if (season) updates.season = season;
+    if (gameStartTime) {
+      updates.game_start_time = gameStartTime;
+      updates.closes_at = new Date(new Date(gameStartTime).getTime() - 5 * 60 * 1000);
     }
     
-    // Remove contests
-    if (remove.length > 0) {
-      await db.sequelize.query(
-        `DELETE FROM slate_contests WHERE slate_id = :slateId AND contest_id IN (:ids)`,
-        { replacements: { slateId, ids: remove } }
-      );
-    }
+    await slate.update(updates);
     
-    // Add contests (check they're not in another slate)
-    if (add.length > 0) {
-      const existing = await db.sequelize.query(
-        `SELECT contest_id FROM slate_contests WHERE contest_id IN (:ids)`,
-        { replacements: { ids: add }, type: db.Sequelize.QueryTypes.SELECT }
-      );
-      
-      const taken = new Set(existing.map(e => e.contest_id));
-      const toAdd = add.filter(id => !taken.has(id));
-      
-      if (toAdd.length > 0) {
-        const rows = toAdd.map(cid => ({
-          slate_id: slateId,
-          contest_id: cid,
-          created_at: new Date(),
-          updated_at: new Date()
-        }));
-        await db.sequelize.queryInterface.bulkInsert('slate_contests', rows);
-      }
-    }
-    
-    res.json({ success: true, message: 'Slate contests updated' });
+    res.json({ success: true, message: 'Slate updated', slate });
   } catch (error) {
-    console.error('Error updating slate contests:', error);
+    console.error('Error updating slate:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/slates/:slateId/close
+ * Close a slate — closes all its contests (no more entries)
+ * This happens automatically 5 min before game_start_time, or manually
+ */
+router.post('/slates/:slateId/close', async (req, res) => {
+  try {
+    const { slateId } = req.params;
+    const db = require('../../models');
+    
+    const slate = await db.Slate.findByPk(slateId);
+    if (!slate) {
+      return res.status(404).json({ success: false, error: 'Slate not found' });
+    }
+    
+    if (slate.status !== 'active') {
+      return res.status(400).json({ success: false, error: `Slate is already ${slate.status}` });
+    }
+    
+    // Close all contests in this slate that are still open
+    const [result] = await db.sequelize.query(
+      `UPDATE contests SET status = 'closed' WHERE slate_id = :slateId AND status = 'open'`,
+      { replacements: { slateId } }
+    );
+    
+    await slate.update({ status: 'closed' });
+    
+    console.log(`🔒 Closed slate "${slate.name}" — ${result?.rowCount || 0} contests closed`);
+    
+    res.json({
+      success: true,
+      message: `Slate "${slate.name}" closed`,
+      contestsClosed: result?.rowCount || 0
+    });
+  } catch (error) {
+    console.error('Error closing slate:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/slates/:slateId/assign-contests
+ * Manually assign existing contests to this slate (for retroactive grouping)
+ * Body: { contestIds: [...] }
+ */
+router.post('/slates/:slateId/assign-contests', async (req, res) => {
+  try {
+    const { slateId } = req.params;
+    const { contestIds = [] } = req.body;
+    const db = require('../../models');
+    
+    const slate = await db.Slate.findByPk(slateId);
+    if (!slate) {
+      return res.status(404).json({ success: false, error: 'Slate not found' });
+    }
+    
+    if (contestIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No contest IDs provided' });
+    }
+    
+    const [result] = await db.sequelize.query(
+      `UPDATE contests SET slate_id = :slateId WHERE id IN (:ids) AND (slate_id IS NULL OR slate_id = :slateId)`,
+      { replacements: { slateId, ids: contestIds } }
+    );
+    
+    res.json({
+      success: true,
+      message: `Assigned ${result?.rowCount || 0} contests to slate`,
+      assigned: result?.rowCount || 0
+    });
+  } catch (error) {
+    console.error('Error assigning contests:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/settlement/slates/:slateId/unassign-contests
+ * Remove contests from this slate
+ * Body: { contestIds: [...] }
+ */
+router.post('/slates/:slateId/unassign-contests', async (req, res) => {
+  try {
+    const { slateId } = req.params;
+    const { contestIds = [] } = req.body;
+    const db = require('../../models');
+    
+    const [result] = await db.sequelize.query(
+      `UPDATE contests SET slate_id = NULL WHERE id IN (:ids) AND slate_id = :slateId`,
+      { replacements: { slateId, ids: contestIds } }
+    );
+    
+    res.json({
+      success: true,
+      message: `Unassigned ${result?.rowCount || 0} contests`,
+      unassigned: result?.rowCount || 0
+    });
+  } catch (error) {
+    console.error('Error unassigning contests:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
  * DELETE /api/admin/settlement/slates/:slateId
- * Delete a slate (does NOT delete contests)
+ * Delete a slate (sets slate_id = NULL on contests, does NOT delete them)
  */
 router.delete('/slates/:slateId', async (req, res) => {
   try {
@@ -257,7 +375,12 @@ router.delete('/slates/:slateId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
     
-    // CASCADE will clean up slate_contests
+    // Clear slate_id from contests (ON DELETE SET NULL handles this, but be explicit)
+    await db.sequelize.query(
+      `UPDATE contests SET slate_id = NULL WHERE slate_id = :slateId`,
+      { replacements: { slateId } }
+    );
+    
     await slate.destroy();
     
     res.json({ success: true, message: `Slate "${slate.name}" deleted` });
@@ -276,10 +399,7 @@ router.post('/slates/:slateId/lock-scores', async (req, res) => {
     const { slateId } = req.params;
     const db = require('../../models');
     
-    const slate = await db.Slate.findByPk(slateId, {
-      include: [{ model: db.Contest, as: 'Contests', through: { attributes: [] } }]
-    });
-    
+    const slate = await db.Slate.findByPk(slateId);
     if (!slate) {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
@@ -287,6 +407,11 @@ router.post('/slates/:slateId/lock-scores', async (req, res) => {
     if (!scoringService) {
       return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
     }
+    
+    // Get contests for this slate
+    const contests = await db.Contest.findAll({
+      where: { slate_id: slateId }
+    });
     
     // 1. Finalize week scores
     const finalizedCount = await scoringService.finalizeWeekScores(slate.week, slate.season);
@@ -296,7 +421,7 @@ router.post('/slates/:slateId/lock-scores', async (req, res) => {
     let calcCount = 0;
     const errors = [];
     
-    for (const contest of slate.Contests || []) {
+    for (const contest of contests) {
       if (contest.status === 'settled') continue;
       
       try {
@@ -327,7 +452,7 @@ router.post('/slates/:slateId/lock-scores', async (req, res) => {
 /**
  * POST /api/admin/settlement/slates/:slateId/settle
  * Settle all eligible contests in a slate
- * Body: { types: ['cash'] } - which contest types to settle (default: cash only)
+ * Body: { types: ['cash'], force: false }
  */
 router.post('/slates/:slateId/settle', async (req, res) => {
   try {
@@ -335,10 +460,7 @@ router.post('/slates/:slateId/settle', async (req, res) => {
     const { types = ['cash'], force = false } = req.body;
     const db = require('../../models');
     
-    const slate = await db.Slate.findByPk(slateId, {
-      include: [{ model: db.Contest, as: 'Contests', through: { attributes: [] } }]
-    });
-    
+    const slate = await db.Slate.findByPk(slateId);
     if (!slate) {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
@@ -354,9 +476,13 @@ router.post('/slates/:slateId/settle', async (req, res) => {
       });
     }
     
+    const contests = await db.Contest.findAll({
+      where: { slate_id: slateId }
+    });
+    
     console.log(`\n⚡ BATCH SETTLING SLATE "${slate.name}" (types: ${types.join(', ')})`);
     
-    const eligible = (slate.Contests || []).filter(c => 
+    const eligible = contests.filter(c => 
       types.includes(c.type) && 
       c.status !== 'settled' &&
       ['closed', 'completed', 'in_progress'].includes(c.status)
@@ -391,12 +517,13 @@ router.post('/slates/:slateId/settle', async (req, res) => {
     const settledCount = results.filter(r => r.status === 'settled').length;
     const failedCount = results.filter(r => r.status === 'failed').length;
     
-    // If all eligible contests settled, mark slate as settled
-    const allContestsSettled = (slate.Contests || []).every(c => 
+    // Check if ALL contests in slate are now settled
+    const allContests = await db.Contest.findAll({ where: { slate_id: slateId } });
+    const allSettled = allContests.every(c => 
       c.status === 'settled' || results.some(r => r.contestId === c.id && r.status === 'settled')
     );
     
-    if (allContestsSettled) {
+    if (allSettled && allContests.length > 0) {
       await slate.update({ status: 'settled', settled_at: new Date() });
     }
     
@@ -422,15 +549,16 @@ router.get('/slates/:slateId/players', async (req, res) => {
     const { slateId } = req.params;
     const db = require('../../models');
     
-    const slate = await db.Slate.findByPk(slateId, {
-      include: [{ model: db.Contest, as: 'Contests', through: { attributes: [] } }]
-    });
-    
+    const slate = await db.Slate.findByPk(slateId);
     if (!slate) {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
     
-    const contestIds = (slate.Contests || []).map(c => c.id);
+    const contests = await db.Contest.findAll({
+      where: { slate_id: slateId }
+    });
+    
+    const contestIds = contests.map(c => c.id);
     
     if (contestIds.length === 0) {
       return res.json({ success: true, players: [], uniquePlayers: 0 });
@@ -493,7 +621,7 @@ router.get('/slates/:slateId/players', async (req, res) => {
       }
     }
     
-    // Check if players already have scores for this week/season
+    // Check existing scores
     if (scoringService && playerMap.size > 0) {
       try {
         const scores = await scoringService.getWeekScores(slate.week, slate.season);
@@ -542,10 +670,7 @@ router.post('/slates/:slateId/bulk-random-scores', async (req, res) => {
     const { slateId } = req.params;
     const db = require('../../models');
     
-    const slate = await db.Slate.findByPk(slateId, {
-      include: [{ model: db.Contest, as: 'Contests', through: { attributes: [] } }]
-    });
-    
+    const slate = await db.Slate.findByPk(slateId);
     if (!slate) {
       return res.status(404).json({ success: false, error: 'Slate not found' });
     }
@@ -554,12 +679,15 @@ router.post('/slates/:slateId/bulk-random-scores', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Scoring service not initialized' });
     }
     
+    const contests = await db.Contest.findAll({
+      where: { slate_id: slateId }
+    });
+    
     let totalScored = 0;
     
-    for (const contest of slate.Contests || []) {
+    for (const contest of contests) {
       if (contest.status === 'settled') continue;
       
-      // Reuse existing bulk-set-scores logic per contest
       const lineups = await db.Lineup.findAll({ where: { contest_id: contest.id } });
       
       const playerMap = new Map();
@@ -591,12 +719,10 @@ router.post('/slates/:slateId/bulk-random-scores', async (req, res) => {
       for (const player of playerMap.values()) {
         let baseScore;
         const pos = player.position;
-        // NFL positions
         if (pos === 'QB') baseScore = 18 + Math.random() * 15;
         else if (pos === 'RB') baseScore = 8 + Math.random() * 20;
         else if (pos === 'WR') baseScore = 6 + Math.random() * 22;
         else if (pos === 'TE') baseScore = 4 + Math.random() * 16;
-        // NBA positions
         else if (pos === 'PG') baseScore = 20 + Math.random() * 25;
         else if (pos === 'SG') baseScore = 18 + Math.random() * 22;
         else if (pos === 'SF') baseScore = 16 + Math.random() * 24;
@@ -629,7 +755,7 @@ router.post('/slates/:slateId/bulk-random-scores', async (req, res) => {
 
 /**
  * GET /api/admin/settlement/contests
- * List all contests with their settlement status
+ * List all contests with their settlement status and slate info
  */
 router.get('/contests', async (req, res) => {
   try {
@@ -640,20 +766,14 @@ router.get('/contests', async (req, res) => {
       limit: 200
     });
     
-    // Get which contests are already in a slate
+    // Build slate lookup
     let slateMap = {};
     try {
-      const slateContests = await db.sequelize.query(
-        `SELECT sc.contest_id, s.id as slate_id, s.name as slate_name 
-         FROM slate_contests sc JOIN slates s ON s.id = sc.slate_id`,
-        { type: db.Sequelize.QueryTypes.SELECT }
-      );
-      for (const sc of slateContests) {
-        slateMap[sc.contest_id] = { slateId: sc.slate_id, slateName: sc.slate_name };
+      const slates = await db.Slate.findAll({ attributes: ['id', 'name'] });
+      for (const s of slates) {
+        slateMap[s.id] = s.name;
       }
-    } catch (e) {
-      // slate tables might not exist yet
-    }
+    } catch (e) { /* slate table might not exist */ }
     
     const contestsWithStatus = await Promise.all(contests.map(async (c) => {
       let entryCount = c.current_entries || 0;
@@ -677,7 +797,8 @@ router.get('/contests', async (req, res) => {
         entryFee: parseFloat(c.entry_fee || 0),
         settledAt: c.settled_at,
         createdAt: c.created_at,
-        slate: slateMap[c.id] || null
+        slateId: c.slate_id || null,
+        slateName: c.slate_id ? (slateMap[c.slate_id] || null) : null
       };
     }));
     
@@ -693,7 +814,6 @@ router.get('/contests', async (req, res) => {
 });
 
 // ==================== PLAYER SCORE MANAGEMENT ====================
-// (All existing routes below are unchanged)
 
 router.get('/scores/:week/:season', async (req, res) => {
   try {
