@@ -1,4 +1,4 @@
-// backend/src/models/contest.js
+// backend/src/models/Contest.js
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -55,6 +55,10 @@ module.exports = (sequelize) => {
     },
     end_time: {
       type: DataTypes.DATE,
+      allowNull: true
+    },
+    slate_id: {
+      type: DataTypes.UUID,
       allowNull: true
     },
     created_at: {

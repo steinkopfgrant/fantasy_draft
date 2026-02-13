@@ -228,6 +228,14 @@ if (db.ContestResult) {
   }
 }
 
+// ============================================
+// SLATE <-> CONTEST ASSOCIATIONS
+// ============================================
+if (db.Slate && db.Contest) {
+  db.Slate.hasMany(db.Contest, { foreignKey: 'slate_id', as: 'Contests' });
+  db.Contest.belongsTo(db.Slate, { foreignKey: 'slate_id', as: 'Slate' });
+}
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
