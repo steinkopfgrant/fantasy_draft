@@ -2,6 +2,7 @@
 const PayoutService = require('../PayoutService');
 const CashGameSettlement = require('./strategies/CashGameSettlement');
 const MarketMoverSettlement = require('./strategies/MarketMoverSettlement');
+const { Transaction } = require('sequelize');
 
 class SettlementService {
   constructor(models, sequelize) {
@@ -48,7 +49,7 @@ class SettlementService {
     // CRITICAL: Start transaction FIRST, before any reads
     // ================================================================
     const transaction = await this.sequelize.transaction({
-      isolationLevel: this.sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+      isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
     });
     
     try {
