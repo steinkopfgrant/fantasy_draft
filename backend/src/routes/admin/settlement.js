@@ -621,10 +621,19 @@ router.get('/slates/:slateId/players', async (req, res) => {
       }
     }
     
-    // Check existing scores
-    if (scoringService && playerMap.size > 0) {
+    // Check existing scores - DIRECT DB QUERY (bypasses scoringService which may filter by is_final)
+    if (playerMap.size > 0) {
       try {
-        const scores = await scoringService.getWeekScores(slate.week, slate.season);
+        const scores = await db.sequelize.query(
+          `SELECT player_name, player_team, total_points FROM player_scores 
+           WHERE week = :week AND season = :season`,
+          { 
+            replacements: { week: slate.week, season: slate.season },
+            type: db.Sequelize.QueryTypes.SELECT 
+          }
+        );
+        console.log(`📊 Found ${scores.length} player scores for Week ${slate.week}, Season ${slate.season}`);
+        
         const scoreMap = new Map();
         for (const s of scores) {
           scoreMap.set(`${s.player_name}-${s.player_team}`, parseFloat(s.total_points || 0));
