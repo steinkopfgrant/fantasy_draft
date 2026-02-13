@@ -593,48 +593,59 @@ class ContestService {
             const newName = `${namePrefix} #${nextNumber}`;
             
             console.log(`🔄 Creating new cash game: ${newName} (sport: ${contestSport})`);
-            const sportPrefix = contestSport.toUpperCase(); // Keep for any other uses
             
-            const { v4: uuidv4 } = require('uuid');
-            const newCashGame = await db.Contest.create({
-              id: uuidv4(),
-              type: 'cash',
-              sport: contestSport,
-              name: newName,
-              status: 'open',
-              entry_fee: contest.entry_fee,
-              prize_pool: contest.prize_pool,
-              max_entries: contest.max_entries,
-              current_entries: 0,
-              max_entries_per_user: 1,
-              // UPDATED: Pass sport parameter
-              player_board: generatePlayerBoard(null, [], [], contestSport),
-              start_time: new Date(),
-              end_time: new Date(Date.now() + 7200000),
-              scoring_type: contest.scoring_type,
-              max_salary: 15
-            }, { transaction });
+            // Look up active slate - no slate = no new contest on lobby
+            const activeSlate = await db.Slate.findOne({
+              where: { sport: contestSport, status: 'active' },
+              transaction
+            });
             
-            console.log(`✅ Successfully created new cash game: ${newCashGame.id} (${newCashGame.name}) for ${contestSport.toUpperCase()}`);
-            
-            newCashGameCreated = true;
-            newCashGameData = {
-              id: newCashGame.id,
-              type: newCashGame.type,
-              sport: contestSport,
-              name: newCashGame.name,
-              status: newCashGame.status,
-              entryFee: parseFloat(newCashGame.entry_fee),
-              prizePool: parseFloat(newCashGame.prize_pool),
-              maxEntries: newCashGame.max_entries,
-              currentEntries: 0,
-              maxEntriesPerUser: 1,
-              playerBoard: newCashGame.player_board,
-              startTime: newCashGame.start_time,
-              endTime: newCashGame.end_time,
-              scoringType: newCashGame.scoring_type,
-              maxSalary: newCashGame.max_salary
-            };
+            if (!activeSlate) {
+              console.log(`🚫 No active slate for ${contestSport.toUpperCase()} - skipping cash game creation`);
+            } else {
+              console.log(`📋 Assigning to active slate: ${activeSlate.name} (${activeSlate.id})`);
+              
+              const { v4: uuidv4 } = require('uuid');
+              const newCashGame = await db.Contest.create({
+                id: uuidv4(),
+                type: 'cash',
+                sport: contestSport,
+                name: newName,
+                status: 'open',
+                entry_fee: contest.entry_fee,
+                prize_pool: contest.prize_pool,
+                max_entries: contest.max_entries,
+                current_entries: 0,
+                max_entries_per_user: 1,
+                player_board: generatePlayerBoard(null, [], [], contestSport),
+                slate_id: activeSlate.id,
+                start_time: new Date(),
+                end_time: new Date(Date.now() + 7200000),
+                scoring_type: contest.scoring_type,
+                max_salary: 15
+              }, { transaction });
+              
+              console.log(`✅ Created ${newCashGame.name} assigned to slate ${activeSlate.name}`);
+              
+              newCashGameCreated = true;
+              newCashGameData = {
+                id: newCashGame.id,
+                type: newCashGame.type,
+                sport: contestSport,
+                name: newCashGame.name,
+                status: newCashGame.status,
+                entryFee: parseFloat(newCashGame.entry_fee),
+                prizePool: parseFloat(newCashGame.prize_pool),
+                maxEntries: newCashGame.max_entries,
+                currentEntries: 0,
+                maxEntriesPerUser: 1,
+                playerBoard: newCashGame.player_board,
+                startTime: newCashGame.start_time,
+                endTime: newCashGame.end_time,
+                scoringType: newCashGame.scoring_type,
+                maxSalary: newCashGame.max_salary
+              };
+            }
           } catch (error) {
             console.error('Error creating new cash game:', error);
           }

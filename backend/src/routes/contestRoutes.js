@@ -975,29 +975,38 @@ if (finalPlayerCount >= 5) {
     const newName = `${namePrefix} #${maxNumber + 1}`;
     console.log(`✅ Creating ${contestSport.toUpperCase()} replacement: ${newName}`);
     
-    const newCashGame = await Contest.create({
-      id: uuidv4(),
-      type: 'cash',
-      sport: contestSport,
-      name: newName,
-      status: 'open',
-      entry_fee: contest.entry_fee,
-      prize_pool: contest.prize_pool,
-      max_entries: 5,
-      current_entries: 0,
-      max_entries_per_user: 1,
-      player_board: generatePlayerBoard(null, [], [], contestSport),
-      start_time: new Date(),
-      end_time: new Date(Date.now() + 7200000),
-      created_at: new Date(),
-      updated_at: new Date()
+    // Look up active slate - no slate = no replacement contest
+    const activeSlate = await db.Slate.findOne({
+      where: { sport: contestSport, status: 'active' }
     });
     
-    console.log(`✅ Created replacement: ${newCashGame.name}`);
-    
-    // Emit socket event for new contest
-    if (io) {
-      io.emit('contest-created', { contest: newCashGame });
+    if (!activeSlate) {
+      console.log(`🚫 No active slate for ${contestSport.toUpperCase()} - skipping replacement cash game`);
+    } else {
+      const newCashGame = await Contest.create({
+        id: uuidv4(),
+        type: 'cash',
+        sport: contestSport,
+        name: newName,
+        status: 'open',
+        entry_fee: contest.entry_fee,
+        prize_pool: contest.prize_pool,
+        max_entries: 5,
+        current_entries: 0,
+        max_entries_per_user: 1,
+        player_board: generatePlayerBoard(null, [], [], contestSport),
+        slate_id: activeSlate.id,
+        start_time: new Date(),
+        end_time: new Date(Date.now() + 7200000),
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      
+      console.log(`✅ Created replacement: ${newCashGame.name} → slate ${activeSlate.name}`);
+      
+      if (io) {
+        io.emit('contest-created', { contest: newCashGame });
+      }
     }
   }
   
