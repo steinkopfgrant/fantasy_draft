@@ -625,7 +625,7 @@ router.get('/slates/:slateId/players', async (req, res) => {
     if (playerMap.size > 0) {
       try {
         const scores = await db.sequelize.query(
-          `SELECT player_name, player_team, total_points FROM player_scores 
+          `SELECT player_name, player_team, fantasy_points FROM player_scores 
            WHERE week = :week AND season = :season`,
           { 
             replacements: { week: slate.week, season: slate.season },
@@ -636,7 +636,7 @@ router.get('/slates/:slateId/players', async (req, res) => {
         
         const scoreMap = new Map();
         for (const s of scores) {
-          scoreMap.set(`${s.player_name}-${s.player_team}`, parseFloat(s.total_points || 0));
+          scoreMap.set(`${s.player_name}-${s.player_team}`, parseFloat(s.fantasy_points || 0));
         }
         
         for (const [key, player] of playerMap) {
