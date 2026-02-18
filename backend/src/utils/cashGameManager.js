@@ -148,11 +148,16 @@ class CashGameManager {
    */
   async getPlayerBoardForSport(sport) {
     try {
+      const { sequelize } = db;
       const recentContest = await db.Contest.findOne({
         where: {
           type: 'cash',
           sport: sport,
-          player_board: { [Op.ne]: null }
+          player_board: { [Op.ne]: null },
+          [Op.and]: sequelize.where(
+            sequelize.fn('jsonb_array_length', sequelize.col('player_board')),
+            { [Op.gt]: 10 }
+          )
         },
         order: [['created_at', 'DESC']],
         attributes: ['player_board']
