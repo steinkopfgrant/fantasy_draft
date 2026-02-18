@@ -1,4 +1,4 @@
-// backend/src/utils/cashGameManager.js DEAD??!!!! DELETE???!!!
+// backend/src/utils/cashGameManager.js
 const db = require('../models');
 const { generatePlayerBoard } = require('./gameLogic');
 const { Op } = require('sequelize');
@@ -141,6 +141,42 @@ class CashGameManager {
     }
   }
 
+  /**
+   * Get the best available player board for a sport.
+   * Inherits from the most recent contest with a real board (>10 players).
+   * Falls back to generatePlayerBoard only if no good board exists.
+   */
+  async getPlayerBoardForSport(sport) {
+    try {
+      const recentContest = await db.Contest.findOne({
+        where: {
+          type: 'cash',
+          sport: sport,
+          player_board: { [Op.ne]: null }
+        },
+        order: [['created_at', 'DESC']],
+        attributes: ['player_board']
+      });
+
+      if (recentContest && recentContest.player_board) {
+        const board = typeof recentContest.player_board === 'string'
+          ? JSON.parse(recentContest.player_board)
+          : recentContest.player_board;
+
+        if (Array.isArray(board) && board.length > 10) {
+          console.log(`📋 Inherited ${board.length}-player board for ${sport.toUpperCase()}`);
+          return board;
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching existing board for ${sport}:`, error);
+    }
+
+    // Fallback
+    console.log(`⚠️ No existing board found, generated fresh board for ${sport.toUpperCase()}`);
+    return generatePlayerBoard(null, [], [], sport);
+  }
+
   async createCashGame(sport = 'nfl') {
     try {
       const config = SPORTS_CONFIG[sport];
@@ -149,8 +185,8 @@ class CashGameManager {
         sport = 'nfl';
       }
 
-      // Generate sport-specific player board
-      const playerBoard = generatePlayerBoard(null, [], [], sport);
+      // Inherit player board from most recent contest with a real board
+      const playerBoard = await this.getPlayerBoardForSport(sport);
       
       const gameNumber = this.gameCounters[sport] || 1;
       const gameName = `${config.namePrefix} #${gameNumber}`;
@@ -459,6 +495,9 @@ class CashGameManager {
     
     const { v4: uuidv4 } = require('uuid');
     
+    // Inherit player board from most recent contest with a real board
+    const playerBoard = await this.getPlayerBoardForSport(sport);
+    
     const contestData = {
       id: uuidv4(),
       name: params.name || `${config.namePrefix} #${gameNumber} (Manual)`,
@@ -471,7 +510,7 @@ class CashGameManager {
       end_time: new Date(Date.now() + 2 * 60 * 60 * 1000),
       status: 'open',
       sport: sport,
-      player_board: generatePlayerBoard(null, [], [], sport)
+      player_board: playerBoard
     };
     
     const game = await db.Contest.create(contestData);
