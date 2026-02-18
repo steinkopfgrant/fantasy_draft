@@ -1150,11 +1150,14 @@ const DraftScreen = ({ showToast }) => {
       };
       const completedSport = inferSport();
 
+      const myTeamIndex = completedTeams.findIndex(t => getUserId(t) === currentUserId);
+
       dispatch(updateDraftState({
         status: 'completed',
         showResults: true,
         teams: completedTeams,
-        sport: completedSport
+        sport: completedSport,
+        currentViewTeam: myTeamIndex >= 0 ? myTeamIndex : 0
       }));
 
       // Save to backend
