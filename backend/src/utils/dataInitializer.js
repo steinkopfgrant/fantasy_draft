@@ -3,6 +3,42 @@ const db = require('../models');
 const { generatePlayerBoard } = require('./gameLogic');
 const { Op } = require('sequelize');
 
+/**
+ * Get the best available player board for a sport.
+ * Inherits from the most recent contest with a real board (>10 players).
+ * Falls back to generatePlayerBoard only if no good board exists.
+ */
+async function getBestBoard(sport) {
+  try {
+    const { sequelize } = db;
+    const recent = await db.Contest.findOne({
+      where: {
+        type: 'cash',
+        sport: sport,
+        [Op.and]: sequelize.where(
+          sequelize.fn('jsonb_array_length', sequelize.col('player_board')),
+          { [Op.gt]: 10 }
+        )
+      },
+      order: [['created_at', 'DESC']],
+      attributes: ['player_board']
+    });
+
+    if (recent && recent.player_board) {
+      const board = typeof recent.player_board === 'string'
+        ? JSON.parse(recent.player_board)
+        : recent.player_board;
+      console.log(`📋 Inherited ${board.length}-player board for ${sport.toUpperCase()}`);
+      return board;
+    }
+  } catch (error) {
+    console.error(`Error fetching existing board for ${sport}:`, error);
+  }
+
+  console.log(`⚠️ No existing board found, generating fresh for ${sport.toUpperCase()}`);
+  return generatePlayerBoard(null, [], [], sport);
+}
+
 async function ensureInitialData() {
   try {
     console.log('Checking initial data...');
@@ -48,7 +84,7 @@ async function createInitialContests() {
       max_entries: 5,
       current_entries: 0,
       max_entries_per_user: 1,
-      player_board: generatePlayerBoard(null, [], [], 'nfl'),
+      player_board: await getBestBoard('nfl'),
       start_time: new Date(),
       end_time: new Date(Date.now() + 7200000),
       scoring_type: 'standard',
@@ -69,7 +105,7 @@ async function createInitialContests() {
       max_entries: 5,
       current_entries: 0,
       max_entries_per_user: 1,
-      player_board: generatePlayerBoard(null, [], [], 'nba'),
+      player_board: await getBestBoard('nba'),
       start_time: new Date(),
       end_time: new Date(Date.now() + 7200000),
       scoring_type: 'standard',
@@ -137,7 +173,7 @@ async function ensureCashGame(sport = 'nfl') {
         max_entries: 5,
         current_entries: 0,
         max_entries_per_user: 1,
-        player_board: generatePlayerBoard(null, [], [], sport),
+        player_board: await getBestBoard(sport),
         start_time: new Date(),
         end_time: new Date(Date.now() + 7200000),
         scoring_type: 'standard',
@@ -359,7 +395,7 @@ async function createFiresaleTournament(options = {}) {
       max_entries: maxEntries,
       current_entries: 0,
       max_entries_per_user: maxEntriesPerUser,
-      player_board: generatePlayerBoard(null, [], [], sport),
+      player_board: await getBestBoard(sport),
       start_time: new Date(),
       end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       scoring_type: 'standard',
