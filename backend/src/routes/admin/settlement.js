@@ -199,7 +199,7 @@ router.post('/slates', async (req, res) => {
     const [assignedCount] = await db.sequelize.query(
       `UPDATE contests SET slate_id = :slateId 
        WHERE sport = :sport AND type = 'cash' AND slate_id IS NULL 
-       AND status NOT IN ('settled', 'cancelled')`,
+       AND status NOT IN ('settled', 'completed')`,
       { replacements: { slateId: slate.id, sport: sport.toLowerCase() } }
     );
     
