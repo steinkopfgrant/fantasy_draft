@@ -8,7 +8,6 @@
 // ============================================================
 
 const NFL_MATCHUPS = {
-  // Wild Card Weekend Teams
   LAR: { opp: 'CAR', home: false },
   CAR: { opp: 'LAR', home: true },
   GB: { opp: 'CHI', home: false },
@@ -21,7 +20,6 @@ const NFL_MATCHUPS = {
   LAC: { opp: 'NE', home: false },
   PIT: { opp: 'HOU', home: true },
   HOU: { opp: 'PIT', home: false },
-  // BYE teams
   DAL: { opp: 'BYE', home: true },
   CLE: { opp: 'BYE', home: true },
   NYJ: { opp: 'BYE', home: true },
@@ -170,197 +168,222 @@ const NFL_PLAYER_POOLS = {
 };
 
 // ============================================================
-// NBA CONFIGURATION
+// NBA CONFIGURATION - Feb 20, 2026 Slate
+// 10 games: CLE@BKN, WAS@IND, PHI@ATL, CHA@HOU, NYK@DET,
+//           CHI@TOR, SAS@PHX, SAC@ORL, GSW@BOS, LAC@DEN
 // ============================================================
 
 const NBA_MATCHUPS = {
-  // Update with real slate matchups
-  LAL: { opp: 'BOS', home: true },
-  BOS: { opp: 'LAL', home: false },
-  GSW: { opp: 'PHX', home: true },
-  PHX: { opp: 'GSW', home: false },
-  MIL: { opp: 'MIA', home: true },
-  MIA: { opp: 'MIL', home: false },
-  DEN: { opp: 'DAL', home: true },
-  DAL: { opp: 'DEN', home: false },
-  PHI: { opp: 'NYK', home: true },
-  NYK: { opp: 'PHI', home: false },
-  CLE: { opp: 'OKC', home: true },
-  OKC: { opp: 'CLE', home: false },
-  MIN: { opp: 'SAC', home: true },
-  SAC: { opp: 'MIN', home: false },
-  MEM: { opp: 'NOP', home: true },
-  NOP: { opp: 'MEM', home: false },
-  ATL: { opp: 'CHI', home: true },
-  CHI: { opp: 'ATL', home: false },
-  IND: { opp: 'TOR', home: true },
-  TOR: { opp: 'IND', home: false },
-  CHA: { opp: 'DET', home: true },
-  DET: { opp: 'CHA', home: false },
-  HOU: { opp: 'SAS', home: true },
-  SAS: { opp: 'HOU', home: false },
-  POR: { opp: 'UTA', home: true },
-  UTA: { opp: 'POR', home: false },
-  WAS: { opp: 'ORL', home: true },
-  ORL: { opp: 'WAS', home: false },
-  BKN: { opp: 'LAC', home: true },
-  LAC: { opp: 'BKN', home: false },
+  CLE: { opp: 'BKN', home: false },
+  BKN: { opp: 'CLE', home: true },
+  WAS: { opp: 'IND', home: false },
+  IND: { opp: 'WAS', home: true },
+  PHI: { opp: 'ATL', home: false },
+  ATL: { opp: 'PHI', home: true },
+  CHA: { opp: 'HOU', home: false },
+  HOU: { opp: 'CHA', home: true },
+  NY: { opp: 'DET', home: false },
+  DET: { opp: 'NY', home: true },
+  CHI: { opp: 'TOR', home: false },
+  TOR: { opp: 'CHI', home: true },
+  SA: { opp: 'PHO', home: false },
+  PHO: { opp: 'SA', home: true },
+  SAC: { opp: 'ORL', home: false },
+  ORL: { opp: 'SAC', home: true },
+  GS: { opp: 'BOS', home: false },
+  BOS: { opp: 'GS', home: true },
+  LAC: { opp: 'DEN', home: false },
+  DEN: { opp: 'LAC', home: true },
 };
 
 const NBA_PLAYER_POOLS = {
   PG: {
     5: [
-      {name: 'Luka Doncic', team: 'DAL'},
-      {name: 'Shai Gilgeous-Alexander', team: 'OKC'},
-      {name: 'Trae Young', team: 'ATL'}
+      {name: 'Tyrese Maxey', team: 'PHI'},
+      {name: 'Cade Cunningham', team: 'DET'},
+      {name: 'James Harden', team: 'CLE'},
+      {name: 'Jamal Murray', team: 'DEN'}
     ],
     4: [
-      {name: 'Tyrese Haliburton', team: 'IND'},
-      {name: 'Ja Morant', team: 'MEM'},
-      {name: 'De\'Aaron Fox', team: 'SAC'},
-      {name: 'Jalen Brunson', team: 'NYK'}
+      {name: 'Josh Giddey', team: 'CHI'},
+      {name: 'Stephen Curry', team: 'GS'},
+      {name: 'Jalen Brunson', team: 'NY'},
+      {name: 'LaMelo Ball', team: 'CHA'},
+      {name: 'Derrick White', team: 'BOS'}
     ],
     3: [
-      {name: 'Damian Lillard', team: 'MIL'},
-      {name: 'LaMelo Ball', team: 'CHA'},
-      {name: 'Darius Garland', team: 'CLE'},
-      {name: 'Cade Cunningham', team: 'DET'}
+      {name: "De'Aaron Fox", team: 'SA'},
+      {name: 'Trae Young', team: 'WAS'},
+      {name: 'Immanuel Quickley', team: 'TOR'},
+      {name: 'Stephon Castle', team: 'SA'},
+      {name: 'Russell Westbrook', team: 'SAC'},
+      {name: 'Andrew Nembhard', team: 'IND'},
+      {name: 'Jalen Suggs', team: 'ORL'},
+      {name: 'Payton Pritchard', team: 'BOS'},
+      {name: 'Darius Garland', team: 'LAC'},
+      {name: 'Anthony Black', team: 'ORL'}
     ],
     2: [
-      {name: 'Fred VanVleet', team: 'HOU'},
-      {name: 'Tyus Jones', team: 'PHX'},
-      {name: 'Dennis Schroder', team: 'BKN'},
-      {name: 'Dejounte Murray', team: 'NOP'}
+      {name: 'Collin Gillespie', team: 'PHO'},
+      {name: 'Tre Jones', team: 'CHI'},
+      {name: 'Miles McBride', team: 'NY'}
     ],
     1: [
-      {name: 'Mike Conley', team: 'MIN'},
-      {name: 'Kyle Lowry', team: 'PHI'},
-      {name: 'Jose Alvarado', team: 'NOP'},
-      {name: 'Marcus Smart', team: 'MEM'}
+      {name: 'T.J. McConnell', team: 'IND'},
+      {name: 'Egor Demin', team: 'BKN'},
+      {name: 'Kris Dunn', team: 'LAC'}
     ]
   },
   SG: {
     5: [
-      {name: 'Devin Booker', team: 'PHX'},
       {name: 'Donovan Mitchell', team: 'CLE'},
-      {name: 'Anthony Edwards', team: 'MIN'}
+      {name: 'Jaylen Brown', team: 'BOS'}
     ],
     4: [
-      {name: 'Jaylen Brown', team: 'BOS'},
-      {name: 'Zach LaVine', team: 'CHI'},
-      {name: 'Desmond Bane', team: 'MEM'},
-      {name: 'Tyler Herro', team: 'MIA'}
+      {name: 'Devin Booker', team: 'PHO'},
+      {name: 'Alexandre Sarr', team: 'WAS'}
     ],
     3: [
-      {name: 'CJ McCollum', team: 'NOP'},
-      {name: 'Anfernee Simons', team: 'POR'},
-      {name: 'Jalen Green', team: 'HOU'},
-      {name: 'Bogdan Bogdanovic', team: 'ATL'}
+      {name: 'Nickeil Alexander-Walker', team: 'ATL'},
+      {name: 'Desmond Bane', team: 'ORL'},
+      {name: 'Dyson Daniels', team: 'ATL'},
+      {name: 'Kon Knueppel', team: 'CHA'},
+      {name: 'VJ Edgecombe', team: 'PHI'},
+      {name: 'RJ Barrett', team: 'TOR'},
+      {name: 'Josh Hart', team: 'NY'}
     ],
     2: [
-      {name: 'Austin Reaves', team: 'LAL'},
-      {name: 'Malik Monk', team: 'SAC'},
-      {name: 'Derrick White', team: 'BOS'},
-      {name: 'Coby White', team: 'CHI'}
+      {name: 'Grayson Allen', team: 'PHO'},
+      {name: 'CJ McCollum', team: 'ATL'},
+      {name: 'Coby White', team: 'CHA'},
+      {name: 'Bennedict Mathurin', team: 'LAC'},
+      {name: 'Zach LaVine', team: 'SAC'},
+      {name: 'Brandin Podziemski', team: 'GS'},
+      {name: 'Quentin Grimes', team: 'PHI'},
+      {name: 'Devin Vassell', team: 'SA'},
+      {name: 'Reed Sheppard', team: 'HOU'}
     ],
     1: [
-      {name: 'Bones Hyland', team: 'LAC'},
-      {name: 'Cam Thomas', team: 'BKN'},
-      {name: 'Quentin Grimes', team: 'DET'},
-      {name: 'Jaden Ivey', team: 'DET'}
+      {name: 'Collin Sexton', team: 'CHI'},
+      {name: 'Anfernee Simons', team: 'CHI'},
+      {name: "De'Anthony Melton", team: 'GS'},
+      {name: 'Sam Merrill', team: 'CLE'},
+      {name: 'Jordan Goodwin', team: 'PHO'},
+      {name: 'Moses Moody', team: 'GS'},
+      {name: 'Tre Johnson', team: 'WAS'},
+      {name: 'Tim Hardaway Jr.', team: 'DEN'},
+      {name: 'Malik Monk', team: 'SAC'}
     ]
   },
   SF: {
     5: [
-      {name: 'LeBron James', team: 'LAL'},
-      {name: 'Kevin Durant', team: 'PHX'},
-      {name: 'Jayson Tatum', team: 'BOS'}
+      {name: 'Kawhi Leonard', team: 'LAC'},
+      {name: 'Jalen Johnson', team: 'ATL'}
     ],
     4: [
-      {name: 'Jimmy Butler', team: 'MIA'},
-      {name: 'Paul George', team: 'PHI'},
-      {name: 'Kawhi Leonard', team: 'LAC'},
-      {name: 'Brandon Ingram', team: 'NOP'}
+      {name: 'Kevin Durant', team: 'HOU'},
+      {name: 'Michael Porter Jr.', team: 'BKN'},
+      {name: 'Amen Thompson', team: 'HOU'}
     ],
     3: [
-      {name: 'Mikal Bridges', team: 'NYK'},
-      {name: 'OG Anunoby', team: 'NYK'},
-      {name: 'Michael Porter Jr.', team: 'DEN'},
-      {name: 'Franz Wagner', team: 'ORL'}
+      {name: 'Jimmy Butler III', team: 'GS'},
+      {name: 'Brandon Ingram', team: 'TOR'},
+      {name: 'Franz Wagner', team: 'ORL'},
+      {name: 'Brandon Miller', team: 'CHA'},
+      {name: 'Mikal Bridges', team: 'NY'},
+      {name: 'Paul George', team: 'PHI'},
+      {name: 'OG Anunoby', team: 'NY'},
+      {name: 'Kyshawn George', team: 'WAS'},
+      {name: 'DeMar DeRozan', team: 'SAC'}
     ],
     2: [
-      {name: 'Cam Johnson', team: 'BKN'},
-      {name: 'Dillon Brooks', team: 'HOU'},
-      {name: 'Andrew Wiggins', team: 'GSW'},
-      {name: 'Herbert Jones', team: 'NOP'}
+      {name: 'Dillon Brooks', team: 'PHO'},
+      {name: 'Matas Buzelis', team: 'CHI'},
+      {name: 'Peyton Watson', team: 'DEN'},
+      {name: 'Ausar Thompson', team: 'DET'},
+      {name: 'Kelly Oubre Jr.', team: 'PHI'},
+      {name: 'Jaylon Tyson', team: 'CLE'},
+      {name: 'Tari Eason', team: 'HOU'},
+      {name: 'Aaron Nesmith', team: 'IND'},
+      {name: 'Keldon Johnson', team: 'SA'},
+      {name: 'Bilal Coulibaly', team: 'WAS'},
+      {name: 'Julian Champagnie', team: 'SA'}
     ],
     1: [
-      {name: 'Dorian Finney-Smith', team: 'LAL'},
-      {name: 'Jalen Johnson', team: 'ATL'},
-      {name: 'Ausar Thompson', team: 'DET'},
-      {name: 'Tari Eason', team: 'HOU'}
+      {name: 'Cameron Johnson', team: 'DEN'},
+      {name: 'Derrick Jones Jr.', team: 'LAC'},
+      {name: 'Ziaire Williams', team: 'BKN'}
     ]
   },
   PF: {
     5: [
-      {name: 'Giannis Antetokounmpo', team: 'MIL'},
-      {name: 'Anthony Davis', team: 'LAL'},
-      {name: 'Scottie Barnes', team: 'TOR'}
+      {name: 'Victor Wembanyama', team: 'SA'}
     ],
     4: [
-      {name: 'Pascal Siakam', team: 'IND'},
+      {name: 'Scottie Barnes', team: 'TOR'},
       {name: 'Evan Mobley', team: 'CLE'},
-      {name: 'Lauri Markkanen', team: 'UTA'},
-      {name: 'Jaren Jackson Jr.', team: 'MEM'}
+      {name: 'Pascal Siakam', team: 'IND'},
+      {name: 'Paolo Banchero', team: 'ORL'}
     ],
     3: [
-      {name: 'Julius Randle', team: 'MIN'},
-      {name: 'Jabari Smith Jr.', team: 'HOU'},
-      {name: 'Keegan Murray', team: 'SAC'},
-      {name: 'Jalen Williams', team: 'OKC'}
+      {name: 'Miles Bridges', team: 'CHA'},
+      {name: 'Keegan Murray', team: 'SAC'}
     ],
     2: [
-      {name: 'Kyle Kuzma', team: 'WAS'},
-      {name: 'Jonathan Kuminga', team: 'GSW'},
-      {name: 'Jerami Grant', team: 'POR'},
-      {name: 'John Collins', team: 'UTA'}
-    ],
-    1: [
-      {name: 'Draymond Green', team: 'GSW'},
+      {name: 'Jabari Smith Jr.', team: 'HOU'},
       {name: 'Aaron Gordon', team: 'DEN'},
       {name: 'Tobias Harris', team: 'DET'},
-      {name: 'Onyeka Okongwu', team: 'ATL'}
+      {name: 'Draymond Green', team: 'GS'},
+      {name: 'John Collins', team: 'LAC'},
+      {name: 'Royce O\'Neale', team: 'PHO'},
+      {name: 'Noah Clowney', team: 'BKN'},
+      {name: 'Sandro Mamukelashvili', team: 'TOR'},
+      {name: 'Obi Toppin', team: 'IND'}
+    ],
+    1: [
+      {name: 'Jalen Smith', team: 'CHI'},
+      {name: 'Collin Murray-Boyles', team: 'TOR'},
+      {name: 'Dominick Barlow', team: 'PHI'}
     ]
   },
   C: {
     5: [
-      {name: 'Nikola Jokic', team: 'DEN'},
-      {name: 'Joel Embiid', team: 'PHI'},
-      {name: 'Victor Wembanyama', team: 'SAS'}
+      {name: 'Nikola Jokic', team: 'DEN'}
     ],
     4: [
-      {name: 'Domantas Sabonis', team: 'SAC'},
-      {name: 'Bam Adebayo', team: 'MIA'},
-      {name: 'Karl-Anthony Towns', team: 'NYK'},
-      {name: 'Chet Holmgren', team: 'OKC'}
+      {name: 'Alperen Sengun', team: 'HOU'},
+      {name: 'Anthony Davis', team: 'WAS'},
+      {name: 'Joel Embiid', team: 'PHI'},
+      {name: 'Karl-Anthony Towns', team: 'NY'}
     ],
     3: [
-      {name: 'Rudy Gobert', team: 'MIN'},
-      {name: 'Alperen Sengun', team: 'HOU'},
+      {name: 'Nikola Vucevic', team: 'BOS'},
+      {name: 'Domantas Sabonis', team: 'SAC'},
+      {name: 'Jalen Duren', team: 'DET'},
+      {name: 'Onyeka Okongwu', team: 'ATL'},
+      {name: 'Kristaps Porzingis', team: 'GS'},
+      {name: 'Ivica Zubac', team: 'IND'},
       {name: 'Jarrett Allen', team: 'CLE'},
-      {name: 'Myles Turner', team: 'IND'}
+      {name: 'Nicolas Claxton', team: 'BKN'}
     ],
     2: [
-      {name: 'Brook Lopez', team: 'MIL'},
-      {name: 'Mitchell Robinson', team: 'NYK'},
-      {name: 'Jonas Valanciunas', team: 'WAS'},
-      {name: 'Nikola Vucevic', team: 'CHI'}
+      {name: 'Mark Williams', team: 'PHO'},
+      {name: 'Wendell Carter Jr.', team: 'ORL'},
+      {name: 'Neemias Queta', team: 'BOS'},
+      {name: 'Moussa Diabate', team: 'CHA'},
+      {name: 'Jock Landale', team: 'ATL'}
     ],
     1: [
-      {name: 'Isaiah Hartenstein', team: 'OKC'},
-      {name: 'Ivica Zubac', team: 'LAC'},
-      {name: 'Daniel Gafford', team: 'DAL'},
-      {name: 'Mark Williams', team: 'CHA'}
+      {name: 'Jakob Poeltl', team: 'TOR'},
+      {name: 'Isaiah Stewart', team: 'DET'},
+      {name: "Day'Ron Sharpe", team: 'BKN'},
+      {name: 'Dylan Cardwell', team: 'SAC'},
+      {name: 'Jay Huff', team: 'IND'},
+      {name: 'Mitchell Robinson', team: 'NY'},
+      {name: 'Al Horford', team: 'GS'},
+      {name: 'Luke Kornet', team: 'SA'},
+      {name: 'Ryan Kalkbrenner', team: 'CHA'},
+      {name: 'Goga Bitadze', team: 'ORL'}
     ]
   }
 };
@@ -393,7 +416,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
   const prices = [5, 4, 3, 2, 1];
   const positions = ['QB', 'RB', 'WR', 'TE'];
   
-  // Create sets for quick lookup
   const fireSaleNames = new Set(fireSaleList.map(p => p.name?.toLowerCase()));
   const coolDownNames = new Set(coolDownList.map(p => p.name?.toLowerCase()));
   
@@ -401,27 +423,20 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
   console.log('🔥 Fire Sale players:', Array.from(fireSaleNames));
   console.log('❄️ Cool Down players:', Array.from(coolDownNames));
   
-  // Helper: Select player with Fire Sale boost and Cool Down penalty
-  // NOTE: Players CAN appear multiple times on the board - this creates interesting game theory
   const selectWeightedPlayer = (pool, position, price) => {
     if (!pool || pool.length === 0) return null;
     
-    // Build weighted pool
     const weightedPool = [];
     pool.forEach(player => {
       const playerNameLower = player.name?.toLowerCase();
       let weight = 1;
       
-      // Fire Sale: 3x boost
       if (fireSaleNames.has(playerNameLower)) {
         weight = 3;
-      }
-      // Cool Down: 1/10 probability
-      else if (coolDownNames.has(playerNameLower)) {
+      } else if (coolDownNames.has(playerNameLower)) {
         weight = 0.1;
       }
       
-      // Add player to weighted pool (multiply entries by weight * 10 to handle decimals)
       const entries = Math.round(weight * 10);
       for (let i = 0; i < entries; i++) {
         weightedPool.push(player);
@@ -429,7 +444,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     });
     
     if (weightedPool.length === 0) {
-      // Fallback to random if weighted pool is empty
       return pool[Math.floor(Math.random() * pool.length)];
     }
     
@@ -437,7 +451,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     return selected;
   };
   
-  // Generate rows 0-4 (prices 5-1) with position-specific players
   prices.forEach((price, rowIndex) => {
     const row = [];
     positions.forEach(position => {
@@ -462,8 +475,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
       }
     });
     
-    // Add FLEX position (5th column) for rows 0-4
-    // CRITICAL: For row 0 ($5 row), only allow RB and WR (no TE)
     const flexPositions = (rowIndex === 0) ? ['RB', 'WR'] : ['RB', 'WR', 'TE'];
     const flexPos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
     const flexPool = NFL_PLAYER_POOLS[flexPos][price] || [];
@@ -490,10 +501,8 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     board.push(row);
   });
 
-  // Add row 5 (bottom row - Wildcards) with mixed prices
   const flexRow = [];
   
-  // Position 0 (bottom-left) is always a QB
   const qbPrice = prices[Math.floor(Math.random() * prices.length)];
   const qbPool = NFL_PLAYER_POOLS['QB'][qbPrice] || [];
   if (qbPool.length > 0) {
@@ -515,7 +524,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     }
   }
   
-  // Positions 1-3 in Wildcards row are random RB/WR/TE
   for (let i = 1; i < 4; i++) {
     const flexPositions = ['RB', 'WR', 'TE'];
     const pos = flexPositions[Math.floor(Math.random() * flexPositions.length)];
@@ -542,8 +550,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     }
   }
   
-  // Position 4 (bottom-right) MUST be a WR stacked with one of the 6 QBs
-  // Collect all QB teams: 5 from QB column + 1 from wildcard position 0
   const qbTeams = new Set();
   for (let row = 0; row < 5; row++) {
     if (board[row][0]?.team) qbTeams.add(board[row][0].team);
@@ -552,7 +558,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
   
   console.log('🏈 QB teams for stacking:', Array.from(qbTeams));
   
-  // Find all WRs that match a QB team
   const stackableWRs = [];
   Object.entries(NFL_PLAYER_POOLS.WR).forEach(([priceStr, players]) => {
     const price = parseInt(priceStr);
@@ -564,7 +569,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
   });
   
   if (stackableWRs.length > 0) {
-    // Apply weighting for Fire Sale / Cool Down
     const weightedStackable = [];
     stackableWRs.forEach(player => {
       const playerNameLower = player.name?.toLowerCase();
@@ -594,7 +598,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     });
     console.log(`✅ Stacked WR: ${stackedWR.name} (${stackedWR.team}) at $${stackedWR.price}`);
   } else {
-    // Fallback: random WR if no stackable found
     console.log('⚠️ No stackable WR found, using random WR');
     const price = prices[Math.floor(Math.random() * prices.length)];
     const pool = NFL_PLAYER_POOLS.WR[price] || [];
@@ -620,7 +623,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
   
   board.push(flexRow);
 
-  // Ensure at least one RB in flex spots
   const flexSpots = [];
   for (let row = 0; row < 5; row++) {
     if (board[row][4]) flexSpots.push({ row, col: 4 });
@@ -658,7 +660,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     }
   }
 
-  // FIRE SALE GUARANTEE: Ensure at least 1 Fire Sale player on board
   if (fireSaleList.length > 0) {
     let fireSaleCount = 0;
     board.forEach(row => {
@@ -669,20 +670,16 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     
     console.log(`🔥 Fire Sale players on board: ${fireSaleCount}`);
     
-    // If no Fire Sale players, force one onto the board
     if (fireSaleCount === 0) {
       console.log('⚠️ No Fire Sale players on board - forcing one...');
       
-      // Pick a random Fire Sale player
       const randomFireSale = fireSaleList[Math.floor(Math.random() * fireSaleList.length)];
       const fsPosition = randomFireSale.position || 'WR';
       const fsPrice = randomFireSale.price || 3;
       
-      // Find a spot to replace (prefer matching position)
       let replaced = false;
       
-      // Try to find matching position in the price row
-      const priceRow = 5 - fsPrice; // $5 = row 0, $4 = row 1, etc.
+      const priceRow = 5 - fsPrice;
       if (priceRow >= 0 && priceRow < 5) {
         const positionCols = { QB: 0, RB: 1, WR: 2, TE: 3, FLEX: 4 };
         const col = positionCols[fsPosition];
@@ -704,7 +701,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
         }
       }
       
-      // Fallback: replace a random non-Fire Sale player
       if (!replaced) {
         for (let r = 0; r < board.length && !replaced; r++) {
           for (let c = 0; c < board[r].length && !replaced; c++) {
@@ -730,7 +726,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     }
   }
 
-  // Add matchup info to all players
   board.forEach(row => {
     row.forEach(player => {
       if (player && player.team) {
@@ -739,7 +734,6 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
     });
   });
 
-  // Log board summary
   console.log('📋 NFL Board generated:');
   board.forEach((row, i) => {
     const label = i === 5 ? 'Wildcards' : `$${5 - i}`;
@@ -750,15 +744,14 @@ const generateNFLBoard = (contestType, fireSaleList = [], coolDownList = []) => 
 };
 
 // ============================================================
-// NBA BOARD GENERATION (NEW - SIMPLER STRUCTURE)
+// NBA BOARD GENERATION
 // ============================================================
 
 const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => {
   const board = [];
   const prices = [5, 4, 3, 2, 1];
-  const positions = NBA_POSITIONS; // ['PG', 'SG', 'SF', 'PF', 'C']
+  const positions = NBA_POSITIONS;
   
-  // Create sets for quick lookup
   const fireSaleNames = new Set(fireSaleList.map(p => p.name?.toLowerCase()));
   const coolDownNames = new Set(coolDownList.map(p => p.name?.toLowerCase()));
   
@@ -766,7 +759,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
   console.log('🔥 Fire Sale players:', Array.from(fireSaleNames));
   console.log('❄️ Cool Down players:', Array.from(coolDownNames));
   
-  // Helper: Select player with Fire Sale boost and Cool Down penalty
   const selectWeightedPlayer = (pool) => {
     if (!pool || pool.length === 0) return null;
     
@@ -794,8 +786,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
     return weightedPool[Math.floor(Math.random() * weightedPool.length)];
   };
   
-  // Generate rows 0-4 (prices $5-$1)
-  // Each column is a fixed position: PG, SG, SF, PF, C
   prices.forEach((price) => {
     const row = [];
     
@@ -819,7 +809,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
           });
         }
       } else {
-        // Fallback: create placeholder if pool is empty
         row.push({
           name: `${position} $${price}`,
           team: 'TBD',
@@ -836,8 +825,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
     board.push(row);
   });
 
-  // Row 5 (Wildcards): Same positions as columns, but random prices
-  // This ensures every position always has 6 choices
   const wildcardRow = [];
   
   positions.forEach((position) => {
@@ -852,7 +839,7 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
         
         wildcardRow.push({
           ...selectedPlayer,
-          position: position, // Keep same position as column
+          position: position,
           price: randomPrice,
           drafted: false,
           draftedBy: null,
@@ -862,7 +849,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
         });
       }
     } else {
-      // Fallback
       wildcardRow.push({
         name: `${position} Wildcard`,
         team: 'TBD',
@@ -879,7 +865,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
   
   board.push(wildcardRow);
 
-  // FIRE SALE GUARANTEE for NBA
   if (fireSaleList.length > 0) {
     let fireSaleCount = 0;
     board.forEach(row => {
@@ -917,7 +902,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
     }
   }
 
-  // Add matchup info to all players
   board.forEach(row => {
     row.forEach(player => {
       if (player && player.team) {
@@ -926,7 +910,6 @@ const generateNBABoard = (contestType, fireSaleList = [], coolDownList = []) => 
     });
   });
 
-  // Log board summary
   console.log('📋 NBA Board generated:');
   board.forEach((row, i) => {
     const label = i === 5 ? 'Wildcards' : `$${5 - i}`;
@@ -955,7 +938,6 @@ const generatePlayerBoard = (contestType, fireSaleList = [], coolDownList = [], 
 const calculateKingpinBonus = (team, newPlayer) => {
   let bonusAdded = 0;
   
-  // Check for duplicate player bonus
   const duplicates = team.players.filter(p => 
     p.name === newPlayer.name && p.team === newPlayer.team
   );
@@ -963,7 +945,6 @@ const calculateKingpinBonus = (team, newPlayer) => {
     bonusAdded++;
   }
   
-  // Check for QB + pass catcher stack (NFL) or PG + scorer stack (NBA)
   const teamLeader = team.players.find(p => 
     (p.position === 'QB' || p.originalPosition === 'QB' ||
      p.position === 'PG' || p.originalPosition === 'PG') && 
@@ -976,7 +957,6 @@ const calculateKingpinBonus = (team, newPlayer) => {
     bonusAdded++;
   }
   
-  // Or if new player is QB/PG, check for existing pass catchers/scorers
   const isLeader = newPlayer.position === 'QB' || newPlayer.originalPosition === 'QB' ||
                    newPlayer.position === 'PG' || newPlayer.originalPosition === 'PG';
   if (isLeader) {
@@ -1024,7 +1004,6 @@ const SPORT_CONFIG = {
 // ============================================================
 
 module.exports = {
-  // Sport configs
   SPORT_CONFIG,
   NFL_PLAYER_POOLS,
   NBA_PLAYER_POOLS,
@@ -1033,11 +1012,9 @@ module.exports = {
   NFL_POSITIONS,
   NBA_POSITIONS,
   
-  // Legacy exports (backward compatibility)
   PLAYER_POOLS,
   WEEK_MATCHUPS,
   
-  // Functions
   getMatchupString,
   generatePlayerBoard,
   generateNFLBoard,
