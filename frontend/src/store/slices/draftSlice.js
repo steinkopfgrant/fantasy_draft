@@ -497,6 +497,7 @@ const draftSlice = createSlice({
       if (action.payload.connectedPlayers !== undefined) state.connectedPlayers = action.payload.connectedPlayers;
       if (action.payload.showResults !== undefined) state.showResults = action.payload.showResults;
       if (action.payload.sport !== undefined) state.sport = action.payload.sport;
+      if (action.payload.currentViewTeam !== undefined) state.currentViewTeam = action.payload.currentViewTeam;
       
       if (action.payload.users && Array.isArray(action.payload.users)) {
         state.users = action.payload.users;
