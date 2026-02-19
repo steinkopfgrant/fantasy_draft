@@ -32,6 +32,9 @@ const LIMITS = {
   MAX_DEPOSIT: 10000,
 };
 
+// Signature format: base58 encoded, typically 87-88 chars
+const SIGNATURE_REGEX = /^[1-9A-HJ-NP-Za-km-z]{80,100}$/;
+
 class SolanaService {
   constructor(db) {
     this.db = db;
@@ -45,9 +48,6 @@ class SolanaService {
     // RPC connection (use Helius, QuickNode, or public RPC)
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
     this.connection = new Connection(rpcUrl, 'confirmed');
-    
-    // Track processed signatures to avoid double-crediting
-    this.processedSignatures = new Set();
     
     // Polling interval (null until started)
     this.pollInterval = null;
@@ -108,8 +108,14 @@ class SolanaService {
   /**
    * Verify a Solana transaction manually (user submits tx signature)
    * 
-   * CRITICAL FIX: Relies on database unique constraint for idempotency
-   * instead of check-then-insert pattern which has a race condition.
+   * Security layers:
+   * 1. Signature format validation (reject garbage input)
+   * 2. On-chain verification (tx exists and succeeded)
+   * 3. Token transfer validation (USDC/USDT to our wallet)
+   * 4. Memo validation (prevents cross-user replay attacks)
+   * 5. Amount validation (min/max limits)
+   * 6. Confirmation depth check (finalized for large deposits)
+   * 7. DB unique constraint on signature (prevents double-credit)
    * 
    * REQUIRES: CREATE UNIQUE INDEX idx_solana_signature 
    *           ON transactions((metadata->>'solana_signature')) 
@@ -117,9 +123,41 @@ class SolanaService {
    */
   async verifyTransaction(signature, userId) {
     try {
-      // Fetch transaction from Solana FIRST
-      const tx = await this.connection.getParsedTransaction(signature, {
-        maxSupportedTransactionVersion: 0
+      // ================================================================
+      // 1. VALIDATE SIGNATURE FORMAT (prevent injection / garbage)
+      // ================================================================
+      if (!signature || typeof signature !== 'string') {
+        return { success: false, error: 'Transaction signature is required' };
+      }
+
+      const trimmedSig = signature.trim();
+      if (!SIGNATURE_REGEX.test(trimmedSig)) {
+        return { success: false, error: 'Invalid transaction signature format' };
+      }
+
+      // ================================================================
+      // 2. CHECK IF ALREADY PROCESSED (fast path before RPC call)
+      // Uses parameterized query — NOT string interpolation
+      // ================================================================
+      const existingTx = await this.db.Transaction.findOne({
+        where: this.db.sequelize.where(
+          this.db.sequelize.fn('jsonb_extract_path_text', 
+            this.db.sequelize.col('metadata'), 'solana_signature'),
+          trimmedSig
+        )
+      });
+
+      if (existingTx) {
+        console.log(`⚠️ Duplicate Solana signature (pre-check): ${trimmedSig.slice(0, 20)}...`);
+        return { success: false, error: 'This transaction has already been processed' };
+      }
+
+      // ================================================================
+      // 3. FETCH AND VALIDATE ON-CHAIN TRANSACTION
+      // ================================================================
+      const tx = await this.connection.getParsedTransaction(trimmedSig, {
+        maxSupportedTransactionVersion: 0,
+        commitment: 'confirmed'
       });
 
       if (!tx) {
@@ -130,13 +168,12 @@ class SolanaService {
       }
 
       if (tx.meta?.err) {
-        return {
-          success: false,
-          error: 'Transaction failed on-chain'
-        };
+        return { success: false, error: 'Transaction failed on-chain' };
       }
 
-      // Parse the transaction for token transfers
+      // ================================================================
+      // 4. PARSE TOKEN TRANSFER (validates destination is our wallet)
+      // ================================================================
       const depositInfo = await this.parseTokenTransfer(tx, userId);
 
       if (!depositInfo) {
@@ -146,20 +183,73 @@ class SolanaService {
         };
       }
 
-      // Validate amount
-      if (depositInfo.amount < this.limits.MIN_DEPOSIT) {
+      // ================================================================
+      // 5. MEMO VALIDATION (prevents cross-user replay attacks)
+      // User B cannot submit User A's transaction and get credited
+      // ================================================================
+      const expectedMemo = userId.slice(0, 16);
+      if (!depositInfo.memo) {
         return {
           success: false,
-          error: `Minimum deposit is $${this.limits.MIN_DEPOSIT}`
+          error: 'Transaction is missing the required memo. Please include your memo code when sending.'
+        };
+      }
+
+      if (depositInfo.memo !== expectedMemo) {
+        console.warn(`⚠️ Memo mismatch: expected "${expectedMemo}", got "${depositInfo.memo}" (user: ${userId}, sig: ${trimmedSig.slice(0, 20)}...)`);
+        return {
+          success: false,
+          error: 'Transaction memo does not match your account. Each deposit must include your unique memo code.'
         };
       }
 
       // ================================================================
-      // CREDIT USER - Database constraint handles idempotency
+      // 6. AMOUNT VALIDATION (min and max)
+      // Amount comes from on-chain data, not from the client
+      // ================================================================
+      if (depositInfo.amount < this.limits.MIN_DEPOSIT) {
+        return {
+          success: false,
+          error: `Minimum deposit is $${this.limits.MIN_DEPOSIT}. You sent $${depositInfo.amount.toFixed(2)}.`
+        };
+      }
+
+      if (depositInfo.amount > this.limits.MAX_DEPOSIT) {
+        console.warn(`⚠️ Over-limit deposit attempt: $${depositInfo.amount} by user ${userId}`);
+        return {
+          success: false,
+          error: `Maximum deposit is $${this.limits.MAX_DEPOSIT}. Please contact support for larger deposits.`
+        };
+      }
+
+      // ================================================================
+      // 7. CONFIRMATION DEPTH CHECK
+      // For large deposits, require finalized commitment (max safety)
+      // ================================================================
+      const FINALIZED_THRESHOLD = 100; // $100+
+
+      if (depositInfo.amount >= FINALIZED_THRESHOLD) {
+        const finalizedTx = await this.connection.getParsedTransaction(trimmedSig, {
+          maxSupportedTransactionVersion: 0,
+          commitment: 'finalized'
+        });
+
+        if (!finalizedTx) {
+          return {
+            success: false,
+            error: 'Transaction is not yet finalized. For deposits over $100, please wait ~30 seconds and try again.'
+          };
+        }
+      }
+
+      // ================================================================
+      // 8. CREDIT USER — DB unique constraint handles idempotency
       // If signature already exists, the INSERT will fail with unique violation
       // ================================================================
       try {
-        const result = await this.creditDeposit(userId, depositInfo, signature);
+        const result = await this.creditDeposit(userId, depositInfo, trimmedSig);
+        
+        console.log(`✅ Solana deposit verified: User ${userId}, $${depositInfo.amount} ${depositInfo.token}, sig: ${trimmedSig.slice(0, 20)}...`);
         
         return {
           success: true,
@@ -176,7 +266,7 @@ class SolanaService {
             error.message?.includes('unique') ||
             error.message?.includes('duplicate') ||
             error.message?.includes('idx_solana_signature')) {
-          console.log(`⚠️ Duplicate Solana signature blocked by DB constraint: ${signature}`);
+          console.log(`⚠️ Duplicate Solana signature blocked by DB constraint: ${trimmedSig.slice(0, 20)}...`);
           return {
             success: false,
             error: 'This transaction has already been processed'
@@ -189,63 +279,83 @@ class SolanaService {
       console.error('❌ Solana verification error:', error);
       return {
         success: false,
-        error: error.message || 'Failed to verify transaction'
+        error: 'Failed to verify transaction. Please try again.'
       };
     }
   }
 
   /**
-   * Parse a Solana transaction for USDC/USDT transfers
+   * Parse a Solana transaction for USDC/USDT transfers to our wallet
    */
   async parseTokenTransfer(tx, userId) {
     const instructions = tx.transaction.message.instructions;
     const innerInstructions = tx.meta?.innerInstructions || [];
 
-    // Look for token transfer instructions
-    for (const ix of instructions) {
-      if (ix.program === 'spl-token' && ix.parsed?.type === 'transferChecked') {
-        const info = ix.parsed.info;
-        
-        // Check if it's to our wallet
-        if (info.destination === this.depositWallet || 
-            await this.isOurTokenAccount(info.destination)) {
-          
-          // Check if it's USDC or USDT
-          const token = this.identifyToken(info.mint);
-          if (token) {
-            const amount = parseFloat(info.tokenAmount.uiAmount);
-            
-            // Try to extract memo for user identification
-            const memo = this.extractMemo(tx);
-            
-            return {
-              token: token,
-              amount: amount,
-              mint: info.mint,
-              memo: memo,
-              sender: info.authority
-            };
-          }
-        }
+    // Check top-level instructions
+    const result = await this._checkInstructions(instructions);
+    if (result) {
+      result.memo = this.extractMemo(tx);
+      return result;
+    }
+
+    // Also check inner instructions (for wrapped/aggregated transactions)
+    for (const inner of innerInstructions) {
+      const result = await this._checkInstructions(inner.instructions);
+      if (result) {
+        result.memo = this.extractMemo(tx);
+        return result;
       }
     }
 
-    // Also check inner instructions (for wrapped transactions)
-    for (const inner of innerInstructions) {
-      for (const ix of inner.instructions) {
-        if (ix.program === 'spl-token' && ix.parsed?.type === 'transferChecked') {
-          const info = ix.parsed.info;
-          const token = this.identifyToken(info.mint);
-          
-          if (token && await this.isOurTokenAccount(info.destination)) {
-            return {
-              token: token,
-              amount: parseFloat(info.tokenAmount.uiAmount),
-              mint: info.mint,
-              memo: this.extractMemo(tx)
-            };
-          }
-        }
+    return null;
+  }
+
+  /**
+   * Check a set of instructions for valid token transfers to our wallet
+   */
+  async _checkInstructions(instructions) {
+    for (const ix of instructions) {
+      if (ix.program !== 'spl-token') continue;
+      
+      const type = ix.parsed?.type;
+      if (type !== 'transferChecked' && type !== 'transfer') continue;
+
+      const info = ix.parsed.info;
+      
+      // For transferChecked, verify the mint is USDC or USDT
+      const mint = info.mint;
+      const token = mint ? this.identifyToken(mint) : null;
+
+      // Determine destination and amount based on instruction type
+      let destination, amount;
+      
+      if (type === 'transferChecked') {
+        destination = info.destination;
+        amount = parseFloat(info.tokenAmount?.uiAmount || 0);
+        if (!token) continue; // Must be USDC or USDT
+      } else if (type === 'transfer') {
+        destination = info.destination;
+        // For plain transfers, amount is in raw units — need to check token account
+        amount = parseFloat(info.amount || 0);
+        // Raw transfer doesn't include mint, we'll verify via account ownership
+      }
+
+      if (!destination) continue;
+
+      // Check if destination is our wallet or our token account
+      const isOurs = destination === this.depositWallet || 
+                     await this.isOurTokenAccount(destination);
+      
+      if (!isOurs) continue;
+
+      // For transferChecked we already have the UI amount
+      if (type === 'transferChecked' && token) {
+        return {
+          token,
+          amount,
+          mint,
+          sender: info.authority
+        };
       }
     }
 
@@ -259,20 +369,26 @@ class SolanaService {
   }
 
   extractMemo(tx) {
-    // Look for memo program instruction
     const instructions = tx.transaction.message.instructions;
     for (const ix of instructions) {
-      if (ix.program === 'spl-memo' || ix.programId?.toString() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr') {
-        return ix.parsed || ix.data;
+      if (ix.program === 'spl-memo' || 
+          ix.programId?.toString() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr') {
+        // Memo can be in parsed field or data field
+        const memo = ix.parsed || ix.data;
+        // Clean up memo — trim whitespace, handle base64 encoding
+        if (typeof memo === 'string') {
+          return memo.trim();
+        }
+        return memo;
       }
     }
     return null;
   }
 
   async isOurTokenAccount(address) {
-    // Check if this is a token account owned by our deposit wallet
     try {
-      const accountInfo = await this.connection.getParsedAccountInfo(new PublicKey(address));
+      const pubkey = new PublicKey(address);
+      const accountInfo = await this.connection.getParsedAccountInfo(pubkey);
       if (accountInfo.value?.data?.parsed?.info?.owner === this.depositWallet) {
         return true;
       }
@@ -287,7 +403,7 @@ class SolanaService {
   // ============================================
 
   /**
-   * Credit deposit to user
+   * Credit deposit to user atomically
    * 
    * CRITICAL: Relies on database unique constraint on metadata->>'solana_signature'
    * If duplicate, the INSERT will fail and we catch the error in verifyTransaction
@@ -298,7 +414,7 @@ class SolanaService {
     });
 
     try {
-      // Get user with lock
+      // Get user with row lock
       const user = await this.db.User.findByPk(userId, {
         lock: dbTransaction.LOCK.UPDATE,
         transaction: dbTransaction
@@ -315,7 +431,7 @@ class SolanaService {
       const newBalance = currentBalance + amount;
       const newTickets = currentTickets + bonusTickets;
 
-      // Update user
+      // Update user balance + tickets + lifetime deposits
       await user.update({
         balance: newBalance,
         tickets: newTickets,
@@ -323,8 +439,8 @@ class SolanaService {
       }, { transaction: dbTransaction });
 
       // Create transaction record
-      // If solana_signature already exists, this will FAIL due to unique index
-      // That's the idempotency protection!
+      // If solana_signature already exists in metadata, this will FAIL
+      // due to the unique index — that's our idempotency protection
       const txRecord = await this.db.Transaction.create({
         user_id: userId,
         type: 'deposit',
@@ -336,8 +452,9 @@ class SolanaService {
         metadata: {
           method: 'solana',
           token: depositInfo.token,
-          solana_signature: signature,  // UNIQUE INDEXED - duplicate will fail
+          solana_signature: signature,  // UNIQUE INDEXED
           sender: depositInfo.sender,
+          memo: depositInfo.memo,
           bonus_tickets: bonusTickets,
           network: 'solana'
         }
@@ -420,29 +537,28 @@ class SolanaService {
   }
 
   async checkForNewDeposits() {
-    // Get recent signatures for our wallet
-    const pubkey = new PublicKey(this.depositWallet);
-    const signatures = await this.connection.getSignaturesForAddress(pubkey, { limit: 20 });
+    try {
+      const pubkey = new PublicKey(this.depositWallet);
+      const signatures = await this.connection.getSignaturesForAddress(pubkey, { limit: 20 });
 
-    for (const sigInfo of signatures) {
-      if (this.processedSignatures.has(sigInfo.signature)) {
-        continue;
+      for (const sigInfo of signatures) {
+        // Parameterized query — no SQL injection
+        const existing = await this.db.Transaction.findOne({
+          where: this.db.sequelize.where(
+            this.db.sequelize.fn('jsonb_extract_path_text',
+              this.db.sequelize.col('metadata'), 'solana_signature'),
+            sigInfo.signature
+          )
+        });
+
+        if (existing) continue;
+
+        // Note: For auto-polling, we'd need to parse the memo to identify the user
+        // For MVP, user-submitted verification is simpler and safer
+        console.log(`📥 New unprocessed Solana tx detected: ${sigInfo.signature.slice(0, 20)}...`);
       }
-
-      // Check if already in database
-      const existing = await this.db.Transaction.findOne({
-        where: this.db.sequelize.literal(`metadata->>'solana_signature' = '${sigInfo.signature}'`)
-      });
-
-      if (existing) {
-        this.processedSignatures.add(sigInfo.signature);
-        continue;
-      }
-
-      // Process this transaction
-      // Note: We need to figure out which user it belongs to via memo
-      // This is more complex - for MVP, user-submitted verification is simpler
-      console.log(`📥 New Solana tx detected: ${sigInfo.signature}`);
+    } catch (error) {
+      console.error('Error checking for new deposits:', error);
     }
   }
 
