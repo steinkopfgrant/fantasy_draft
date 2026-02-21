@@ -168,80 +168,97 @@ const NFL_PLAYER_POOLS = {
 };
 
 // ============================================================
-// NBA CONFIGURATION - Feb 20, 2026 Slate
-// 10 games: CLE@BKN, WAS@IND, PHI@ATL, CHA@HOU, NYK@DET,
-//           CHI@TOR, SAS@PHX, SAC@ORL, GSW@BOS, LAC@DEN
+// NBA CONFIGURATION - Feb 25, 2026 Slate
+// 11 games: IND@PHI, TOR@OKC, ATL@WAS, CLE@NY, BKN@DAL,
+//           MIL@MIA, NOP@GS, CHI@CHA, PHO@BOS, POR@MIN, LAL@ORL
 // ============================================================
 
 const NBA_MATCHUPS = {
-  CLE: { opp: 'BKN', home: false },
-  BKN: { opp: 'CLE', home: true },
-  WAS: { opp: 'IND', home: false },
-  IND: { opp: 'WAS', home: true },
-  PHI: { opp: 'ATL', home: false },
-  ATL: { opp: 'PHI', home: true },
-  CHA: { opp: 'HOU', home: false },
-  HOU: { opp: 'CHA', home: true },
-  NY: { opp: 'DET', home: false },
-  DET: { opp: 'NY', home: true },
-  CHI: { opp: 'TOR', home: false },
-  TOR: { opp: 'CHI', home: true },
-  SA: { opp: 'PHO', home: false },
-  PHO: { opp: 'SA', home: true },
-  SAC: { opp: 'ORL', home: false },
-  ORL: { opp: 'SAC', home: true },
-  GS: { opp: 'BOS', home: false },
-  BOS: { opp: 'GS', home: true },
-  LAC: { opp: 'DEN', home: false },
-  DEN: { opp: 'LAC', home: true },
+  IND: { opp: 'PHI', home: false },
+  PHI: { opp: 'IND', home: true },
+  TOR: { opp: 'OKC', home: false },
+  OKC: { opp: 'TOR', home: true },
+  ATL: { opp: 'WAS', home: false },
+  WAS: { opp: 'ATL', home: true },
+  CLE: { opp: 'NY', home: false },
+  NY: { opp: 'CLE', home: true },
+  BKN: { opp: 'DAL', home: false },
+  DAL: { opp: 'BKN', home: true },
+  MIL: { opp: 'MIA', home: false },
+  MIA: { opp: 'MIL', home: true },
+  NOP: { opp: 'GS', home: false },
+  GS: { opp: 'NOP', home: true },
+  CHI: { opp: 'CHA', home: false },
+  CHA: { opp: 'CHI', home: true },
+  PHO: { opp: 'BOS', home: false },
+  BOS: { opp: 'PHO', home: true },
+  POR: { opp: 'MIN', home: false },
+  MIN: { opp: 'POR', home: true },
+  LAL: { opp: 'ORL', home: false },
+  ORL: { opp: 'LAL', home: true },
 };
 
+// NBA Player Pools for Feb 25, 2026 slate
+// 🚑 = Removed (Hashtag Basketball projected OUT)
+// Removed: Curry, Trae Young, Kyrie, Herro, Sarr, Sharpe, T.Murphy, G.Allen,
+//   C.White, Butler, F.Wagner, P.George, Giannis, Siakam, Toppin, Embiid,
+//   A.Davis, Zubac, Lively, Gafford, G.Vincent
+// Team fixes: Luka→LAL, Alvarado→NY, Max Christie→DAL, Ayton→LAL
+// Added: K.Porter Jr, Rollins, N.Powell, Bey, Sheppard, Kennard
 const NBA_PLAYER_POOLS = {
   PG: {
     5: [
       {name: 'Tyrese Maxey', team: 'PHI'},
-      {name: 'Cade Cunningham', team: 'DET'},
       {name: 'James Harden', team: 'CLE'},
-      {name: 'Jamal Murray', team: 'DEN'}
+      {name: 'Luka Doncic', team: 'LAL'},
+      {name: 'Damian Lillard', team: 'MIL'}
     ],
     4: [
       {name: 'Josh Giddey', team: 'CHI'},
-      {name: 'Stephen Curry', team: 'GS'},
       {name: 'Jalen Brunson', team: 'NY'},
       {name: 'LaMelo Ball', team: 'CHA'},
-      {name: 'Derrick White', team: 'BOS'}
+      {name: 'Derrick White', team: 'BOS'},
+      {name: 'Jrue Holiday', team: 'POR'}
     ],
     3: [
-      {name: "De'Aaron Fox", team: 'SA'},
-      {name: 'Trae Young', team: 'WAS'},
       {name: 'Immanuel Quickley', team: 'TOR'},
-      {name: 'Stephon Castle', team: 'SA'},
-      {name: 'Russell Westbrook', team: 'SAC'},
       {name: 'Andrew Nembhard', team: 'IND'},
       {name: 'Jalen Suggs', team: 'ORL'},
       {name: 'Payton Pritchard', team: 'BOS'},
-      {name: 'Darius Garland', team: 'LAC'},
-      {name: 'Anthony Black', team: 'ORL'}
+      {name: 'Anthony Black', team: 'ORL'},
+      {name: 'Terry Rozier', team: 'MIA'},
+      {name: 'Dejounte Murray', team: 'NOP'},
+      {name: "D'Angelo Russell", team: 'LAL'},
+      {name: 'Kevin Porter Jr.', team: 'MIL'}
     ],
     2: [
       {name: 'Collin Gillespie', team: 'PHO'},
       {name: 'Tre Jones', team: 'CHI'},
-      {name: 'Miles McBride', team: 'NY'}
+      {name: 'Miles McBride', team: 'NY'},
+      {name: 'Alex Caruso', team: 'OKC'},
+      {name: 'Mike Conley', team: 'MIN'},
+      {name: 'Scoot Henderson', team: 'POR'}
     ],
     1: [
       {name: 'T.J. McConnell', team: 'IND'},
       {name: 'Egor Demin', team: 'BKN'},
-      {name: 'Kris Dunn', team: 'LAC'}
+      {name: 'Spencer Dinwiddie', team: 'DAL'},
+      {name: 'Jose Alvarado', team: 'NY'},
+      {name: 'Rob Dillingham', team: 'MIN'},
+      {name: 'Cason Wallace', team: 'OKC'}
     ]
   },
   SG: {
     5: [
       {name: 'Donovan Mitchell', team: 'CLE'},
-      {name: 'Jaylen Brown', team: 'BOS'}
+      {name: 'Jaylen Brown', team: 'BOS'},
+      {name: 'Shai Gilgeous-Alexander', team: 'OKC'},
+      {name: 'Anthony Edwards', team: 'MIN'}
     ],
     4: [
       {name: 'Devin Booker', team: 'PHO'},
-      {name: 'Alexandre Sarr', team: 'WAS'}
+      {name: 'Austin Reaves', team: 'LAL'},
+      {name: 'Norman Powell', team: 'MIA'}
     ],
     3: [
       {name: 'Nickeil Alexander-Walker', team: 'ATL'},
@@ -250,18 +267,17 @@ const NBA_PLAYER_POOLS = {
       {name: 'Kon Knueppel', team: 'CHA'},
       {name: 'VJ Edgecombe', team: 'PHI'},
       {name: 'RJ Barrett', team: 'TOR'},
-      {name: 'Josh Hart', team: 'NY'}
+      {name: 'Josh Hart', team: 'NY'},
+      {name: 'Ryan Rollins', team: 'MIL'}
     ],
     2: [
-      {name: 'Grayson Allen', team: 'PHO'},
       {name: 'CJ McCollum', team: 'ATL'},
-      {name: 'Coby White', team: 'CHA'},
-      {name: 'Bennedict Mathurin', team: 'LAC'},
-      {name: 'Zach LaVine', team: 'SAC'},
       {name: 'Brandin Podziemski', team: 'GS'},
       {name: 'Quentin Grimes', team: 'PHI'},
-      {name: 'Devin Vassell', team: 'SA'},
-      {name: 'Reed Sheppard', team: 'HOU'}
+      {name: 'Lu Dort', team: 'OKC'},
+      {name: 'Donte DiVincenzo', team: 'MIN'},
+      {name: 'Klay Thompson', team: 'DAL'},
+      {name: 'Dalton Knecht', team: 'LAL'}
     ],
     1: [
       {name: 'Collin Sexton', team: 'CHI'},
@@ -271,119 +287,126 @@ const NBA_PLAYER_POOLS = {
       {name: 'Jordan Goodwin', team: 'PHO'},
       {name: 'Moses Moody', team: 'GS'},
       {name: 'Tre Johnson', team: 'WAS'},
-      {name: 'Tim Hardaway Jr.', team: 'DEN'},
-      {name: 'Malik Monk', team: 'SAC'}
+      {name: 'Jordan Hawkins', team: 'NOP'},
+      {name: 'Jaden Hardy', team: 'DAL'},
+      {name: 'AJ Green', team: 'MIL'},
+      {name: 'Max Christie', team: 'DAL'},
+      {name: 'Ben Sheppard', team: 'IND'},
+      {name: 'Luke Kennard', team: 'LAL'}
     ]
   },
   SF: {
     5: [
-      {name: 'Kawhi Leonard', team: 'LAC'},
-      {name: 'Jalen Johnson', team: 'ATL'}
+      {name: 'Jalen Johnson', team: 'ATL'},
+      {name: 'LeBron James', team: 'LAL'},
+      {name: 'Jalen Williams', team: 'OKC'}
     ],
     4: [
-      {name: 'Kevin Durant', team: 'HOU'},
       {name: 'Michael Porter Jr.', team: 'BKN'},
-      {name: 'Amen Thompson', team: 'HOU'}
+      {name: 'Mikal Bridges', team: 'NY'},
+      {name: 'Brandon Ingram', team: 'TOR'}
     ],
     3: [
-      {name: 'Jimmy Butler III', team: 'GS'},
-      {name: 'Brandon Ingram', team: 'TOR'},
-      {name: 'Franz Wagner', team: 'ORL'},
       {name: 'Brandon Miller', team: 'CHA'},
-      {name: 'Mikal Bridges', team: 'NY'},
-      {name: 'Paul George', team: 'PHI'},
       {name: 'OG Anunoby', team: 'NY'},
       {name: 'Kyshawn George', team: 'WAS'},
-      {name: 'DeMar DeRozan', team: 'SAC'}
+      {name: 'Jerami Grant', team: 'POR'},
+      {name: 'Deni Avdija', team: 'POR'},
+      {name: 'Khris Middleton', team: 'MIL'}
     ],
     2: [
       {name: 'Dillon Brooks', team: 'PHO'},
       {name: 'Matas Buzelis', team: 'CHI'},
-      {name: 'Peyton Watson', team: 'DEN'},
-      {name: 'Ausar Thompson', team: 'DET'},
       {name: 'Kelly Oubre Jr.', team: 'PHI'},
       {name: 'Jaylon Tyson', team: 'CLE'},
-      {name: 'Tari Eason', team: 'HOU'},
       {name: 'Aaron Nesmith', team: 'IND'},
-      {name: 'Keldon Johnson', team: 'SA'},
       {name: 'Bilal Coulibaly', team: 'WAS'},
-      {name: 'Julian Champagnie', team: 'SA'}
+      {name: 'Jaden McDaniels', team: 'MIN'},
+      {name: 'Herb Jones', team: 'NOP'},
+      {name: 'Jaime Jaquez Jr.', team: 'MIA'},
+      {name: 'Naji Marshall', team: 'DAL'},
+      {name: 'Aaron Wiggins', team: 'OKC'},
+      {name: 'Saddiq Bey', team: 'NOP'}
     ],
     1: [
-      {name: 'Cameron Johnson', team: 'DEN'},
-      {name: 'Derrick Jones Jr.', team: 'LAC'},
-      {name: 'Ziaire Williams', team: 'BKN'}
+      {name: 'Ziaire Williams', team: 'BKN'},
+      {name: 'Toumani Camara', team: 'POR'},
+      {name: 'Andre Jackson Jr.', team: 'MIL'},
+      {name: 'Haywood Highsmith', team: 'MIA'}
     ]
   },
   PF: {
     5: [
-      {name: 'Victor Wembanyama', team: 'SA'}
+      {name: 'Scottie Barnes', team: 'TOR'},
+      {name: 'Chet Holmgren', team: 'OKC'},
+      {name: 'Evan Mobley', team: 'CLE'}
     ],
     4: [
-      {name: 'Scottie Barnes', team: 'TOR'},
-      {name: 'Evan Mobley', team: 'CLE'},
-      {name: 'Pascal Siakam', team: 'IND'},
-      {name: 'Paolo Banchero', team: 'ORL'}
+      {name: 'Paolo Banchero', team: 'ORL'},
+      {name: 'Zion Williamson', team: 'NOP'},
+      {name: 'Julius Randle', team: 'MIN'}
     ],
     3: [
       {name: 'Miles Bridges', team: 'CHA'},
-      {name: 'Keegan Murray', team: 'SAC'}
+      {name: 'PJ Washington', team: 'DAL'},
+      {name: 'Naz Reid', team: 'MIN'}
     ],
     2: [
-      {name: 'Jabari Smith Jr.', team: 'HOU'},
-      {name: 'Aaron Gordon', team: 'DEN'},
-      {name: 'Tobias Harris', team: 'DET'},
       {name: 'Draymond Green', team: 'GS'},
-      {name: 'John Collins', team: 'LAC'},
-      {name: 'Royce O\'Neale', team: 'PHO'},
       {name: 'Noah Clowney', team: 'BKN'},
       {name: 'Sandro Mamukelashvili', team: 'TOR'},
-      {name: 'Obi Toppin', team: 'IND'}
+      {name: "Royce O'Neale", team: 'PHO'},
+      {name: 'Bobby Portis', team: 'MIL'},
+      {name: 'Nikola Jovic', team: 'MIA'},
+      {name: 'Rui Hachimura', team: 'LAL'}
     ],
     1: [
       {name: 'Jalen Smith', team: 'CHI'},
       {name: 'Collin Murray-Boyles', team: 'TOR'},
-      {name: 'Dominick Barlow', team: 'PHI'}
+      {name: 'Dominick Barlow', team: 'PHI'},
+      {name: 'Jarred Vanderbilt', team: 'LAL'},
+      {name: 'Kenrich Williams', team: 'OKC'}
     ]
   },
   C: {
     5: [
-      {name: 'Nikola Jokic', team: 'DEN'}
+      {name: 'Karl-Anthony Towns', team: 'NY'},
+      {name: 'Bam Adebayo', team: 'MIA'},
+      {name: 'Jarrett Allen', team: 'CLE'}
     ],
     4: [
-      {name: 'Alperen Sengun', team: 'HOU'},
-      {name: 'Anthony Davis', team: 'WAS'},
-      {name: 'Joel Embiid', team: 'PHI'},
-      {name: 'Karl-Anthony Towns', team: 'NY'}
+      {name: 'Nikola Vucevic', team: 'BOS'},
+      {name: 'Rudy Gobert', team: 'MIN'},
+      {name: 'Onyeka Okongwu', team: 'ATL'}
     ],
     3: [
-      {name: 'Nikola Vucevic', team: 'BOS'},
-      {name: 'Domantas Sabonis', team: 'SAC'},
-      {name: 'Jalen Duren', team: 'DET'},
-      {name: 'Onyeka Okongwu', team: 'ATL'},
       {name: 'Kristaps Porzingis', team: 'GS'},
-      {name: 'Ivica Zubac', team: 'IND'},
-      {name: 'Jarrett Allen', team: 'CLE'},
-      {name: 'Nicolas Claxton', team: 'BKN'}
+      {name: 'Nicolas Claxton', team: 'BKN'},
+      {name: 'Isaiah Hartenstein', team: 'OKC'},
+      {name: 'Deandre Ayton', team: 'LAL'}
     ],
     2: [
       {name: 'Mark Williams', team: 'PHO'},
       {name: 'Wendell Carter Jr.', team: 'ORL'},
       {name: 'Neemias Queta', team: 'BOS'},
       {name: 'Moussa Diabate', team: 'CHA'},
-      {name: 'Jock Landale', team: 'ATL'}
+      {name: 'Jock Landale', team: 'ATL'},
+      {name: 'Brook Lopez', team: 'MIL'},
+      {name: 'Jonas Valanciunas', team: 'NOP'}
     ],
     1: [
       {name: 'Jakob Poeltl', team: 'TOR'},
-      {name: 'Isaiah Stewart', team: 'DET'},
       {name: "Day'Ron Sharpe", team: 'BKN'},
-      {name: 'Dylan Cardwell', team: 'SAC'},
       {name: 'Jay Huff', team: 'IND'},
       {name: 'Mitchell Robinson', team: 'NY'},
       {name: 'Al Horford', team: 'GS'},
-      {name: 'Luke Kornet', team: 'SA'},
       {name: 'Ryan Kalkbrenner', team: 'CHA'},
-      {name: 'Goga Bitadze', team: 'ORL'}
+      {name: 'Goga Bitadze', team: 'ORL'},
+      {name: "Kel'el Ware", team: 'MIA'},
+      {name: 'Jaxson Hayes', team: 'LAL'},
+      {name: 'Robert Williams III', team: 'POR'},
+      {name: 'Yves Missi', team: 'NOP'},
+      {name: 'Luka Garza', team: 'MIN'}
     ]
   }
 };
