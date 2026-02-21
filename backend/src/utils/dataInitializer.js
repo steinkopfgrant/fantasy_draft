@@ -47,12 +47,12 @@ async function ensureInitialData() {
     const contestCount = await db.Contest.count();
     
     if (contestCount === 0) {
-      console.log('No contests found. Creating initial cash games...');
+      console.log('No contests found. Checking for active slates before creating...');
       await createInitialContests();
     } else {
       console.log(`Found ${contestCount} existing contests`);
       
-      // Ensure we have open cash games for each sport
+      // Ensure we have open cash games for each sport WITH an active slate
       await ensureCashGame('nfl');
       await ensureCashGame('nba');
     }
@@ -73,47 +73,54 @@ async function createInitialContests() {
   const transaction = await db.sequelize.transaction();
   
   try {
-    // Create NFL Cash Game
-    await db.Contest.create({
-      type: 'cash',
-      name: 'Cash Game #1',
-      sport: 'nfl',
-      status: 'open',
-      entry_fee: 5.00,
-      prize_pool: 24.00,
-      max_entries: 5,
-      current_entries: 0,
-      max_entries_per_user: 1,
-      player_board: await getBestBoard('nfl'),
-      start_time: new Date(),
-      end_time: new Date(Date.now() + 7200000),
-      scoring_type: 'standard',
-      max_salary: 15,
-      prizes: [24]
-    }, { transaction });
+    // Only create cash games for sports that have an active slate
+    const activeSlates = await db.Slate.findAll({
+      where: { status: 'active' },
+      transaction
+    });
 
-    console.log('✅ Created NFL Cash Game #1');
+    if (activeSlates.length === 0) {
+      console.log('🚫 No active slates found — skipping initial contest creation. Create a slate first from the admin panel.');
+      await transaction.commit();
+      return;
+    }
 
-    // Create NBA Cash Game
-    await db.Contest.create({
-      type: 'cash',
-      name: 'NBA Cash Game #1',
-      sport: 'nba',
-      status: 'open',
-      entry_fee: 5.00,
-      prize_pool: 24.00,
-      max_entries: 5,
-      current_entries: 0,
-      max_entries_per_user: 1,
-      player_board: await getBestBoard('nba'),
-      start_time: new Date(),
-      end_time: new Date(Date.now() + 7200000),
-      scoring_type: 'standard',
-      max_salary: 15,
-      prizes: [24]
-    }, { transaction });
+    for (const slate of activeSlates) {
+      const sport = slate.sport || 'nfl';
+      const namePrefix = sport === 'nfl' ? 'Cash Game' : `${sport.toUpperCase()} Cash Game`;
 
-    console.log('✅ Created NBA Cash Game #1');
+      // Check if one already exists for this sport
+      const existing = await db.Contest.findOne({
+        where: { type: 'cash', sport: sport, status: 'open' },
+        transaction
+      });
+
+      if (existing) {
+        console.log(`✅ ${sport.toUpperCase()} already has open cash game: ${existing.name}`);
+        continue;
+      }
+
+      await db.Contest.create({
+        type: 'cash',
+        name: `${namePrefix} #1`,
+        sport: sport,
+        status: 'open',
+        slate_id: slate.id,
+        entry_fee: 5.00,
+        prize_pool: 24.00,
+        max_entries: 5,
+        current_entries: 0,
+        max_entries_per_user: 1,
+        player_board: await getBestBoard(sport),
+        start_time: new Date(),
+        end_time: new Date(Date.now() + 7200000),
+        scoring_type: 'standard',
+        max_salary: 15,
+        prizes: [24]
+      }, { transaction });
+
+      console.log(`✅ Created ${namePrefix} #1 → slate ${slate.name}`);
+    }
 
     console.log('ℹ️ Tournament contests (Market Mover, Firesale) must be created by admin');
 
@@ -127,12 +134,22 @@ async function createInitialContests() {
   }
 }
 
-// Ensure cash games exist for a specific sport
+// Ensure cash games exist for a specific sport — ONLY if an active slate exists
 async function ensureCashGame(sport = 'nfl') {
   try {
     const sportLabel = sport.toUpperCase();
     const namePrefix = sport === 'nfl' ? 'Cash Game' : 'NBA Cash Game';
     
+    // *** SLATE GATE: No active slate = no contest on lobby ***
+    const activeSlate = await db.Slate.findOne({
+      where: { sport: sport, status: 'active' }
+    });
+
+    if (!activeSlate) {
+      console.log(`🚫 No active slate for ${sportLabel} — skipping cash game creation`);
+      return;
+    }
+
     // Check for open cash game for this sport
     const openCashGame = await db.Contest.findOne({
       where: {
@@ -168,6 +185,7 @@ async function ensureCashGame(sport = 'nfl') {
         name: `${namePrefix} #${maxNumber + 1}`,
         sport: sport,
         status: 'open',
+        slate_id: activeSlate.id,
         entry_fee: 5.00,
         prize_pool: 24.00,
         max_entries: 5,
@@ -181,7 +199,7 @@ async function ensureCashGame(sport = 'nfl') {
         prizes: [24]
       });
 
-      console.log(`✅ Created ${namePrefix} #${maxNumber + 1}`);
+      console.log(`✅ Created ${namePrefix} #${maxNumber + 1} → slate ${activeSlate.name}`);
     }
 
   } catch (error) {
