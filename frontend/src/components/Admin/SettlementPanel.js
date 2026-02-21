@@ -3,6 +3,7 @@ import axios from 'axios';
 import './SettlementPanel.css';
 
 const API = '/api/admin/settlement';
+const SLATE_API = '/api/slates';
 
 const getHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -304,7 +305,7 @@ const SlateCard = ({ slate, onOpen, onClose, onDelete, onAssign }) => {
 };
 
 // ============================================================
-// CREATE SLATE MODAL — No contest selection, just metadata
+// CREATE SLATE MODAL
 // ============================================================
 const CreateSlateModal = ({ onClose, onCreate }) => {
   const [name, setName] = useState('');
@@ -378,11 +379,7 @@ const CreateSlateModal = ({ onClose, onCreate }) => {
 
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button
-            className="btn-primary"
-            onClick={handleCreate}
-            disabled={!name.trim()}
-          >
+          <button className="btn-primary" onClick={handleCreate} disabled={!name.trim()}>
             Create Slate
           </button>
         </div>
@@ -392,12 +389,11 @@ const CreateSlateModal = ({ onClose, onCreate }) => {
 };
 
 // ============================================================
-// ASSIGN CONTESTS MODAL — Retroactive grouping
+// ASSIGN CONTESTS MODAL
 // ============================================================
 const AssignContestsModal = ({ slate, contests, onClose, onAssign }) => {
   const [selected, setSelected] = useState(new Set());
 
-  // Show unassigned cash games for this sport
   const eligible = contests.filter(c =>
     c.type === 'cash' &&
     c.sport === slate.sport &&
@@ -476,7 +472,7 @@ const AssignContestsModal = ({ slate, contests, onClose, onAssign }) => {
 };
 
 // ============================================================
-// SLATE DETAIL VIEW — Scores + Contests + Settlement
+// SLATE DETAIL VIEW — Scores + Injuries + Contests + Settlement
 // ============================================================
 const SlateDetail = ({ slate, onBack, onToast }) => {
   const [tab, setTab] = useState('scores');
@@ -566,7 +562,6 @@ const SlateDetail = ({ slate, onBack, onToast }) => {
       const { data } = await axios.post(`${API}/slates/${slate.id}/lock-scores`, {}, { headers: getHeaders() });
       if (data.success) {
         onToast(data.message, 'success');
-        // Update local slate state
         slate.scoresLocked = true;
       } else {
         onToast(data.error, 'error');
@@ -642,6 +637,7 @@ const SlateDetail = ({ slate, onBack, onToast }) => {
       <div className="tab-bar">
         {[
           { id: 'scores', label: `Player Scores (${players.length})` },
+          { id: 'injuries', label: '🏥 Injury Swaps' },
           { id: 'contests', label: `Contests (${slate.contests.length})` },
           { id: 'settle', label: 'Settlement Log' },
         ].map(t => (
@@ -737,6 +733,11 @@ const SlateDetail = ({ slate, onBack, onToast }) => {
         </div>
       )}
 
+      {/* INJURY SWAPS TAB */}
+      {tab === 'injuries' && (
+        <InjurySwapPanel slateId={slate.id} sport={slate.sport} onToast={onToast} />
+      )}
+
       {/* CONTESTS TAB */}
       {tab === 'contests' && (
         <div className="table-container">
@@ -797,6 +798,306 @@ const SlateDetail = ({ slate, onBack, onToast }) => {
       )}
     </div>
   );
+};
+
+// ============================================================
+// INJURY SWAP PANEL — Tab inside SlateDetail
+// ============================================================
+const InjurySwapPanel = ({ slateId, sport, onToast }) => {
+  const [injuries, setInjuries] = useState({});
+  const [swapHistory, setSwapHistory] = useState([]);
+  const [swapResult, setSwapResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  // Form state
+  const [newName, setNewName] = useState('');
+  const [newPosition, setNewPosition] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+
+  const positions = sport === 'nba'
+    ? ['PG', 'SG', 'SF', 'PF', 'C']
+    : sport === 'mlb'
+      ? ['P', 'C', '1B', '2B', '3B', 'SS', 'OF']
+      : ['QB', 'RB', 'WR', 'TE'];
+
+  const loadInjuries = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${SLATE_API}/${slateId}/injuries`, { headers: getHeaders() });
+      if (data.success) setInjuries(data.injuries || {});
+    } catch (e) {
+      console.error('Failed to load injuries:', e);
+    }
+  }, [slateId]);
+
+  const loadSwapHistory = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${SLATE_API}/${slateId}/swap-history`, { headers: getHeaders() });
+      if (data.success) setSwapHistory(data.swaps || []);
+    } catch (e) {
+      console.error('Failed to load swap history:', e);
+    }
+  }, [slateId]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([loadInjuries(), loadSwapHistory()]).finally(() => setLoading(false));
+  }, [loadInjuries, loadSwapHistory]);
+
+  const markOut = async () => {
+    if (!newName.trim() || !newPosition || !newPrice) {
+      onToast('Name, position, and price are all required', 'error');
+      return;
+    }
+    try {
+      const { data } = await axios.post(`${SLATE_API}/${slateId}/injuries`, {
+        name: newName.trim(),
+        position: newPosition,
+        price: parseInt(newPrice)
+      }, { headers: getHeaders() });
+      if (data.success) {
+        onToast(`Marked "${newName.trim()}" as OUT`, 'success');
+        setNewName('');
+        setNewPosition('');
+        setNewPrice('');
+        await loadInjuries();
+      }
+    } catch (e) {
+      onToast(e.response?.data?.error || 'Failed to mark player OUT', 'error');
+    }
+  };
+
+  const markActive = async (playerName) => {
+    try {
+      const { data } = await axios.delete(
+        `${SLATE_API}/${slateId}/injuries/${encodeURIComponent(playerName)}`,
+        { headers: getHeaders() }
+      );
+      if (data.success) {
+        onToast(`Marked "${playerName}" as ACTIVE`, 'success');
+        await loadInjuries();
+      }
+    } catch (e) {
+      onToast('Failed to remove from OUT list', 'error');
+    }
+  };
+
+  const clearAll = async () => {
+    if (!window.confirm('Clear all injuries for this slate?')) return;
+    try {
+      const { data } = await axios.delete(`${SLATE_API}/${slateId}/injuries`, { headers: getHeaders() });
+      if (data.success) {
+        onToast('All injuries cleared', 'success');
+        await loadInjuries();
+      }
+    } catch (e) {
+      onToast('Failed to clear injuries', 'error');
+    }
+  };
+
+  const runSwaps = async () => {
+    if (!window.confirm('Run injury swaps? This will replace OUT players in all drafted lineups for this slate.')) return;
+    setRunning(true);
+    setSwapResult(null);
+    try {
+      const { data } = await axios.post(`${SLATE_API}/${slateId}/run-swaps`, {}, { headers: getHeaders() });
+      setSwapResult(data);
+      if (data.success) {
+        onToast(`Swaps complete: ${data.totalSwaps} swap(s) across ${data.lineupsAffected} lineup(s)`, 'success');
+        await loadSwapHistory();
+      } else {
+        onToast(data.error || 'Swap failed', 'error');
+      }
+    } catch (e) {
+      onToast(e.response?.data?.error || 'Swap request failed', 'error');
+    }
+    setRunning(false);
+  };
+
+  const outPlayers = Object.entries(injuries);
+
+  if (loading) return <div className="loading-state">Loading injury data...</div>;
+
+  return (
+    <div className="injury-panel">
+      {/* Info Banner */}
+      <div className="injury-info-banner">
+        <div className="injury-info-icon">ℹ️</div>
+        <div className="injury-info-text">
+          <strong>How it works:</strong> Mark players as OUT below, then hit "Run Swaps."
+          Each OUT player in a drafted lineup gets replaced by a same-position, same-price
+          player from the pool. You can run swaps multiple times for late scratches —
+          already-swapped players are skipped.
+        </div>
+      </div>
+
+      {/* Mark Player OUT */}
+      <div className="injury-section">
+        <h3 className="injury-section-title">Mark Player OUT</h3>
+        <div className="injury-add-form">
+          <input
+            className="form-input injury-name-input"
+            placeholder="Player name (exact match)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') markOut(); }}
+          />
+          <select
+            className="form-input injury-select"
+            value={newPosition}
+            onChange={(e) => setNewPosition(e.target.value)}
+          >
+            <option value="">Pos</option>
+            {positions.map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="FLEX">FLEX</option>
+          </select>
+          <select
+            className="form-input injury-select"
+            value={newPrice}
+            onChange={(e) => setNewPrice(e.target.value)}
+          >
+            <option value="">Price</option>
+            {[5, 4, 3, 2, 1].map(p => <option key={p} value={p}>${p}</option>)}
+          </select>
+          <button className="btn-danger" onClick={markOut}>Mark OUT</button>
+        </div>
+      </div>
+
+      {/* Current OUT List */}
+      <div className="injury-section">
+        <div className="injury-section-header">
+          <h3 className="injury-section-title">
+            Players OUT <span className="injury-count">({outPlayers.length})</span>
+          </h3>
+          <div className="injury-header-actions">
+            {outPlayers.length > 0 && (
+              <button className="btn-small btn-outline" onClick={clearAll}>Clear All</button>
+            )}
+            {outPlayers.length > 0 && (
+              <button
+                className={`btn-swap ${running ? 'btn-swap-running' : ''}`}
+                onClick={runSwaps}
+                disabled={running}
+              >
+                {running ? '⏳ Running Swaps...' : '🔄 Run Injury Swaps'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {outPlayers.length === 0 ? (
+          <div className="injury-empty">
+            No players marked OUT. Use the form above to mark injured players.
+          </div>
+        ) : (
+          <div className="injury-out-list">
+            {outPlayers.map(([name, info]) => (
+              <div key={name} className="injury-out-item">
+                <div className="injury-out-badge">OUT</div>
+                <div className="injury-out-details">
+                  <span className="injury-out-name">{name}</span>
+                  <span className={`pos-badge ${getPosColor(info.position)}`}>{info.position}</span>
+                  <span className="injury-out-price">${info.price}</span>
+                </div>
+                <span className="injury-out-time">
+                  {new Date(info.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <button className="btn-small btn-restore" onClick={() => markActive(name)}>
+                  ✓ Active
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Last Swap Result */}
+      {swapResult && swapResult.success && (
+        <div className="injury-section">
+          <h3 className="injury-section-title">Last Swap Result</h3>
+          <div className="injury-result-stats">
+            <div className="injury-result-stat">
+              <div className="injury-result-value">{swapResult.lineupsChecked}</div>
+              <div className="injury-result-label">Checked</div>
+            </div>
+            <div className="injury-result-stat">
+              <div className="injury-result-value">{swapResult.lineupsAffected}</div>
+              <div className="injury-result-label">Affected</div>
+            </div>
+            <div className="injury-result-stat injury-result-highlight">
+              <div className="injury-result-value">{swapResult.totalSwaps}</div>
+              <div className="injury-result-label">Swaps</div>
+            </div>
+          </div>
+
+          {swapResult.results && swapResult.results.filter(r => r.swaps && r.swaps.length > 0).length > 0 && (
+            <div className="injury-swap-details">
+              {swapResult.results.filter(r => r.swaps && r.swaps.length > 0).map((r, i) => (
+                <div key={i} className="injury-swap-lineup">
+                  <div className="injury-swap-lineup-id">Lineup {r.lineupId?.slice(0, 8)}...</div>
+                  {r.swaps.map((s, j) => (
+                    <div key={j} className="injury-swap-row">
+                      <span className="injury-swap-slot">{s.slot}</span>
+                      <span className="injury-swap-out-name">{s.oldPlayer?.name || s.oldPlayerName}</span>
+                      <span className="injury-swap-arrow">→</span>
+                      {(s.newPlayer || s.newPlayerName) ? (
+                        <span className="injury-swap-in-name">{s.newPlayer?.name || s.newPlayerName}</span>
+                      ) : (
+                        <span className="injury-swap-no-match">No replacement found</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Swap History */}
+      {swapHistory.length > 0 && (
+        <div className="injury-section">
+          <h3 className="injury-section-title">
+            Swap History <span className="injury-count">({swapHistory.length})</span>
+          </h3>
+          <div className="injury-history-list">
+            {swapHistory.map((record, i) => (
+              <div key={i} className="injury-history-item">
+                <div className="injury-history-header">
+                  <span className="injury-history-lineup">Lineup {record.lineupId?.slice(0, 8)}...</span>
+                  <span className="injury-history-time">{new Date(record.swappedAt).toLocaleString()}</span>
+                </div>
+                {record.swaps && record.swaps.map((s, j) => (
+                  <div key={j} className="injury-swap-row">
+                    <span className="injury-swap-slot">{s.slot}</span>
+                    <span className="injury-swap-out-name">{s.oldPlayerName}</span>
+                    <span className="injury-swap-arrow">→</span>
+                    {s.newPlayerName ? (
+                      <span className="injury-swap-in-name">{s.newPlayerName}</span>
+                    ) : (
+                      <span className="injury-swap-no-match">{s.error || 'No replacement'}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Position badge color helper
+const getPosColor = (pos) => {
+  const map = {
+    QB: 'pos-qb', PG: 'pos-qb',
+    RB: 'pos-rb', SG: 'pos-rb',
+    WR: 'pos-wr', SF: 'pos-wr',
+    TE: 'pos-te', PF: 'pos-te',
+    C: 'pos-k', K: 'pos-k',
+  };
+  return map[pos] || '';
 };
 
 // ============================================================

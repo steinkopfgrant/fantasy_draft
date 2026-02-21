@@ -214,6 +214,19 @@
   cursor: pointer;
 }
 
+.btn-danger {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-danger:hover { opacity: 0.9; }
+
 .btn-small { padding: 6px 14px; font-size: 12px; }
 .btn-outline {
   background: transparent;
@@ -577,6 +590,303 @@
 .color-green { color: #22c55e; }
 .color-yellow { color: #f59e0b; }
 
+/* ============================================================
+   INJURY SWAP PANEL
+   ============================================================ */
+
+.injury-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Info Banner */
+.injury-info-banner {
+  display: flex;
+  gap: 14px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #0c1929, #162033);
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  align-items: flex-start;
+}
+.injury-info-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.injury-info-text {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.injury-info-text strong {
+  color: #cbd5e1;
+}
+
+/* Sections */
+.injury-section {
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 20px;
+}
+.injury-section-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.injury-count {
+  font-weight: 500;
+  color: #64748b;
+}
+.injury-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.injury-section-header .injury-section-title {
+  margin-bottom: 0;
+}
+.injury-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Add Form */
+.injury-add-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.injury-name-input {
+  flex: 1;
+  min-width: 200px;
+}
+.injury-select {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+/* OUT List */
+.injury-out-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+.injury-out-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+.injury-out-item:hover {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.injury-out-badge {
+  padding: 2px 8px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.injury-out-details {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.injury-out-name {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.injury-out-price {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+}
+.injury-out-time {
+  color: #64748b;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.injury-empty {
+  padding: 24px;
+  text-align: center;
+  color: #475569;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* Restore Button */
+.btn-restore {
+  background: transparent;
+  border: 1px solid #166534;
+  border-radius: 6px;
+  color: #22c55e;
+  cursor: pointer;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.btn-restore:hover {
+  background: #166534;
+  color: #fff;
+}
+
+/* Run Swaps Button */
+.btn-swap {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-swap:hover:not(:disabled) { opacity: 0.9; }
+.btn-swap:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-swap-running {
+  background: linear-gradient(135deg, #475569, #64748b);
+}
+
+/* Result Stats */
+.injury-result-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+.injury-result-stat {
+  flex: 1;
+  padding: 14px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  text-align: center;
+}
+.injury-result-highlight {
+  border-color: #6366f1;
+}
+.injury-result-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+.injury-result-highlight .injury-result-value {
+  color: #6366f1;
+}
+.injury-result-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* Swap Details */
+.injury-swap-details {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.injury-swap-lineup {
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.injury-swap-lineup-id {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.injury-swap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.injury-swap-slot {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  width: 48px;
+  flex-shrink: 0;
+}
+.injury-swap-out-name {
+  color: #f87171;
+  font-weight: 600;
+  text-decoration: line-through;
+  text-decoration-color: rgba(248, 113, 113, 0.4);
+}
+.injury-swap-arrow {
+  color: #475569;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.injury-swap-in-name {
+  color: #34d399;
+  font-weight: 600;
+}
+.injury-swap-no-match {
+  color: #f59e0b;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Swap History */
+.injury-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.injury-history-item {
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.injury-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.injury-history-lineup {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.injury-history-time {
+  font-size: 11px;
+  color: #475569;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .settlement-header { flex-direction: column; align-items: flex-start; gap: 12px; }
@@ -586,4 +896,10 @@
   .slate-detail-actions { margin-left: 0; }
   .score-toolbar { flex-direction: column; align-items: stretch; }
   .tab-bar { width: 100%; overflow-x: auto; }
+  .injury-add-form { flex-direction: column; }
+  .injury-name-input { min-width: 100%; }
+  .injury-select { width: 100%; }
+  .injury-section-header { flex-direction: column; align-items: flex-start; }
+  .injury-header-actions { width: 100%; }
+  .injury-result-stats { flex-direction: column; }
 }
