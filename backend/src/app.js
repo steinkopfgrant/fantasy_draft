@@ -85,6 +85,16 @@ try {
   injuryRoutes.get('/injuries', (req, res) => res.json({ success: false, error: 'Injury routes not configured' }));
 }
 
+// Slate routes (injury swaps + slate management)
+let slateRoutes;
+try {
+  slateRoutes = require('./routes/slateRoutes');
+  console.log('✅ Slate routes loaded');
+} catch (error) {
+  console.log('⚠️ Slate routes not found, creating placeholder');
+  slateRoutes = express.Router();
+}
+
 // Payment admin routes
 let paymentAdminRoutes;
 try {
@@ -367,6 +377,7 @@ app.use('/api/admin/sim', authMiddleware, adminMiddleware, simRoutes);
 app.use('/api/admin/payments', authMiddleware, adminMiddleware, paymentAdminRoutes);
 app.use('/api/admin', authMiddleware, adminMiddleware, injuryRoutes);
 app.use('/api/admin/draft-logs', authMiddleware, adminMiddleware, draftLogsRoutes);
+app.use('/api/slates', apiLimiter, slateRoutes);
 
 // Settlement admin routes
 try {
@@ -410,7 +421,16 @@ app.get('/api', (req, res) => {
         cancel: 'POST /api/withdrawals/:id/cancel',
         w9: 'POST /api/withdrawals/w9'
       },
-      marketMover: { status: 'GET /api/market-mover/status', vote: 'POST /api/market-mover/vote' }
+      marketMover: { status: 'GET /api/market-mover/status', vote: 'POST /api/market-mover/vote' },
+      slates: {
+        list: 'GET /api/slates',
+        details: 'GET /api/slates/:slateId',
+        lock: 'POST /api/slates/:slateId/lock',
+        settle: 'POST /api/slates/:slateId/settle',
+        injuries: 'GET/POST /api/slates/:slateId/injuries',
+        swapHistory: 'GET /api/slates/:slateId/swap-history',
+        runSwaps: 'POST /api/slates/:slateId/run-swaps'
+      }
     }
   });
 });
@@ -477,13 +497,12 @@ async function startServer() {
       console.log('⚠️ Settlement services not available:', error.message);
     }
 
-    // Initialize injury swap service
+    // Initialize injury swap service with Redis
     try {
       if (injurySwapService && contestService.redis) {
         injurySwapService.setRedis(contestService.redis);
-        await injurySwapService.rescheduleAllSwaps();
         app.set('injurySwapService', injurySwapService);
-        console.log('✅ Injury swap service initialized');
+        console.log('✅ Injury swap service initialized (slate-based, no scheduled timers)');
       }
     } catch (error) {
       console.log('⚠️ Injury swap service not available:', error.message);

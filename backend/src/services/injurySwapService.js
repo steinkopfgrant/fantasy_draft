@@ -1,13 +1,23 @@
 // backend/src/services/injurySwapService.js
-// Handles injury swaps for Cash and Market Mover contests
-// Runs 15 minutes before contest start time
+// Handles injury swaps for all contest types within a slate.
+//
+// FLOW:
+//   1. Admin marks players as OUT for a specific slate via API
+//   2. When the slate locks (games about to start), call runSwapsForSlate()
+//   3. For every completed lineup tied to that slate, find OUT players
+//   4. Replace each OUT player with a random same-position, same-price
+//      player from PLAYER_POOLS who is NOT out and NOT already on the roster
+//   5. Save updated lineup + swap history
+//
+// Replacement candidates come from gameLogic PLAYER_POOLS (the master list),
+// NOT from the draft board. The board is irrelevant post-draft.
 
 const db = require('../models');
-const { redis } = require('../config/redis');
+const { Op } = require('sequelize');
+const { SPORT_CONFIG } = require('../utils/gameLogic');
 
 class InjurySwapService {
   constructor() {
-    this.scheduledSwaps = new Map(); // contestId -> timeoutId
     this.redis = null;
   }
 
@@ -16,366 +26,389 @@ class InjurySwapService {
   }
 
   // ============================================
-  // INJURY STATUS MANAGEMENT
+  // INJURY STATUS MANAGEMENT (per-slate)
   // ============================================
 
-  // Mark a player as OUT for the current week
-  async markPlayerOut(playerId, weekId = 'current') {
-    const key = `injuries:${weekId}`;
-    const injuries = await this.getInjuries(weekId);
-    injuries[playerId] = {
+  _key(slateId) {
+    return `injuries:slate:${slateId}`;
+  }
+
+  /**
+   * Mark a player as OUT for a specific slate.
+   * Uses player name as the key since that's what's stored in lineup rosters.
+   */
+  async markPlayerOut(slateId, playerName, position, price, sport = 'nfl') {
+    const key = this._key(slateId);
+    const injuries = await this.getInjuries(slateId);
+
+    injuries[playerName] = {
       status: 'OUT',
+      position,
+      price: Number(price),
+      sport,
       markedAt: Date.now()
     };
-    await this.redis.set(key, JSON.stringify(injuries), 'EX', 86400 * 7); // 7 day expiry
-    console.log(`🏥 Marked player ${playerId} as OUT for week ${weekId}`);
-    return true;
-  }
 
-  // Mark a player as active (remove from injury list)
-  async markPlayerActive(playerId, weekId = 'current') {
-    const key = `injuries:${weekId}`;
-    const injuries = await this.getInjuries(weekId);
-    delete injuries[playerId];
     await this.redis.set(key, JSON.stringify(injuries), 'EX', 86400 * 7);
-    console.log(`✅ Marked player ${playerId} as ACTIVE for week ${weekId}`);
+    console.log(`🏥 Marked "${playerName}" (${position} $${price}) as OUT for slate ${slateId}`);
     return true;
   }
 
-  // Get all injuries for a week
-  async getInjuries(weekId = 'current') {
-    const key = `injuries:${weekId}`;
+  /**
+   * Mark a player as active (remove from injury list for a slate).
+   */
+  async markPlayerActive(slateId, playerName) {
+    const key = this._key(slateId);
+    const injuries = await this.getInjuries(slateId);
+    delete injuries[playerName];
+    await this.redis.set(key, JSON.stringify(injuries), 'EX', 86400 * 7);
+    console.log(`✅ Marked "${playerName}" as ACTIVE for slate ${slateId}`);
+    return true;
+  }
+
+  /**
+   * Bulk mark players as OUT for a slate.
+   * players: [{ name, position, price }]
+   */
+  async bulkMarkOut(slateId, players, sport = 'nfl') {
+    const key = this._key(slateId);
+    const injuries = await this.getInjuries(slateId);
+    const now = Date.now();
+
+    for (const p of players) {
+      injuries[p.name] = {
+        status: 'OUT',
+        position: p.position,
+        price: Number(p.price),
+        sport,
+        markedAt: now
+      };
+    }
+
+    await this.redis.set(key, JSON.stringify(injuries), 'EX', 86400 * 7);
+    console.log(`🏥 Bulk marked ${players.length} players as OUT for slate ${slateId}`);
+    return true;
+  }
+
+  /**
+   * Get all injuries for a slate.
+   * Returns: { "Josh Allen": { status: "OUT", position: "QB", price: 5, ... }, ... }
+   */
+  async getInjuries(slateId) {
+    const key = this._key(slateId);
     const data = await this.redis.get(key);
     return data ? JSON.parse(data) : {};
   }
 
-  // Check if a specific player is OUT
-  async isPlayerOut(playerId, weekId = 'current') {
-    const injuries = await this.getInjuries(weekId);
-    return injuries[playerId]?.status === 'OUT';
-  }
-
-  // Bulk mark players as OUT (for admin use)
-  async bulkMarkOut(playerIds, weekId = 'current') {
-    const key = `injuries:${weekId}`;
-    const injuries = await this.getInjuries(weekId);
-    const now = Date.now();
-    
-    for (const playerId of playerIds) {
-      injuries[playerId] = { status: 'OUT', markedAt: now };
-    }
-    
-    await this.redis.set(key, JSON.stringify(injuries), 'EX', 86400 * 7);
-    console.log(`🏥 Bulk marked ${playerIds.length} players as OUT`);
-    return true;
-  }
-
-  // Clear all injuries for a week
-  async clearInjuries(weekId = 'current') {
-    const key = `injuries:${weekId}`;
-    await this.redis.del(key);
-    console.log(`🗑️ Cleared all injuries for week ${weekId}`);
+  /**
+   * Clear all injuries for a slate.
+   */
+  async clearInjuries(slateId) {
+    await this.redis.del(this._key(slateId));
+    console.log(`🗑️ Cleared all injuries for slate ${slateId}`);
     return true;
   }
 
   // ============================================
-  // INJURY SWAP LOGIC
+  // CORE SWAP LOGIC
   // ============================================
 
-  // Run injury swaps for a specific contest
-  async runInjurySwapsForContest(contestId) {
-    console.log(`\n🔄 Running injury swaps for contest ${contestId}...`);
-    
+  /**
+   * Run injury swaps for every lineup in a slate.
+   * Call this when the slate locks (before games start).
+   */
+  async runSwapsForSlate(slateId) {
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🔄 RUNNING INJURY SWAPS FOR SLATE: ${slateId}`);
+    console.log(`${'='.repeat(60)}`);
+
     try {
-      // Get contest info
-      const contest = await db.Contest.findByPk(contestId);
-      if (!contest) {
-        console.log(`❌ Contest ${contestId} not found`);
-        return { success: false, error: 'Contest not found' };
+      // 1. Get the slate
+      const slate = await db.Slate.findByPk(slateId);
+      if (!slate) {
+        console.log(`❌ Slate ${slateId} not found`);
+        return { success: false, error: 'Slate not found' };
       }
 
-      // Only run for Cash and Market Mover contests
-      if (!['cash', 'market_mover'].includes(contest.type)) {
-        console.log(`⏭️ Skipping injury swap for contest type: ${contest.type}`);
-        return { success: false, error: 'Contest type not eligible for injury swaps' };
+      const sport = slate.sport || 'nfl';
+
+      // 2. Get OUT players for this slate
+      const injuries = await this.getInjuries(slateId);
+      const outPlayerNames = Object.keys(injuries).filter(
+        name => injuries[name].status === 'OUT'
+      );
+
+      if (outPlayerNames.length === 0) {
+        console.log(`✅ No players marked OUT — no swaps needed`);
+        return { success: true, totalSwaps: 0, lineupsAffected: 0 };
       }
 
-      // Get all lineups for this contest (from Lineup model, not ContestEntry)
+      console.log(`🏥 Players OUT (${outPlayerNames.length}): ${outPlayerNames.join(', ')}`);
+
+      // 3. Build a Set for fast lookup
+      const outSet = new Set(outPlayerNames.map(n => n.toLowerCase()));
+
+      // 4. Find all contests on this slate
+      const contests = await db.Contest.findAll({
+        where: { slate_id: slateId }
+      });
+
+      if (contests.length === 0) {
+        console.log(`📭 No contests found for slate ${slateId}`);
+        return { success: true, totalSwaps: 0, lineupsAffected: 0 };
+      }
+
+      const contestIds = contests.map(c => c.id);
+      console.log(`📋 Found ${contests.length} contest(s) on this slate`);
+
+      // 5. Get all drafted lineups for those contests
       const lineups = await db.Lineup.findAll({
         where: {
-          contest_id: contestId,
-          status: 'drafted' // Only drafted lineups
+          contest_id: { [Op.in]: contestIds },
+          status: 'drafted'
         }
       });
 
       if (lineups.length === 0) {
-        console.log(`📭 No drafted lineups for contest ${contestId}`);
-        return { success: true, swaps: 0 };
+        console.log(`📭 No drafted lineups to process`);
+        return { success: true, totalSwaps: 0, lineupsAffected: 0 };
       }
 
-      console.log(`📋 Found ${lineups.length} lineups to check`);
+      console.log(`📋 Found ${lineups.length} lineup(s) to check`);
 
-      // Get current injuries
-      const injuries = await this.getInjuries('current');
-      const outPlayerIds = Object.keys(injuries).filter(id => injuries[id].status === 'OUT');
-      
-      if (outPlayerIds.length === 0) {
-        console.log(`✅ No players marked OUT - no swaps needed`);
-        return { success: true, swaps: 0 };
+      // 6. Get the player pool for this sport
+      const sportConfig = SPORT_CONFIG[sport];
+      if (!sportConfig) {
+        console.log(`❌ Unknown sport: ${sport}`);
+        return { success: false, error: `Unknown sport: ${sport}` };
       }
+      const playerPools = sportConfig.playerPools;
 
-      console.log(`🏥 Players marked OUT: ${outPlayerIds.join(', ')}`);
-
-      // Get the player board for this contest (to find replacements)
-      const playerBoard = contest.player_board || {};
-      
+      // 7. Process each lineup
       let totalSwaps = 0;
       const swapResults = [];
 
-      // Process each lineup
-      for (const lineupRecord of lineups) {
-        const roster = lineupRecord.roster || {};
+      for (const lineup of lineups) {
+        const roster = lineup.roster || {};
         const swapsForLineup = [];
 
-        // Check each roster slot
+        // Build set of player names already on this roster (lowercase for matching)
+        const rosterNames = new Set(
+          Object.values(roster)
+            .filter(p => p && p.name)
+            .map(p => p.name.toLowerCase())
+        );
+
         for (const [slot, player] of Object.entries(roster)) {
-          if (!player || !player.id) continue;
+          if (!player || !player.name) continue;
 
-          // Check if this player is OUT (check both id and name for flexibility)
-          const playerIdStr = String(player.id);
-          const isOut = outPlayerIds.includes(playerIdStr) || 
-                        outPlayerIds.includes(player.name) ||
-                        outPlayerIds.some(id => player.name && player.name.toLowerCase().includes(id.toLowerCase()));
+          if (!outSet.has(player.name.toLowerCase())) continue;
 
-          if (isOut) {
-            console.log(`🔍 Found OUT player in lineup ${lineupRecord.id}: ${player.name} (${slot})`);
+          console.log(`🔍 Found OUT player in lineup ${lineup.id}: "${player.name}" (${slot}, ${player.position} $${player.price})`);
 
-            // Find replacement: same position, same price, not OUT
-            const replacement = this.findReplacement(
-              player,
+          // Find replacement from PLAYER_POOLS
+          const replacement = this._findReplacement(
+            player,
+            slot,
+            playerPools,
+            outSet,
+            rosterNames,
+            sport
+          );
+
+          if (replacement) {
+            console.log(`  ✅ Swapping "${player.name}" → "${replacement.name}"`);
+
+            // Update roster in-place
+            roster[slot] = {
+              ...replacement,
+              position: player.position,           // Keep the slot's position label
+              price: player.price,                  // Keep the original price
+              swappedFrom: player.name,             // Audit trail
+              swappedAt: new Date().toISOString()
+            };
+
+            // Update rosterNames so the next slot doesn't pick the same replacement
+            rosterNames.delete(player.name.toLowerCase());
+            rosterNames.add(replacement.name.toLowerCase());
+
+            swapsForLineup.push({
               slot,
-              playerBoard,
-              outPlayerIds,
-              roster
-            );
-
-            if (replacement) {
-              console.log(`✅ Swapping ${player.name} → ${replacement.name}`);
-              
-              // Update roster
-              roster[slot] = replacement;
-              swapsForLineup.push({
-                slot,
-                oldPlayer: player,
-                newPlayer: replacement
-              });
-              totalSwaps++;
-            } else {
-              console.log(`❌ No valid replacement found for ${player.name} ($${player.price} ${player.position})`);
-              swapsForLineup.push({
-                slot,
-                oldPlayer: player,
-                newPlayer: null,
-                error: 'No valid replacement available'
-              });
-            }
+              oldPlayer: { name: player.name, team: player.team, position: player.position, price: player.price },
+              newPlayer: { name: replacement.name, team: replacement.team, position: replacement.position, price: player.price }
+            });
+            totalSwaps++;
+          } else {
+            console.log(`  ❌ No valid replacement for "${player.name}" (${player.position} $${player.price})`);
+            swapsForLineup.push({
+              slot,
+              oldPlayer: { name: player.name, team: player.team, position: player.position, price: player.price },
+              newPlayer: null,
+              error: 'No valid replacement available'
+            });
           }
         }
 
-        // Save updated roster if there were swaps
+        // Save updated roster if any swaps occurred
         if (swapsForLineup.length > 0) {
-          lineupRecord.roster = roster;
-          await lineupRecord.save();
+          lineup.roster = roster;
+          lineup.changed('roster', true); // Force Sequelize to detect JSONB change
+          await lineup.save();
 
-          // Store swap history
-          await this.recordSwapHistory(lineupRecord.id, swapsForLineup);
-          
+          // Record swap history in Redis
+          await this._recordSwapHistory(slateId, lineup.id, lineup.user_id, swapsForLineup);
+
           swapResults.push({
-            lineupId: lineupRecord.id,
-            entryId: lineupRecord.contest_entry_id,
-            userId: lineupRecord.user_id,
+            lineupId: lineup.id,
+            contestId: lineup.contest_id,
+            userId: lineup.user_id,
             swaps: swapsForLineup
           });
         }
       }
 
-      console.log(`\n✅ Injury swap complete for contest ${contestId}: ${totalSwaps} total swaps`);
-      
-      // Remove from scheduled swaps
-      this.scheduledSwaps.delete(contestId);
+      console.log(`\n✅ Injury swaps complete for slate ${slateId}: ${totalSwaps} swap(s) across ${swapResults.length} lineup(s)`);
+      console.log(`${'='.repeat(60)}\n`);
 
       return {
         success: true,
-        contestId,
+        slateId,
+        sport,
         totalSwaps,
         lineupsAffected: swapResults.length,
+        lineupsChecked: lineups.length,
+        outPlayers: outPlayerNames,
         results: swapResults
       };
 
     } catch (error) {
-      console.error(`❌ Error running injury swaps for contest ${contestId}:`, error);
+      console.error(`❌ Error running injury swaps for slate ${slateId}:`, error);
       return { success: false, error: error.message };
     }
   }
 
-  // Find a valid replacement player
-  findReplacement(outPlayer, slot, playerBoard, outPlayerIds, currentLineup) {
-    // Determine position requirement based on slot
-    let positionReq = outPlayer.position;
-    
-    // FLEX can be RB or WR
-    if (slot.toLowerCase().includes('flex')) {
-      positionReq = ['RB', 'WR'];
+  /**
+   * Find a valid replacement player from PLAYER_POOLS.
+   *
+   * Rules:
+   *   - Same base position (QB→QB, WR→WR, etc.)
+   *     For FLEX slots, use originalPosition or the player's actual position
+   *   - Same price tier
+   *   - Not marked OUT
+   *   - Not already on the roster
+   */
+  _findReplacement(outPlayer, slot, playerPools, outSet, rosterNames, sport) {
+    // Determine the base position to search.
+    // If the slot is FLEX, use the player's original/actual position.
+    let searchPosition = outPlayer.originalPosition || outPlayer.position;
+
+    // Normalize: FLEX isn't a pool key, so we need the real position
+    if (searchPosition === 'FLEX') {
+      // Fallback: try to infer from slot name or just use position field
+      searchPosition = outPlayer.position !== 'FLEX' ? outPlayer.position : null;
     }
 
-    // Get all players at the same price point
-    const priceKey = `$${outPlayer.price}`;
-    const playersAtPrice = playerBoard[priceKey] || [];
-
-    // Get IDs of players already in lineup (to avoid duplicates)
-    const lineupPlayerIds = Object.values(currentLineup)
-      .filter(p => p && p.id)
-      .map(p => String(p.id));
-
-    // Filter for valid replacements
-    const validReplacements = playersAtPrice.filter(player => {
-      // Must match position
-      const positionMatch = Array.isArray(positionReq)
-        ? positionReq.includes(player.position)
-        : player.position === positionReq;
-      
-      if (!positionMatch) return false;
-
-      // Must not be OUT
-      if (outPlayerIds.includes(String(player.id))) return false;
-
-      // Must not already be in lineup
-      if (lineupPlayerIds.includes(String(player.id))) return false;
-
-      // Must not be the same player
-      if (String(player.id) === String(outPlayer.id)) return false;
-
-      return true;
-    });
-
-    if (validReplacements.length === 0) {
+    if (!searchPosition || !playerPools[searchPosition]) {
+      console.log(`  ⚠️ Cannot determine pool for position "${searchPosition}"`);
       return null;
     }
 
-    // Pick a random replacement
-    const randomIndex = Math.floor(Math.random() * validReplacements.length);
-    return validReplacements[randomIndex];
+    const price = Number(outPlayer.price);
+    const pool = playerPools[searchPosition][price] || [];
+
+    if (pool.length === 0) {
+      console.log(`  ⚠️ Empty pool for ${searchPosition} at $${price}`);
+      return null;
+    }
+
+    // Filter for valid candidates
+    const candidates = pool.filter(p => {
+      // Not the same player
+      if (p.name.toLowerCase() === outPlayer.name.toLowerCase()) return false;
+      // Not OUT
+      if (outSet.has(p.name.toLowerCase())) return false;
+      // Not already on roster
+      if (rosterNames.has(p.name.toLowerCase())) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    // Pick random
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   // ============================================
   // SWAP HISTORY
   // ============================================
 
-  // Record swap history for an entry
-  async recordSwapHistory(entryId, swaps) {
+  async _recordSwapHistory(slateId, lineupId, userId, swaps) {
     try {
-      const key = `swap_history:${entryId}`;
-      const history = {
-        entryId,
+      const record = {
+        slateId,
+        lineupId,
+        userId,
         swappedAt: Date.now(),
         swaps: swaps.map(s => ({
           slot: s.slot,
-          oldPlayerId: s.oldPlayer?.id,
           oldPlayerName: s.oldPlayer?.name,
-          newPlayerId: s.newPlayer?.id,
+          oldPlayerTeam: s.oldPlayer?.team,
           newPlayerName: s.newPlayer?.name,
+          newPlayerTeam: s.newPlayer?.team,
+          price: s.oldPlayer?.price,
           error: s.error || null
         }))
       };
-      
-      await this.redis.set(key, JSON.stringify(history), 'EX', 86400 * 30); // 30 day expiry
-      
-      // Also store in a list for the user to query
-      const userKey = `user_swaps:${entryId}`;
-      await this.redis.lpush(userKey, JSON.stringify(history));
+
+      // Per-lineup history
+      const lineupKey = `swap_history:lineup:${lineupId}`;
+      await this.redis.set(lineupKey, JSON.stringify(record), 'EX', 86400 * 30);
+
+      // Per-user list (so users can see all their swaps)
+      const userKey = `swap_history:user:${userId}`;
+      await this.redis.lpush(userKey, JSON.stringify(record));
       await this.redis.expire(userKey, 86400 * 30);
-      
+
+      // Per-slate summary list (for admin review)
+      const slateKey = `swap_history:slate:${slateId}`;
+      await this.redis.lpush(slateKey, JSON.stringify(record));
+      await this.redis.expire(slateKey, 86400 * 30);
+
     } catch (error) {
       console.error(`Error recording swap history:`, error);
     }
   }
 
-  // Get swap history for an entry
-  async getSwapHistory(entryId) {
-    const key = `swap_history:${entryId}`;
+  /**
+   * Get swap history for a specific lineup.
+   */
+  async getSwapHistoryForLineup(lineupId) {
+    const key = `swap_history:lineup:${lineupId}`;
     const data = await this.redis.get(key);
     return data ? JSON.parse(data) : null;
   }
 
-  // ============================================
-  // SCHEDULING
-  // ============================================
-
-  // Schedule injury swap for a contest (call this when contest is created)
-  scheduleSwapForContest(contestId, startTime) {
-    // Clear any existing scheduled swap
-    if (this.scheduledSwaps.has(contestId)) {
-      clearTimeout(this.scheduledSwaps.get(contestId));
-    }
-
-    const now = Date.now();
-    const swapTime = new Date(startTime).getTime() - (15 * 60 * 1000); // 15 min before
-    const delay = swapTime - now;
-
-    if (delay <= 0) {
-      console.log(`⏰ Swap time already passed for contest ${contestId}, running immediately`);
-      this.runInjurySwapsForContest(contestId);
-      return;
-    }
-
-    console.log(`📅 Scheduled injury swap for contest ${contestId} in ${Math.round(delay / 60000)} minutes`);
-    
-    const timeoutId = setTimeout(() => {
-      this.runInjurySwapsForContest(contestId);
-    }, delay);
-
-    this.scheduledSwaps.set(contestId, timeoutId);
+  /**
+   * Get all swap records for a user.
+   */
+  async getSwapHistoryForUser(userId, limit = 20) {
+    const key = `swap_history:user:${userId}`;
+    const records = await this.redis.lrange(key, 0, limit - 1);
+    return records.map(r => JSON.parse(r));
   }
 
-  // Cancel scheduled swap (if contest is deleted/cancelled)
-  cancelScheduledSwap(contestId) {
-    if (this.scheduledSwaps.has(contestId)) {
-      clearTimeout(this.scheduledSwaps.get(contestId));
-      this.scheduledSwaps.delete(contestId);
-      console.log(`🚫 Cancelled scheduled injury swap for contest ${contestId}`);
-    }
-  }
-
-  // Re-schedule all upcoming swaps (call on server boot)
-  async rescheduleAllSwaps() {
-    console.log('🔄 Rescheduling injury swaps for upcoming contests...');
-    
-    try {
-      const now = new Date();
-      
-      // Find all active Cash and Market Mover contests with future start times
-      const contests = await db.Contest.findAll({
-        where: {
-          type: ['cash', 'market_mover'],
-          status: ['open', 'filling', 'active'],
-          start_time: {
-            [db.Sequelize.Op.gt]: now
-          }
-        }
-      });
-
-      for (const contest of contests) {
-        this.scheduleSwapForContest(contest.id, contest.start_time);
-      }
-
-      console.log(`✅ Rescheduled swaps for ${contests.length} contests`);
-    } catch (error) {
-      console.error('Error rescheduling swaps:', error);
-    }
+  /**
+   * Get all swap records for a slate (admin).
+   */
+  async getSwapHistoryForSlate(slateId, limit = 100) {
+    const key = `swap_history:slate:${slateId}`;
+    const records = await this.redis.lrange(key, 0, limit - 1);
+    return records.map(r => JSON.parse(r));
   }
 }
 
-// Singleton instance
+// Singleton
 const injurySwapService = new InjurySwapService();
-
 module.exports = injurySwapService;
