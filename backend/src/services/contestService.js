@@ -178,6 +178,7 @@ class ContestService {
         id: contest.id,
         type: contest.type,
         sport: contest.sport || 'nfl',
+        slateId: contest.slate_id,
         name: contest.name,
         status: contest.status,
         entryFee: parseFloat(contest.entry_fee),
