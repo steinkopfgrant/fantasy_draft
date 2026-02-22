@@ -231,6 +231,8 @@ app.use(cors({
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
       'https://bidblitz.io',
+      'http://bidblitz.io',
+      'http://www.bidblitz.io',
       'https://www.bidblitz.io',
       process.env.CLIENT_URL
     ].filter(Boolean);
