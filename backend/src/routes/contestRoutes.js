@@ -46,8 +46,34 @@ router.get('/', async (req, res) => {
     // Use contestService to get contests
     const contests = await contestService.getContests();
     
-    console.log(`Returning ${contests.length} contests`);
-    res.json(contests);
+    // Enrich contests with slate names
+    const slateIds = [...new Set(
+      contests
+        .map(c => c.slateId || c.slate_id)
+        .filter(Boolean)
+    )];
+    
+    let slateMap = {};
+    if (slateIds.length > 0) {
+      const slates = await db.Slate.findAll({
+        where: { id: slateIds },
+        attributes: ['id', 'name']
+      });
+      slates.forEach(s => { slateMap[s.id] = s.name; });
+    }
+    
+    const enriched = contests.map(c => {
+      const sid = c.slateId || c.slate_id;
+      // Handle both plain objects and Sequelize instances
+      if (c.toJSON) {
+        const json = c.toJSON();
+        return { ...json, slateName: slateMap[sid] || null };
+      }
+      return { ...c, slateName: slateMap[sid] || null };
+    });
+    
+    console.log(`Returning ${enriched.length} contests`);
+    res.json(enriched);
     
   } catch (error) {
     console.error('Get contests error:', error);

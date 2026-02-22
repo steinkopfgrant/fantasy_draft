@@ -714,6 +714,9 @@ const LobbyScreen = () => {
                     
                     <div className="detail-row"><span>Type:</span><span className="detail-value">{contestType === 'cash' ? 'Cash' : contestType === 'market' ? 'Tournament' : contestType}</span></div>
                     <div className="detail-row"><span>Sport:</span><span className="detail-value">{contest.sport === 'nba' ? '🏀 Basketball' : '🏈 Football'}</span></div>
+                    {contest.slateName && (
+                      <div className="detail-row"><span>Slate:</span><span className="detail-value" style={{ color: '#fbbf24', fontSize: '13px' }}>📅 {contest.slateName}</span></div>
+                    )}
                     <div className="detail-row"><span>Entry Fee:</span><span className="detail-value">{contestType === 'cash' ? '$5' : contestType === 'market' ? '$25' : `$${contest.entryFee || 0}`}</span></div>
                     <div className="detail-row">
                       <span>Prize Pool:</span>
