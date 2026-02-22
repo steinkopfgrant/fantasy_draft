@@ -1,5 +1,6 @@
 // frontend/src/store/slices/draftSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import axios from 'axios';
 import socketService from '../../services/socket';
 
 // All valid roster slots across all sports
@@ -226,17 +227,8 @@ export const initializeDraft = createAsyncThunk(
   'draft/initialize',
   async ({ roomId, userId }, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/drafts/initialize/${roomId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return rejectWithValue(errorData.error || `HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
+      const response = await axios.get(`/api/drafts/initialize/${roomId}`);
+      const data = response.data;
       
       return {
         success: true,
@@ -253,7 +245,7 @@ export const initializeDraft = createAsyncThunk(
         users: data.users
       };
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to initialize draft');
+      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to initialize draft');
     }
   }
 );
