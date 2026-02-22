@@ -237,6 +237,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.error(`🚫 CORS rejected origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
