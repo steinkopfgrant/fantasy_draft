@@ -631,7 +631,7 @@ const DraftScreen = ({ showToast }) => {
 
   // ==================== JOIN DRAFT ROOM ====================
   useEffect(() => {
-    if (socketConnected && status === 'initialized' && contestData && entryId && !hasJoinedRef.current) {
+    if (socketConnected && (status === 'initialized' || status === 'waiting') && contestData && entryId && !hasJoinedRef.current) {
       console.log('🔌 Joining draft room');
       hasJoinedRef.current = true;
 

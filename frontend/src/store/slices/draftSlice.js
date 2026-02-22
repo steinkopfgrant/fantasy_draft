@@ -111,7 +111,6 @@ const processRosterData = (roster) => {
         return;
       }
       
-      // FIXED: Include ALL sport positions, not just NFL
       const slotKey = key.toUpperCase();
       if (!ALL_VALID_SLOTS.includes(slotKey)) {
         return;
@@ -171,7 +170,6 @@ const isProcessedByDraftScreen = (teams) => {
     const roster = team?.roster;
     if (!roster || typeof roster !== 'object') return false;
     
-    // FIXED: Check for ANY valid sport position, not just NFL
     const hasStandardizedKeys = Object.keys(roster).some(key => 
       ALL_VALID_SLOTS.includes(key)
     );
@@ -196,7 +194,9 @@ const initialState = {
   roomId: null,
   contestId: null,
   contestType: 'cash',
+  contestData: null,
   entryId: null,
+  entryCount: 5,
   teams: [],
   users: [],
   connectedPlayers: 0,
@@ -219,36 +219,41 @@ const initialState = {
   finalRosters: null
 };
 
-// Async thunks
+// ==================== ASYNC THUNKS ====================
+
+// Initialize draft via HTTP (works for both waiting rooms and active drafts)
 export const initializeDraft = createAsyncThunk(
   'draft/initialize',
-  async ({ roomId, contestId, contestType, entryId }, { rejectWithValue }) => {
+  async ({ roomId, userId }, { rejectWithValue }) => {
     try {
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Draft initialization timeout'));
-        }, 10000);
-
-        socketService.emit('get-draft-state', { roomId });
-        
-        const handleDraftState = (data) => {
-          clearTimeout(timeout);
-          socketService.off('draft-state', handleDraftState);
-          
-          resolve({
-            success: true,
-            roomId,
-            contestId,
-            contestType,
-            entryId,
-            draftState: data
-          });
-        };
-
-        socketService.on('draft-state', handleDraftState);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/drafts/initialize/${roomId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return rejectWithValue(errorData.error || `HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        success: true,
+        roomId: data.roomId,
+        contestId: data.contestId,
+        contestType: data.contestType,
+        entryId: data.entryId,
+        userDraftPosition: data.userDraftPosition,
+        status: data.status,
+        playerBoard: data.playerBoard,
+        currentPlayers: data.currentPlayers,
+        maxPlayers: data.maxPlayers,
+        contestData: data.contestData,
+        users: data.users
+      };
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.message || 'Failed to initialize draft');
     }
   }
 );
@@ -334,7 +339,7 @@ export const skipTurn = createAsyncThunk(
   }
 );
 
-// Draft slice
+// ==================== DRAFT SLICE ====================
 const draftSlice = createSlice({
   name: 'draft',
   initialState,
@@ -638,31 +643,24 @@ const draftSlice = createSlice({
         state.contestId = action.payload.contestId;
         state.contestType = action.payload.contestType;
         state.entryId = action.payload.entryId;
-        state.status = 'initialized';
+        state.userDraftPosition = action.payload.userDraftPosition ?? null;
+        state.contestData = action.payload.contestData || null;
+        state.entryCount = action.payload.maxPlayers || 5;
         
-        if (action.payload.draftState) {
-          const draft = action.payload.draftState;
-          
-          if (draft.teams && Array.isArray(draft.teams) && draft.teams.length > 0) {
-            state.teams = draft.teams.map((team, index) => ({
-              ...team,
-              roster: processRosterData(team.roster || team.picks || {}),
-              userId: team.userId || team._id || team.id,
-              name: team.name || team.username || `Team ${index + 1}`,
-              budget: team.budget !== undefined ? team.budget : 15,
-              bonus: team.bonus || 0,
-              color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5]
-            }));
-          } else {
-            state.teams = [];
-          }
-          
-          if (draft.playerBoard) state.playerBoard = draft.playerBoard;
-          if (draft.currentTurn !== undefined) state.currentTurn = draft.currentTurn;
-          if (draft.currentPick !== undefined) state.currentPick = draft.currentPick;
-          if (draft.draftOrder) state.draftOrder = draft.draftOrder;
-          if (draft.picks) state.picks = draft.picks;
-          if (draft.status) state.status = draft.status;
+        if (action.payload.playerBoard) {
+          state.playerBoard = action.payload.playerBoard;
+        }
+        
+        if (action.payload.users) {
+          state.users = action.payload.users;
+          state.connectedPlayers = action.payload.currentPlayers || action.payload.users.length;
+        }
+        
+        // Waiting room vs active draft
+        if (action.payload.status === 'waiting') {
+          state.status = 'waiting';
+        } else {
+          state.status = 'initialized';
         }
       })
       .addCase(initializeDraft.rejected, (state, action) => {
@@ -721,5 +719,7 @@ export const selectAutoPick = (state) => {
   const { playerBoard, teams, currentTurn, draftOrder } = state.draft;
   return findAutoPick(playerBoard, teams, currentTurn, draftOrder);
 };
+
+export const selectAuthUser = (state) => state.auth?.user;
 
 export default draftSlice.reducer;

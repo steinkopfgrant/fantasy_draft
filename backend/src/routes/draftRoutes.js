@@ -67,7 +67,8 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
       contestData: {
         contestId: contest.id,
         name: contest.name,
-        type: contest.type
+        type: contest.type,
+        sport: contest.sport || roomStatus.contestSport || 'nfl'
       },
       users: roomStatus.entries.map((entry, index) => ({
         userId: entry.userId,
