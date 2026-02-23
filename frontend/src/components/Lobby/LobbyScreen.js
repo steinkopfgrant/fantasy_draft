@@ -1,7 +1,7 @@
 // frontend/src/components/Lobby/LobbyScreen.js
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import socketService from '../../services/socket';
 import WaitingRoom from './WaitingRoom';
@@ -22,6 +22,7 @@ import { showToast } from '../../store/slices/uiSlice';
 const LobbyScreen = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // Redux selectors
   const contestsRaw = useSelector(selectContests);
@@ -64,6 +65,7 @@ const LobbyScreen = () => {
   const hasFetchedRef = useRef(false);
   const socketHandlersSetRef = useRef(false);
   const roomPollingInterval = useRef(null);
+  const rejoinHandledRef = useRef(false);
   // Track the current waiting room ID in a ref so socket handler always has fresh value
   const waitingRoomIdRef = useRef(null);
   
@@ -73,53 +75,7 @@ const LobbyScreen = () => {
   }, [waitingRoomData]);
   
   // ============================================
-  // SINGLE DATA FETCH ON MOUNT - NO HEALTH CHECK
-  // ============================================
-  useEffect(() => {
-    if (!user?.id || hasFetchedRef.current) return;
-    
-    hasFetchedRef.current = true;
-    console.log('🚀 Fetching lobby data for:', user.username);
-    
-    // Fetch both in parallel - no unnecessary health check
-    Promise.all([
-      dispatch(fetchContests()),
-      dispatch(fetchUserEntries())
-    ]).catch(err => console.error('❌ Fetch error:', err));
-  }, [dispatch, user?.id, user?.username]);
-  
-  // Reset fetch flag on user change
-  useEffect(() => {
-    return () => { hasFetchedRef.current = false; };
-  }, [user?.id]);
-  
-  // ============================================
-  // CHECK FOR ACTIVE DRAFTS
-  // ============================================
-  useEffect(() => {
-    // ONLY match entries with 'drafting' status - NOT pending
-    const draftingEntry = userEntriesArray.find(entry => {
-      const roomId = entry.draft_room_id || entry.draftRoomId;
-      return roomId && entry.status === 'drafting';
-    });
-    
-    if (draftingEntry) {
-      const roomId = draftingEntry.draft_room_id || draftingEntry.draftRoomId;
-      const contest = contests.find(c => 
-        c.id === draftingEntry.contest_id || c.id === draftingEntry.contestId
-      );
-      setActiveDraft({
-        roomId,
-        contestName: contest?.name || 'Draft',
-        entryId: draftingEntry.id
-      });
-    } else {
-      setActiveDraft(null);
-    }
-  }, [userEntriesArray, contests]);
-  
-  // ============================================
-  // ROOM POLLING
+  // ROOM POLLING (defined early so rejoin effect can reference it)
   // ============================================
   const startRoomPolling = useCallback((roomId) => {
     if (roomPollingInterval.current) clearInterval(roomPollingInterval.current);
@@ -162,6 +118,133 @@ const LobbyScreen = () => {
     pollRoom();
     roomPollingInterval.current = setInterval(pollRoom, 2000);
   }, [dispatch]);
+  
+  // ============================================
+  // SINGLE DATA FETCH ON MOUNT - NO HEALTH CHECK
+  // ============================================
+  useEffect(() => {
+    if (!user?.id || hasFetchedRef.current) return;
+    
+    hasFetchedRef.current = true;
+    console.log('🚀 Fetching lobby data for:', user.username);
+    
+    // Fetch both in parallel - no unnecessary health check
+    Promise.all([
+      dispatch(fetchContests()),
+      dispatch(fetchUserEntries())
+    ]).catch(err => console.error('❌ Fetch error:', err));
+  }, [dispatch, user?.id, user?.username]);
+  
+  // Reset fetch flag on user change
+  useEffect(() => {
+    return () => { hasFetchedRef.current = false; };
+  }, [user?.id]);
+  
+  // ============================================
+  // REJOIN FROM TEAMS PAGE (query param: ?rejoin=roomId)
+  // ============================================
+  useEffect(() => {
+    const rejoinRoomId = searchParams.get('rejoin');
+    if (!rejoinRoomId || !user?.id || rejoinHandledRef.current) return;
+    
+    rejoinHandledRef.current = true;
+    
+    // Clear the query param so refresh doesn't re-trigger
+    setSearchParams({}, { replace: true });
+    
+    console.log('🔄 Rejoin requested for room:', rejoinRoomId);
+    
+    const rejoinRoom = async () => {
+      try {
+        const response = await axios.get(`/api/contests/room/${rejoinRoomId}/status`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+          timeout: 5000
+        });
+        
+        const roomStatus = response.data;
+        
+        // If draft already started, go straight to DraftScreen
+        if (roomStatus.status === 'drafting' || roomStatus.status === 'in_progress') {
+          console.log('🚀 Draft already started, navigating to DraftScreen');
+          navigate(`/draft/${rejoinRoomId}`, { replace: true });
+          return;
+        }
+        
+        // If room is no longer valid (completed, cancelled, etc)
+        if (roomStatus.status !== 'waiting' && roomStatus.status !== 'open') {
+          dispatch(showToast({ message: 'This contest is no longer in waiting room', type: 'info' }));
+          return;
+        }
+        
+        // Find the user's entry for this room
+        const myEntry = userEntriesArray.find(e => {
+          const roomId = e.draft_room_id || e.draftRoomId;
+          return roomId === rejoinRoomId && (e.status === 'pending' || e.status === 'drafting');
+        });
+        
+        // Find contest info
+        const contest = contests.find(c => c.id === roomStatus.contestId);
+        
+        setWaitingRoomData({
+          contestId: roomStatus.contestId,
+          contestName: contest?.name || roomStatus.contestName || 'Contest',
+          contestType: contest?.type || roomStatus.contestType || 'cash',
+          roomId: rejoinRoomId,
+          entryId: myEntry?.id || null,
+          currentPlayers: roomStatus.currentPlayers || 0,
+          maxPlayers: roomStatus.maxPlayers || 5,
+          players: roomStatus.players || []
+        });
+        setIsInWaitingRoom(true);
+        
+        // Join socket room
+        if (socketService.isConnected()) {
+          socketService.emit('join-room', { roomId: rejoinRoomId, entryId: myEntry?.id });
+        }
+        
+        startRoomPolling(rejoinRoomId);
+      } catch (error) {
+        console.error('❌ Failed to rejoin room:', error);
+        dispatch(showToast({ message: 'Failed to rejoin waiting room', type: 'error' }));
+      }
+    };
+    
+    // Small delay to let entries load first
+    const timer = setTimeout(rejoinRoom, 500);
+    return () => clearTimeout(timer);
+  }, [searchParams, user?.id, userEntriesArray, contests, dispatch, navigate, setSearchParams, startRoomPolling]);
+  
+  // Reset rejoin flag when leaving waiting room
+  useEffect(() => {
+    if (!isInWaitingRoom) {
+      rejoinHandledRef.current = false;
+    }
+  }, [isInWaitingRoom]);
+  
+  // ============================================
+  // CHECK FOR ACTIVE DRAFTS
+  // ============================================
+  useEffect(() => {
+    // ONLY match entries with 'drafting' status - NOT pending
+    const draftingEntry = userEntriesArray.find(entry => {
+      const roomId = entry.draft_room_id || entry.draftRoomId;
+      return roomId && entry.status === 'drafting';
+    });
+    
+    if (draftingEntry) {
+      const roomId = draftingEntry.draft_room_id || draftingEntry.draftRoomId;
+      const contest = contests.find(c => 
+        c.id === draftingEntry.contest_id || c.id === draftingEntry.contestId
+      );
+      setActiveDraft({
+        roomId,
+        contestName: contest?.name || 'Draft',
+        entryId: draftingEntry.id
+      });
+    } else {
+      setActiveDraft(null);
+    }
+  }, [userEntriesArray, contests]);
   
   // Cleanup polling
   useEffect(() => {
@@ -418,18 +501,16 @@ const LobbyScreen = () => {
       const sport = (contest.sport || 'nfl').toLowerCase();
       const type = contest.type || '';
       
-      if (type === 'cash' && sport === 'nba') return 0;  // NBA Cash first
-      if (type === 'cash' && sport === 'nfl') return 1;  // NFL Cash second
-      if (type === 'market') return 2;                    // Market Mover third
-      return 3;                                           // Everything else last
+      if (type === 'cash' && sport === 'nba') return 0;
+      if (type === 'cash' && sport === 'nfl') return 1;
+      if (type === 'market') return 2;
+      return 3;
     };
     
     filtered.sort((a, b) => {
-      // Primary sort: fixed contest type order
       const orderDiff = getContestOrder(a) - getContestOrder(b);
       if (orderDiff !== 0) return orderDiff;
       
-      // Secondary sort: user's selected sort option
       switch (sortBy) {
         case 'startTime': return new Date(a.startTime || 0) - new Date(b.startTime || 0);
         case 'entryFee': return (b.entryFee || 0) - (a.entryFee || 0);

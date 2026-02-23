@@ -229,8 +229,10 @@ const TeamsPage = () => {
   };
 
   const handleTeamClick = (team) => {
-    if (team.status === 'pending' || team.status === 'drafting') {
+    if (team.status === 'drafting') {
       navigate(`/draft/${team.draftRoomId}`);
+    } else if (team.status === 'pending') {
+      navigate(`/lobby?rejoin=${team.draftRoomId}`);
     } else {
       setSelectedTeam(team);
     }
