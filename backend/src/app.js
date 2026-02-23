@@ -1,4 +1,9 @@
 // backend/src/app.js
+
+// ⚡ SENTRY - Must be first import!
+require("./instrument.js");
+const Sentry = require("@sentry/node");
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -294,7 +299,8 @@ app.get('/api/health', async (req, res) => {
         socketConnections: socketHandler.getOnlineUsersCount(),
         settlement: !!app.get('settlementService'),
         injurySwap: !!injurySwapService,
-        payments: !!process.env.STRIPE_SECRET_KEY
+        payments: !!process.env.STRIPE_SECRET_KEY,
+        sentry: true
       }
     });
   } catch (error) {
@@ -352,6 +358,11 @@ app.get('/api/debug/live', (req, res) => {
     sockets: io.engine?.clientsCount || 0,
     drafts: socketHandler.draftHandler?.draftStates?.size || 0
   });
+});
+
+// Sentry test route (remove after verifying)
+app.get("/debug-sentry", function mainHandler(req, res) {
+  throw new Error("Sentry test error - BidBlitz backend is connected!");
 });
 
 // ============================================
@@ -443,6 +454,10 @@ app.get('/api', (req, res) => {
 // ============================================
 // ERROR HANDLING
 // ============================================
+
+// Sentry error handler - MUST be before custom error handlers
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   
@@ -555,6 +570,7 @@ async function startServer() {
     }
 
     console.log('✅ Rate limiting enabled');
+    console.log('✅ Sentry error monitoring active');
 
     // Start server
     const PORT = process.env.PORT || 5000;
@@ -584,6 +600,7 @@ async function startServer() {
 
   } catch (error) {
     console.error('❌ Failed to start server:', error);
+    Sentry.captureException(error);
     process.exit(1);
   }
 }
@@ -605,6 +622,10 @@ async function gracefulShutdown(signal) {
 
     await db.sequelize.close();
     console.log('✅ Database connection closed');
+
+    // Flush Sentry events before exit
+    await Sentry.close(2000);
+
     console.log('👋 Graceful shutdown complete');
     process.exit(0);
   } catch (error) {
@@ -615,6 +636,7 @@ async function gracefulShutdown(signal) {
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  Sentry.captureException(error);
   if (error.message?.includes('EADDRINUSE') || error.message?.includes('ECONNREFUSED')) {
     gracefulShutdown('uncaughtException');
   }
@@ -622,6 +644,7 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  Sentry.captureException(reason);
 });
 
 // Start the server
