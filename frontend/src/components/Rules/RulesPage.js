@@ -96,7 +96,7 @@ const RulesPage = () => {
                 </div>
                 <div className="contest-type">
                   <h4>🔥 Market Mover <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 'normal' }}>(Coming Soon)</span></h4>
-                  <p>Weekly tournament with community voting that influences draft boards. Details to be determined — stay tuned!</p>
+                  <p>Weekly tournament with community-driven player appearance rates through voting — this leads to skews in ownership for the contest. Target periods with favorable Hot and Cold pools to boost performance. Details to be determined.</p>
                 </div>
               </CollapsibleSection>
 
