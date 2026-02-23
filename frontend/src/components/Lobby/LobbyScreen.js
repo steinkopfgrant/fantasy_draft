@@ -170,7 +170,8 @@ const LobbyScreen = () => {
         const entriesRes = await axios.get('/api/contests/my-entries', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const entries = entriesRes.data?.entries || entriesRes.data || [];
+        const rawEntries = entriesRes.data?.entries || entriesRes.data || [];
+        const entries = Array.isArray(rawEntries) ? rawEntries : [];
         
         const myEntry = entries.find(e => {
           const entryContestId = e.contest_id || e.contestId;
