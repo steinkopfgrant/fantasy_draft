@@ -10,7 +10,7 @@ const LandingPage = () => {
       { name: 'Shai Gilgeous-Alexander', pos: 'SG', team: 'OKC', price: 5, matchup: 'vs TOR' },
       { name: 'LeBron James', pos: 'SF', team: 'LAL', price: 5, matchup: '@ ORL' },
       { name: 'Evan Mobley', pos: 'PF', team: 'CLE', price: 5, matchup: '@ NY' },
-      { name: 'Jarrett Allen', pos: 'C', team: 'CLE', price: 5, matchup: '@ NY' },
+      { name: 'Nikola Jokic', pos: 'C', team: 'DEN', price: 5, matchup: 'vs LAL' },
     ],
     '$4': [
       { name: 'Jalen Brunson', pos: 'PG', team: 'NY', price: 4, matchup: 'vs CLE' },
@@ -20,7 +20,7 @@ const LandingPage = () => {
       { name: 'Rudy Gobert', pos: 'C', team: 'MIN', price: 4, matchup: 'vs POR' },
     ],
     '$3': [
-      { name: "D'Angelo Russell", pos: 'PG', team: 'LAL', price: 3, matchup: '@ ORL' },
+      { name: "D'Angelo Russell", pos: 'PG', team: 'WAS', price: 3, matchup: '@ ORL' },
       { name: 'Dyson Daniels', pos: 'SG', team: 'ATL', price: 3, matchup: '@ WAS' },
       { name: 'Brandon Miller', pos: 'SF', team: 'CHA', price: 3, matchup: 'vs CHI', highlighted: true },
       { name: 'Miles Bridges', pos: 'PF', team: 'CHA', price: 3, matchup: 'vs CHI' },

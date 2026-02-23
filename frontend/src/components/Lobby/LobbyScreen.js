@@ -65,6 +65,7 @@ const LobbyScreen = () => {
   const socketHandlersSetRef = useRef(false);
   const roomPollingInterval = useRef(null);
   const rejoinHandledRef = useRef(false);
+  const rejoinRoomIdRef = useRef(new URLSearchParams(window.location.search).get('rejoin'));
   // Track the current waiting room ID in a ref so socket handler always has fresh value
   const waitingRoomIdRef = useRef(null);
   
@@ -144,8 +145,7 @@ const LobbyScreen = () => {
   // Uses window.location directly to avoid React re-render loops
   // ============================================
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const rejoinRoomId = params.get('rejoin');
+    const rejoinRoomId = rejoinRoomIdRef.current;
     if (!rejoinRoomId || !user?.id || rejoinHandledRef.current) return;
     
     rejoinHandledRef.current = true;
