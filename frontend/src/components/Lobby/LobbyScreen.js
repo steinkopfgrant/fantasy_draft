@@ -65,6 +65,7 @@ const LobbyScreen = () => {
   const socketHandlersSetRef = useRef(false);
   const roomPollingInterval = useRef(null);
   const rejoinHandledRef = useRef(false);
+  // Capture rejoin param immediately before auth redirects can strip it
   const rejoinRoomIdRef = useRef(new URLSearchParams(window.location.search).get('rejoin'));
   // Track the current waiting room ID in a ref so socket handler always has fresh value
   const waitingRoomIdRef = useRef(null);
@@ -142,7 +143,7 @@ const LobbyScreen = () => {
   
   // ============================================
   // REJOIN FROM TEAMS PAGE (query param: ?rejoin=roomId)
-  // Uses window.location directly to avoid React re-render loops
+  // Uses ref captured at init time + single room status API call
   // ============================================
   useEffect(() => {
     const rejoinRoomId = rejoinRoomIdRef.current;
@@ -157,69 +158,38 @@ const LobbyScreen = () => {
     
     const rejoinRoom = async () => {
       try {
-        // Get room status
         const response = await axios.get(`/api/contests/room/${rejoinRoomId}/status`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
           timeout: 5000
         });
         
         const roomStatus = response.data;
-        console.log('📋 Room status response:', JSON.stringify(roomStatus));
+        console.log('📋 Room status:', JSON.stringify(roomStatus));
         
-        // Fetch user's entry for this room
-        const entriesRes = await axios.get('/api/contests/my-entries', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        const rawEntries = entriesRes.data?.entries || entriesRes.data || [];
-        const entries = Array.isArray(rawEntries) ? rawEntries : [];
+        // Find our entry from the room's player list
+        const myPlayer = roomStatus.players?.find(p => p.id === user.id);
         
-        const myEntry = entries.find(e => {
-          const entryContestId = e.contest_id || e.contestId;
-          const entryRoomId = e.draft_room_id || e.draftRoomId;
-          return (entryRoomId === rejoinRoomId || entryContestId === roomStatus.contestId) && 
-                 (e.status === 'pending' || e.status === 'drafting');
-        });
-        
-        console.log('📋 My entry:', myEntry ? { id: myEntry.id, status: myEntry.status } : 'not found');
-        
-        // If user's entry is drafting, go straight to draft screen
-        if (myEntry?.status === 'drafting') {
-          console.log('🚀 Entry is drafting, navigating to DraftScreen');
-          navigate(`/draft/${rejoinRoomId}`, { replace: true });
-          return;
-        }
-        
-        // If no entry found, user probably already withdrew
-        if (!myEntry) {
-          console.log('⚠️ No active entry found for this room');
+        if (!myPlayer) {
           dispatch(showToast({ message: 'No active entry found for this room', type: 'info' }));
           return;
         }
         
-        // Entry is pending — show the waiting room
-        const contestsRes = await axios.get('/api/contests', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        const contestsList = contestsRes.data?.contests || contestsRes.data || [];
-        const contest = contestsList.find(c => c.id === roomStatus.contestId);
-        
-        console.log('✅ Setting up waiting room for room:', rejoinRoomId);
+        console.log('✅ Found my entry:', myPlayer.entryId);
         
         setWaitingRoomData({
           contestId: roomStatus.contestId,
-          contestName: contest?.name || 'Contest',
-          contestType: contest?.type || 'cash',
+          contestName: roomStatus.contestName || 'Contest',
+          contestType: roomStatus.contestType || 'cash',
           roomId: rejoinRoomId,
-          entryId: myEntry.id,
+          entryId: myPlayer.entryId,
           currentPlayers: roomStatus.currentPlayers || 0,
           maxPlayers: roomStatus.maxPlayers || 5,
           players: roomStatus.players || []
         });
         setIsInWaitingRoom(true);
         
-        // Join socket room
         if (socketService.isConnected()) {
-          socketService.emit('join-room', { roomId: rejoinRoomId, entryId: myEntry.id });
+          socketService.emit('join-room', { roomId: rejoinRoomId, entryId: myPlayer.entryId });
         }
         
         startRoomPolling(rejoinRoomId);
@@ -421,33 +391,26 @@ const LobbyScreen = () => {
       });
     }));
     
-    // FIXED: draft-starting handler - navigation moved OUTSIDE setState callback
-    // Uses ref to get current waitingRoomId to avoid stale closure issues
     cleanups.push(socketService.on('draft-starting', (data) => {
       console.log('📢 Received draft-starting event:', data.roomId);
       console.log('📢 Current waiting room:', waitingRoomIdRef.current);
       
-      // Check if this is the room we're waiting in
       const isMyWaitingRoom = waitingRoomIdRef.current === data.roomId;
       
       if (isMyWaitingRoom) {
         console.log(`✅ Draft starting for MY room: ${data.roomId}`);
         
-        // Stop polling
         if (roomPollingInterval.current) {
           clearInterval(roomPollingInterval.current);
           roomPollingInterval.current = null;
         }
         
-        // Get entryId before clearing state
         const entryId = waitingRoomData?.entryId;
         
-        // Clear waiting room state
         setIsInWaitingRoom(false);
         setWaitingRoomData(null);
         waitingRoomIdRef.current = null;
         
-        // Navigate to draft - OUTSIDE of setState callback
         navigate(`/draft/${data.roomId}`, {
           state: {
             draftData: {
@@ -514,7 +477,6 @@ const LobbyScreen = () => {
       });
     }
     
-    // Fixed order: NBA Cash → NFL Cash → Market Mover
     const getContestOrder = (contest) => {
       const sport = (contest.sport || 'nfl').toLowerCase();
       const type = contest.type || '';
