@@ -1,7 +1,7 @@
 // frontend/src/components/Lobby/LobbyScreen.js
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import socketService from '../../services/socket';
 import WaitingRoom from './WaitingRoom';
@@ -22,7 +22,6 @@ import { showToast } from '../../store/slices/uiSlice';
 const LobbyScreen = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const [searchParams, setSearchParams] = useSearchParams();
   
   // Redux selectors
   const contestsRaw = useSelector(selectContests);
@@ -142,15 +141,17 @@ const LobbyScreen = () => {
   
   // ============================================
   // REJOIN FROM TEAMS PAGE (query param: ?rejoin=roomId)
+  // Uses window.location directly to avoid React re-render loops
   // ============================================
   useEffect(() => {
-    const rejoinRoomId = searchParams.get('rejoin');
+    const params = new URLSearchParams(window.location.search);
+    const rejoinRoomId = params.get('rejoin');
     if (!rejoinRoomId || !user?.id || rejoinHandledRef.current) return;
     
     rejoinHandledRef.current = true;
     
-    // Clear the query param so refresh doesn't re-trigger
-    setSearchParams({}, { replace: true });
+    // Clear URL without triggering React state change
+    window.history.replaceState({}, '', window.location.pathname);
     
     console.log('🔄 Rejoin requested for room:', rejoinRoomId);
     
@@ -176,19 +177,27 @@ const LobbyScreen = () => {
           return;
         }
         
-        // Find the user's entry for this room
-        const myEntry = userEntriesArray.find(e => {
+        // Fetch entries and contests directly from API to avoid stale Redux state
+        const entriesRes = await axios.get('/api/contests/my-entries', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const entries = entriesRes.data?.entries || entriesRes.data || [];
+        
+        const myEntry = entries.find(e => {
           const roomId = e.draft_room_id || e.draftRoomId;
           return roomId === rejoinRoomId && (e.status === 'pending' || e.status === 'drafting');
         });
         
-        // Find contest info
-        const contest = contests.find(c => c.id === roomStatus.contestId);
+        const contestsRes = await axios.get('/api/contests', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const contestsList = contestsRes.data?.contests || contestsRes.data || [];
+        const contest = contestsList.find(c => c.id === roomStatus.contestId);
         
         setWaitingRoomData({
           contestId: roomStatus.contestId,
-          contestName: contest?.name || roomStatus.contestName || 'Contest',
-          contestType: contest?.type || roomStatus.contestType || 'cash',
+          contestName: contest?.name || 'Contest',
+          contestType: contest?.type || 'cash',
           roomId: rejoinRoomId,
           entryId: myEntry?.id || null,
           currentPlayers: roomStatus.currentPlayers || 0,
@@ -209,10 +218,8 @@ const LobbyScreen = () => {
       }
     };
     
-    // Small delay to let entries load first
-    const timer = setTimeout(rejoinRoom, 500);
-    return () => clearTimeout(timer);
-  }, [searchParams, user?.id, dispatch, navigate, setSearchParams, startRoomPolling]);
+    rejoinRoom();
+  }, [user?.id, dispatch, navigate, startRoomPolling]);
   
   // Reset rejoin flag when leaving waiting room
   useEffect(() => {
