@@ -212,7 +212,7 @@ const LobbyScreen = () => {
     // Small delay to let entries load first
     const timer = setTimeout(rejoinRoom, 500);
     return () => clearTimeout(timer);
-  }, [searchParams, user?.id, userEntriesArray, contests, dispatch, navigate, setSearchParams, startRoomPolling]);
+  }, [searchParams, user?.id, dispatch, navigate, setSearchParams, startRoomPolling]);
   
   // Reset rejoin flag when leaving waiting room
   useEffect(() => {
