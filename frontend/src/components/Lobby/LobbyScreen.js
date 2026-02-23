@@ -157,27 +157,16 @@ const LobbyScreen = () => {
     
     const rejoinRoom = async () => {
       try {
+        // Get room status
         const response = await axios.get(`/api/contests/room/${rejoinRoomId}/status`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
           timeout: 5000
         });
         
         const roomStatus = response.data;
+        console.log('📋 Room status response:', JSON.stringify(roomStatus));
         
-        // If draft already started, go straight to DraftScreen
-        if (roomStatus.status === 'drafting' || roomStatus.status === 'in_progress') {
-          console.log('🚀 Draft already started, navigating to DraftScreen');
-          navigate(`/draft/${rejoinRoomId}`, { replace: true });
-          return;
-        }
-        
-        // If room is no longer valid (completed, cancelled, etc)
-        if (roomStatus.status !== 'waiting' && roomStatus.status !== 'open') {
-          dispatch(showToast({ message: 'This contest is no longer in waiting room', type: 'info' }));
-          return;
-        }
-        
-        // Fetch entries and contests directly from API to avoid stale Redux state
+        // Fetch user's entry for this room
         const entriesRes = await axios.get('/api/contests/my-entries', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -188,18 +177,37 @@ const LobbyScreen = () => {
           return roomId === rejoinRoomId && (e.status === 'pending' || e.status === 'drafting');
         });
         
+        console.log('📋 My entry:', myEntry ? { id: myEntry.id, status: myEntry.status } : 'not found');
+        
+        // If user's entry is drafting, go straight to draft screen
+        if (myEntry?.status === 'drafting') {
+          console.log('🚀 Entry is drafting, navigating to DraftScreen');
+          navigate(`/draft/${rejoinRoomId}`, { replace: true });
+          return;
+        }
+        
+        // If no entry found, user probably already withdrew
+        if (!myEntry) {
+          console.log('⚠️ No active entry found for this room');
+          dispatch(showToast({ message: 'No active entry found for this room', type: 'info' }));
+          return;
+        }
+        
+        // Entry is pending — show the waiting room
         const contestsRes = await axios.get('/api/contests', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const contestsList = contestsRes.data?.contests || contestsRes.data || [];
         const contest = contestsList.find(c => c.id === roomStatus.contestId);
         
+        console.log('✅ Setting up waiting room for room:', rejoinRoomId);
+        
         setWaitingRoomData({
           contestId: roomStatus.contestId,
           contestName: contest?.name || 'Contest',
           contestType: contest?.type || 'cash',
           roomId: rejoinRoomId,
-          entryId: myEntry?.id || null,
+          entryId: myEntry.id,
           currentPlayers: roomStatus.currentPlayers || 0,
           maxPlayers: roomStatus.maxPlayers || 5,
           players: roomStatus.players || []
@@ -208,7 +216,7 @@ const LobbyScreen = () => {
         
         // Join socket room
         if (socketService.isConnected()) {
-          socketService.emit('join-room', { roomId: rejoinRoomId, entryId: myEntry?.id });
+          socketService.emit('join-room', { roomId: rejoinRoomId, entryId: myEntry.id });
         }
         
         startRoomPolling(rejoinRoomId);
