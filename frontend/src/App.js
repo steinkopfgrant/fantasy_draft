@@ -29,6 +29,24 @@ import DepositPage from './components/Wallet/DepositPage';
 import WithdrawalPage from './components/Wallet/WithdrawalPage';
 import CosmeticsPage from './components/Cosmetics/CosmeticsPage';
 
+// ⚡ Initialize Sentry - must be before any React rendering
+Sentry.init({
+  dsn: "https://6470a6f9ed1bc3f7ed444e4cd8fb3dad@o4510933725544448.ingest.us.sentry.io/4510933829877760",
+  environment: process.env.NODE_ENV || "development",
+  sendDefaultPii: true,
+  beforeSend(event) {
+    if (event.message && event.message.includes('ResizeObserver')) return null;
+    if (event.message && event.message.includes('Loading chunk')) return null;
+    return event;
+  },
+  ignoreErrors: [
+    'Network Error',
+    'Request aborted',
+    'AbortError',
+    'ChunkLoadError',
+  ],
+});
+
 // Helper to check if user is admin (handles both role and is_admin flag)
 const isUserAdmin = (user) => {
   return user?.role === 'admin' || user?.is_admin === true || user?.isAdmin === true;
