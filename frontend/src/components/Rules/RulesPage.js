@@ -479,7 +479,7 @@ const RulesPage = () => {
                 🚧 Coming Soon — This game mode is not active during the beta launch.
               </p>
               <p className="intro-text">
-                Market Mover will be a weekly tournament with community-driven player pricing through voting. 
+                Market Mover will be a weekly tournament with community-driven player appearance rates through voting — this leads to skews in ownership for the contest. Target periods with favorable Hot and Cold pools to boost performance. 
                 Entry fees, prize structures, and voting mechanics are still being finalized.
               </p>
 
