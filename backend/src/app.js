@@ -4,6 +4,9 @@
 require("./instrument.js");
 const Sentry = require("@sentry/node");
 
+// 📊 BETTERSTACK - Log shipping (overrides console.log/error/warn)
+const { flushLogs } = require("./logger");
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -571,6 +574,7 @@ async function startServer() {
 
     console.log('✅ Rate limiting enabled');
     console.log('✅ Sentry error monitoring active');
+    console.log('✅ BetterStack log shipping active');
 
     // Start server
     const PORT = process.env.PORT || 5000;
@@ -623,7 +627,8 @@ async function gracefulShutdown(signal) {
     await db.sequelize.close();
     console.log('✅ Database connection closed');
 
-    // Flush Sentry events before exit
+    // Flush logs and Sentry events before exit
+    await flushLogs();
     await Sentry.close(2000);
 
     console.log('👋 Graceful shutdown complete');
