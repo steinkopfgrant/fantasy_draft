@@ -82,10 +82,10 @@ const RulesPage = () => {
 
               <CollapsibleSection title="How It Works" id="how-it-works">
                 <ol>
-                  <li><strong>Join a Contest</strong> - Enter a Cash Game or Market Mover contest</li>
+                  <li><strong>Join a Contest</strong> - Enter a Cash Game contest</li>
                   <li><strong>Draft Your Team</strong> - Snake draft with 5 teams, pick players within your $15 budget</li>
                   <li><strong>Compete</strong> - Your roster scores points based on real NFL/NBA performance</li>
-                  <li><strong>Win Prizes</strong> - Top finishers win cash prizes!</li>
+                  <li><strong>Win Prizes</strong> - Highest scoring lineup wins!</li>
                 </ol>
               </CollapsibleSection>
 
@@ -95,9 +95,8 @@ const RulesPage = () => {
                   <p>Head-to-head drafts against 4 other players. Winner take all!</p>
                 </div>
                 <div className="contest-type">
-                  <h4>🔥 Market Mover</h4>
-                  <p>Weekly tournament with community voting. Fire Sale players get boosted odds 
-                  on draft boards, Cool Down players get reduced odds. $25 entry with massive prize pools.</p>
+                  <h4>🔥 Market Mover <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 'normal' }}>(Coming Soon)</span></h4>
+                  <p>Weekly tournament with community voting that influences draft boards. Details to be determined — stay tuned!</p>
                 </div>
               </CollapsibleSection>
 
@@ -476,41 +475,31 @@ const RulesPage = () => {
           {activeSection === 'market-mover' && (
             <section>
               <h1>Market Mover</h1>
+              <p className="intro-text" style={{ color: '#f59e0b' }}>
+                🚧 Coming Soon — This game mode is not active during the beta launch.
+              </p>
               <p className="intro-text">
-                Weekly tournament with community-driven player pricing through voting.
+                Market Mover will be a weekly tournament with community-driven player pricing through voting. 
+                Entry fees, prize structures, and voting mechanics are still being finalized.
               </p>
 
-              <CollapsibleSection title="How Voting Works" id="mm-voting">
-                <p>Each week, users vote on players to become "Fire Sale" or "Cool Down":</p>
+              <CollapsibleSection title="How Voting Will Work" id="mm-voting">
+                <p>Each week, users will vote on players to become "Fire Sale" or "Cool Down":</p>
                 <div className="voting-info">
                   <div className="fire-sale">
                     <h4>🔥 Fire Sale</h4>
-                    <p>Players voted as Fire Sale appear <strong>3x more often</strong> on draft boards. 
-                    Guaranteed at least 1 Fire Sale player per board.</p>
+                    <p>Players voted as Fire Sale will appear more often on draft boards.</p>
                   </div>
                   <div className="cool-down">
                     <h4>❄️ Cool Down</h4>
-                    <p>Players voted as Cool Down appear at <strong>1/10th normal rate</strong> on draft boards.</p>
+                    <p>Players voted as Cool Down will appear less often on draft boards.</p>
                   </div>
                 </div>
+                <p className="note">Full details to be determined.</p>
               </CollapsibleSection>
 
               <CollapsibleSection title="Entry & Prizes" id="mm-prizes">
-                <ul>
-                  <li><strong>Entry Fee:</strong> $25</li>
-                  <li><strong>Format:</strong> 5-player snake drafts</li>
-                  <li><strong>Prize Pool:</strong> Accumulates all week</li>
-                  <li><strong>Winner:</strong> Highest scoring lineup wins the pot</li>
-                </ul>
-              </CollapsibleSection>
-
-              <CollapsibleSection title="Voting Rewards" id="mm-voting-rewards">
-                <p>Earn tickets by completing drafts! Tickets let you vote on which players 
-                get Fire Sale or Cool Down status for the next week.</p>
-                <ul>
-                  <li>Complete a Cash Game draft: +1 ticket</li>
-                  <li>Complete a Market Mover draft: +3 tickets</li>
-                </ul>
+                <p style={{ color: '#64748b', fontStyle: 'italic' }}>To be determined. Entry fees and prize structures will be announced before this mode goes live.</p>
               </CollapsibleSection>
             </section>
           )}
@@ -679,12 +668,8 @@ const RulesPage = () => {
               </CollapsibleSection>
 
               <CollapsibleSection title="Market Mover Payouts" id="mm-payouts">
-                <p>Market Mover is a weekly tournament where the prize pool accumulates from all entries.</p>
-                <ul>
-                  <li><strong>Entry:</strong> $25 per draft</li>
-                  <li><strong>Winner:</strong> Highest scoring lineup takes the entire pot</li>
-                  <li><strong>Minimum Prize:</strong> $1,000 guaranteed</li>
-                </ul>
+                <p style={{ color: '#f59e0b', fontWeight: '600' }}>🚧 To Be Determined</p>
+                <p>Market Mover is not active during the beta launch. Entry fees, prize pools, and payout structures will be announced before this mode goes live.</p>
               </CollapsibleSection>
 
               <CollapsibleSection title="Withdrawal Policy" id="withdrawals">
