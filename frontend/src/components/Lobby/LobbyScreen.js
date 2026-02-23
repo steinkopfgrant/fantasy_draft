@@ -173,8 +173,10 @@ const LobbyScreen = () => {
         const entries = entriesRes.data?.entries || entriesRes.data || [];
         
         const myEntry = entries.find(e => {
-          const roomId = e.draft_room_id || e.draftRoomId;
-          return roomId === rejoinRoomId && (e.status === 'pending' || e.status === 'drafting');
+          const entryContestId = e.contest_id || e.contestId;
+          const entryRoomId = e.draft_room_id || e.draftRoomId;
+          return (entryRoomId === rejoinRoomId || entryContestId === roomStatus.contestId) && 
+                 (e.status === 'pending' || e.status === 'drafting');
         });
         
         console.log('📋 My entry:', myEntry ? { id: myEntry.id, status: myEntry.status } : 'not found');
