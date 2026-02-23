@@ -5,6 +5,7 @@ import { store } from './store/store';
 import { checkAuth, selectAuthUser, selectIsAuthenticated, selectAuthLoading } from './store/slices/authSlice';
 import { connectSocket, disconnectSocket } from './store/slices/socketSlice';
 import socketService from './services/socket';
+import * as Sentry from '@sentry/react';
 import './utils/axiosConfig';
 import './App.css';
 
@@ -113,6 +114,39 @@ const DraftScreenWrapper = () => {
   return <DraftScreen key={roomId} />;
 };
 
+// Sentry Error Fallback UI
+const SentryFallback = ({ error, resetError }) => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '50vh',
+    color: '#ccd6f6',
+    padding: '2rem',
+    textAlign: 'center'
+  }}>
+    <h2 style={{ color: '#e74c3c', marginBottom: '1rem' }}>Something went wrong</h2>
+    <p style={{ color: '#8892b0', marginBottom: '1.5rem' }}>
+      An unexpected error occurred. Our team has been notified.
+    </p>
+    <button
+      onClick={resetError}
+      style={{
+        padding: '0.75rem 1.5rem',
+        background: '#00d4aa',
+        color: '#0a192f',
+        border: 'none',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: 600
+      }}
+    >
+      Try Again
+    </button>
+  </div>
+);
+
 // App Content Component (uses Redux hooks)
 const AppContent = () => {
   const dispatch = useDispatch();
@@ -120,6 +154,19 @@ const AppContent = () => {
   const loading = useSelector(selectAuthLoading);
   const user = useSelector(selectAuthUser);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+
+  // Set Sentry user context when authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      Sentry.setUser({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [isAuthenticated, user]);
 
   // Log current route
   useEffect(() => {
@@ -340,14 +387,16 @@ const AppContent = () => {
   );
 };
 
-// Main App Component with Provider
+// Main App Component with Provider + Sentry Error Boundary
 function App() {
   return (
-    <Provider store={store}>
-      <Router>
-        <AppContent />
-      </Router>
-    </Provider>
+    <Sentry.ErrorBoundary fallback={SentryFallback} showDialog={false}>
+      <Provider store={store}>
+        <Router>
+          <AppContent />
+        </Router>
+      </Provider>
+    </Sentry.ErrorBoundary>
   );
 }
 
