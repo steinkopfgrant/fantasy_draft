@@ -29,6 +29,12 @@ import DepositPage from './components/Wallet/DepositPage';
 import WithdrawalPage from './components/Wallet/WithdrawalPage';
 import CosmeticsPage from './components/Cosmetics/CosmeticsPage';
 
+// Legal pages
+import TermsOfService from './components/Legal/TermsOfService';
+import PrivacyPolicy from './components/Legal/PrivacyPolicy';
+import ResponsibleGaming from './components/Legal/ResponsibleGaming';
+import Support from './components/Legal/Support';
+
 // ⚡ Initialize Sentry - must be before any React rendering
 Sentry.init({
   dsn: "https://6470a6f9ed1bc3f7ed444e4cd8fb3dad@o4510933725544448.ingest.us.sentry.io/4510933829877760",
@@ -300,8 +306,12 @@ const AppContent = () => {
             </PublicRoute>
           } />
 
-          {/* Rules page - PUBLIC, accessible without login */}
+          {/* Public info pages - accessible without login */}
           <Route path="/rules" element={<RulesPage />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/responsible-gaming" element={<ResponsibleGaming />} />
+          <Route path="/support" element={<Support />} />
           
           {/* Admin routes */}
           <Route 

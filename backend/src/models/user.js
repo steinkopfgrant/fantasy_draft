@@ -35,6 +35,16 @@ module.exports = (sequelize) => {
         len: [6, 255]
       }
     },
+    date_of_birth: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'User date of birth for age verification (must be 18+)'
+    },
+    tos_accepted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Timestamp when user accepted Terms of Service'
+    },
     balance: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 1000.00,

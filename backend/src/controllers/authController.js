@@ -26,7 +26,7 @@ const register = async (req, res) => {
             });
         }
 
-        const { username, email, password } = req.body;
+        const { username, email, password, dateOfBirth, tosAcceptedAt } = req.body;
         
         // Check if all fields are provided
         if (!username || !email || !password) {
@@ -34,8 +34,29 @@ const register = async (req, res) => {
                 error: 'Please provide username, email, and password' 
             });
         }
+
+        // Validate date of birth (must be 18+)
+        if (!dateOfBirth) {
+            return res.status(400).json({ error: 'Date of birth is required' });
+        }
+
+        const dob = new Date(dateOfBirth);
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            age--;
+        }
+        if (age < 18) {
+            return res.status(400).json({ error: 'You must be at least 18 years old to register' });
+        }
+
+        // Validate ToS acceptance
+        if (!tosAcceptedAt) {
+            return res.status(400).json({ error: 'You must accept the Terms of Service' });
+        }
         
-        console.log('Registration attempt:', { username, email });
+        console.log('Registration attempt:', { username, email, age });
         
         // Check if user already exists
         const existingUser = await User.findOne({
@@ -61,13 +82,15 @@ const register = async (req, res) => {
             username,
             email,
             password: hashedPassword,
-            balance: 100.00,  // Give new users $100 starting balance
-            tickets: 10,      // Give new users 10 tickets to start
+            date_of_birth: dateOfBirth,
+            tos_accepted_at: tosAcceptedAt,
+            balance: 100.00,
+            tickets: 10,
             created_at: new Date(),
             updated_at: new Date()
         });
 
-        console.log(`Created user: ${username} with ID: ${user.id}`);
+        console.log(`Created user: ${username} with ID: ${user.id} (age: ${age})`);
 
         // Create welcome bonus transaction
         await Transaction.create({
