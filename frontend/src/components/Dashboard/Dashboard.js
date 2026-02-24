@@ -322,9 +322,9 @@ const Dashboard = ({ showToast }) => {
               📋 Rules & Scoring
             </button>
             
-            {/* Market Mover Button */}
+            {/* Support & Help Button */}
             <button 
-              onClick={() => navigate('/market-mover')}
+              onClick={() => navigate('/support')}
               style={{ 
                 width: '100%',
                 padding: '1rem',
@@ -346,7 +346,7 @@ const Dashboard = ({ showToast }) => {
                 e.target.style.transform = 'translateY(0)';
               }}
             >
-              📈 Market Mover
+              💬 Support & FAQ
             </button>
             
             {/* PLAYER POOLS BUTTON */}
@@ -456,7 +456,8 @@ const Dashboard = ({ showToast }) => {
         padding: '2rem', 
         background: '#1a1f2e',
         border: '2px solid #2a2f3e', 
-        borderRadius: '16px' 
+        borderRadius: '16px',
+        marginBottom: '2rem'
       }}>
         <h3 style={{ color: '#00d4ff', marginBottom: '1.5rem' }}>Recent Activity</h3>
         <p style={{ color: '#8892b0' }}>
@@ -477,6 +478,29 @@ const Dashboard = ({ showToast }) => {
             → Browse Available Contests
           </Link>
         </div>
+      </div>
+
+      {/* Legal Links Footer */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        gap: '0.5rem 1.5rem',
+        padding: '1.5rem 0',
+        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+      }}>
+        <Link to="/terms" style={{ color: '#8892b0', textDecoration: 'none', fontSize: '0.85rem' }}>
+          Terms of Service
+        </Link>
+        <Link to="/privacy" style={{ color: '#8892b0', textDecoration: 'none', fontSize: '0.85rem' }}>
+          Privacy Policy
+        </Link>
+        <Link to="/responsible-gaming" style={{ color: '#8892b0', textDecoration: 'none', fontSize: '0.85rem' }}>
+          Responsible Gaming
+        </Link>
+        <Link to="/support" style={{ color: '#8892b0', textDecoration: 'none', fontSize: '0.85rem' }}>
+          Support
+        </Link>
       </div>
 
       {/* Floating Admin Button - Only for specific user */}
