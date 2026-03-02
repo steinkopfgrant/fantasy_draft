@@ -201,53 +201,73 @@ const LandingPage = () => {
               font-size: 0.85rem !important;
             }
 
-            /* Board: kill min-width, compress full grid into viewport */
-            .board-section { padding: 0 0.25rem 2rem !important; }
+            /* === BOARD: match real mobile draft layout === */
+            .board-section { padding: 0 0.2rem 2rem !important; }
             .board-inner { min-width: unset !important; }
             .tier-row {
-              grid-template-columns: 28px repeat(5, 1fr) !important;
+              grid-template-columns: 32px repeat(5, 1fr) !important;
               gap: 3px !important;
               margin-bottom: 3px !important;
             }
             .tier-label {
-              font-size: 0.6rem !important;
+              font-size: 0.7rem !important;
               letter-spacing: 0 !important;
             }
-            .tier-label.wildcards { font-size: 0.42rem !important; }
+            .tier-label.wildcards { font-size: 0.45rem !important; }
+
+            /* Card: match DraftScreen.mobile.css layout */
             .player-demo-card {
               min-height: unset !important;
-              padding: 0.3rem 0.25rem !important;
-              border-radius: 5px !important;
+              padding: 0.25rem 0.3rem !important;
+              border-radius: 6px !important;
               border-width: 1px !important;
+              justify-content: flex-start !important;
             }
+
+            /* Position badge: top-LEFT like real draft */
             .player-demo-card .demo-pos-badge {
-              top: 2px !important;
-              right: 2px !important;
-              font-size: 0.4rem !important;
-              padding: 1px 2px !important;
+              top: 3px !important;
+              right: auto !important;
+              left: 3px !important;
+              font-size: 0.45rem !important;
+              padding: 1px 3px !important;
               border-radius: 2px !important;
             }
+
+            /* Name: split first/last, last truncated */
             .player-demo-card .demo-name {
-              font-size: 0.5rem !important;
-              padding-right: 1.2rem !important;
+              padding-right: 0 !important;
+              padding-left: 0 !important;
+              margin-top: 0.9rem !important;
               margin-bottom: 0.1rem !important;
-              line-height: 1.15 !important;
+            }
+            .player-demo-card .demo-name .desktop-name { display: none !important; }
+            .player-demo-card .demo-name .mobile-name { display: flex !important; }
+            .demo-first-name {
+              font-size: 0.5rem !important;
+              color: #94a3b8 !important;
+              font-weight: 400 !important;
+              line-height: 1.1 !important;
+            }
+            .demo-last-name {
+              font-size: 0.65rem !important;
+              font-weight: 700 !important;
+              color: #ffffff !important;
+              line-height: 1.1 !important;
               overflow: hidden !important;
               text-overflow: ellipsis !important;
               white-space: nowrap !important;
+              max-width: 100% !important;
             }
+
+            /* Team-price row */
             .player-demo-card .demo-team-price {
-              font-size: 0.4rem !important;
+              font-size: 0.45rem !important;
             }
-            .player-demo-card .demo-pos-bottom {
-              font-size: 0.35rem !important;
-              padding: 1px 2px !important;
-              border-radius: 2px !important;
-            }
-            .player-demo-card .demo-matchup {
-              font-size: 0.35rem !important;
-              margin-top: 0.05rem !important;
-            }
+
+            /* Hide bottom pos badge + matchup on mobile */
+            .player-demo-card .demo-pos-bottom { display: none !important; }
+            .player-demo-card .demo-matchup { display: none !important; }
 
             /* CTA section */
             .landing-cta-section { padding: 2rem 1rem !important; }
@@ -263,10 +283,10 @@ const LandingPage = () => {
 
           @media (max-width: 380px) {
             .landing-logo h1 { font-size: 1.8rem !important; }
-            .tier-row { grid-template-columns: 22px repeat(5, 1fr) !important; }
-            .tier-label { font-size: 0.5rem !important; }
-            .player-demo-card .demo-name { font-size: 0.42rem !important; }
-            .player-demo-card .demo-pos-badge { display: none !important; }
+            .tier-row { grid-template-columns: 26px repeat(5, 1fr) !important; }
+            .tier-label { font-size: 0.6rem !important; }
+            .demo-last-name { font-size: 0.58rem !important; }
+            .demo-first-name { font-size: 0.42rem !important; }
           }
         `}
       </style>
@@ -385,81 +405,92 @@ const LandingPage = () => {
                 </div>
 
                 {/* Player cards */}
-                {demoBoard[tier].map((player, idx) => (
-                  <div key={idx} className="player-demo-card" style={{
-                    background: player.highlighted
-                      ? 'linear-gradient(135deg, rgba(0, 191, 255, 0.12), rgba(0, 150, 200, 0.08))'
-                      : 'rgba(30, 41, 59, 0.8)',
-                    border: player.highlighted
-                      ? '2px solid #00bfff'
-                      : '1px solid rgba(255, 255, 255, 0.06)',
-                    borderRadius: '10px',
-                    padding: '0.75rem 0.8rem',
-                    position: 'relative',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    minHeight: '85px'
-                  }}>
-                    {/* Position badge - top right */}
-                    <div className="demo-pos-badge" style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      background: posBgColors[player.pos],
-                      color: posColors[player.pos],
-                      fontSize: '0.65rem',
-                      fontWeight: '700',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      letterSpacing: '0.5px'
-                    }}>
-                      {player.pos}
-                    </div>
+                {demoBoard[tier].map((player, idx) => {
+                  const firstName = player.name.split(' ')[0];
+                  const lastName = player.name.split(' ').slice(1).join(' ') || firstName;
 
-                    {/* Player name */}
-                    <div className="demo-name" style={{
-                      fontWeight: '600',
-                      fontSize: '0.95rem',
-                      color: '#ffffff',
-                      marginBottom: '0.35rem',
-                      paddingRight: '2rem',
-                      lineHeight: '1.2'
-                    }}>
-                      {player.name}
-                    </div>
-
-                    {/* Team - Price row */}
-                    <div style={{
+                  return (
+                    <div key={idx} className="player-demo-card" style={{
+                      background: player.highlighted
+                        ? 'linear-gradient(135deg, rgba(0, 191, 255, 0.12), rgba(0, 150, 200, 0.08))'
+                        : 'rgba(30, 41, 59, 0.8)',
+                      border: player.highlighted
+                        ? '2px solid #00bfff'
+                        : '1px solid rgba(255, 255, 255, 0.06)',
+                      borderRadius: '10px',
+                      padding: '0.75rem 0.8rem',
+                      position: 'relative',
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      minHeight: '85px'
                     }}>
-                      <span className="demo-team-price" style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                        {player.team} - ${player.price}
-                      </span>
-                      <span className="demo-pos-bottom" style={{
+                      {/* Position badge */}
+                      <div className="demo-pos-badge" style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '6px',
                         background: posBgColors[player.pos],
                         color: posColors[player.pos],
-                        fontSize: '0.6rem',
+                        fontSize: '0.65rem',
                         fontWeight: '700',
-                        padding: '2px 5px',
-                        borderRadius: '3px'
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        letterSpacing: '0.5px'
                       }}>
                         {player.pos}
-                      </span>
-                    </div>
+                      </div>
 
-                    {/* Matchup */}
-                    <div className="demo-matchup" style={{
-                      color: '#475569',
-                      fontSize: '0.7rem',
-                      marginTop: '0.15rem'
-                    }}>
-                      {player.matchup}
+                      {/* Player name - desktop: single line, mobile: split first/last */}
+                      <div className="demo-name" style={{
+                        fontWeight: '600',
+                        fontSize: '0.95rem',
+                        color: '#ffffff',
+                        marginBottom: '0.35rem',
+                        paddingRight: '2rem',
+                        lineHeight: '1.2'
+                      }}>
+                        {/* Desktop: full name inline */}
+                        <span className="desktop-name">{player.name}</span>
+                        {/* Mobile: first name small, last name bold+truncated */}
+                        <span className="mobile-name" style={{ display: 'none', flexDirection: 'column', gap: '1px' }}>
+                          <span className="demo-first-name">{firstName}</span>
+                          <span className="demo-last-name">{lastName}</span>
+                        </span>
+                      </div>
+
+                      {/* Team - Price row */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span className="demo-team-price" style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                          {player.team} - ${player.price}
+                        </span>
+                        <span className="demo-pos-bottom" style={{
+                          background: posBgColors[player.pos],
+                          color: posColors[player.pos],
+                          fontSize: '0.6rem',
+                          fontWeight: '700',
+                          padding: '2px 5px',
+                          borderRadius: '3px'
+                        }}>
+                          {player.pos}
+                        </span>
+                      </div>
+
+                      {/* Matchup */}
+                      <div className="demo-matchup" style={{
+                        color: '#475569',
+                        fontSize: '0.7rem',
+                        marginTop: '0.15rem'
+                      }}>
+                        {player.matchup}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>
