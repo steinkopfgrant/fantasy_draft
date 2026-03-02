@@ -177,12 +177,96 @@ const LandingPage = () => {
       <style>
         {`
           @media (max-width: 768px) {
-            .landing-hero { padding: 2rem 1rem !important; }
-            .landing-logo { padding: 1rem 1.5rem !important; min-width: unset !important; width: 90% !important; }
+            .landing-hero { padding: 1.5rem 0.5rem 1rem !important; }
+            .landing-logo {
+              padding: 0.8rem 1.2rem !important;
+              min-width: unset !important;
+              width: 88% !important;
+              max-width: 400px !important;
+              border-radius: 12px !important;
+              margin-bottom: 1rem !important;
+            }
             .landing-logo h1 { font-size: 2.2rem !important; letter-spacing: 2px !important; }
-            .landing-tagline { font-size: 1rem !important; letter-spacing: 1px !important; }
-            .landing-cta-btn { padding: 0.8rem 1.5rem !important; font-size: 1rem !important; }
-            .board-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .landing-tagline {
+              font-size: 0.85rem !important;
+              letter-spacing: 1.5px !important;
+              margin-bottom: 1.2rem !important;
+            }
+            .landing-cta-row {
+              gap: 0.75rem !important;
+              margin-bottom: 1.5rem !important;
+            }
+            .landing-cta-btn {
+              padding: 0.65rem 1.2rem !important;
+              font-size: 0.85rem !important;
+            }
+
+            /* Board: kill min-width, compress full grid into viewport */
+            .board-section { padding: 0 0.25rem 2rem !important; }
+            .board-inner { min-width: unset !important; }
+            .tier-row {
+              grid-template-columns: 28px repeat(5, 1fr) !important;
+              gap: 3px !important;
+              margin-bottom: 3px !important;
+            }
+            .tier-label {
+              font-size: 0.6rem !important;
+              letter-spacing: 0 !important;
+            }
+            .tier-label.wildcards { font-size: 0.42rem !important; }
+            .player-demo-card {
+              min-height: unset !important;
+              padding: 0.3rem 0.25rem !important;
+              border-radius: 5px !important;
+              border-width: 1px !important;
+            }
+            .player-demo-card .demo-pos-badge {
+              top: 2px !important;
+              right: 2px !important;
+              font-size: 0.4rem !important;
+              padding: 1px 2px !important;
+              border-radius: 2px !important;
+            }
+            .player-demo-card .demo-name {
+              font-size: 0.5rem !important;
+              padding-right: 1.2rem !important;
+              margin-bottom: 0.1rem !important;
+              line-height: 1.15 !important;
+              overflow: hidden !important;
+              text-overflow: ellipsis !important;
+              white-space: nowrap !important;
+            }
+            .player-demo-card .demo-team-price {
+              font-size: 0.4rem !important;
+            }
+            .player-demo-card .demo-pos-bottom {
+              font-size: 0.35rem !important;
+              padding: 1px 2px !important;
+              border-radius: 2px !important;
+            }
+            .player-demo-card .demo-matchup {
+              font-size: 0.35rem !important;
+              margin-top: 0.05rem !important;
+            }
+
+            /* CTA section */
+            .landing-cta-section { padding: 2rem 1rem !important; }
+            .landing-cta-section h2 { font-size: 1.4rem !important; }
+            .landing-cta-section p { font-size: 0.95rem !important; margin-bottom: 1.2rem !important; }
+
+            /* Footer */
+            .landing-footer { padding: 1.5rem 1rem !important; }
+            .footer-logo { padding: 0.4rem 1.5rem !important; }
+            .footer-logo span { font-size: 1rem !important; }
+            .landing-footer p { font-size: 0.8rem !important; }
+          }
+
+          @media (max-width: 380px) {
+            .landing-logo h1 { font-size: 1.8rem !important; }
+            .tier-row { grid-template-columns: 22px repeat(5, 1fr) !important; }
+            .tier-label { font-size: 0.5rem !important; }
+            .player-demo-card .demo-name { font-size: 0.42rem !important; }
+            .player-demo-card .demo-pos-badge { display: none !important; }
           }
         `}
       </style>
@@ -230,7 +314,7 @@ const LandingPage = () => {
           Auction Draft Fantasy
         </p>
 
-        <div style={{
+        <div className="landing-cta-row" style={{
           display: 'flex',
           gap: '1.5rem',
           justifyContent: 'center',
@@ -272,15 +356,15 @@ const LandingPage = () => {
       </div>
 
       {/* Full Draft Board */}
-      <div style={{
+      <div className="board-section" style={{
         padding: '0 1rem 3rem',
         maxWidth: '1400px',
         margin: '0 auto'
       }}>
         <div className="board-scroll">
-          <div style={{ minWidth: '900px' }}>
+          <div className="board-inner" style={{ minWidth: '900px' }}>
             {tiers.map((tier) => (
-              <div key={tier} style={{
+              <div key={tier} className="tier-row" style={{
                 display: 'grid',
                 gridTemplateColumns: '80px repeat(5, 1fr)',
                 gap: '8px',
@@ -288,7 +372,7 @@ const LandingPage = () => {
                 alignItems: 'stretch'
               }}>
                 {/* Tier label */}
-                <div style={{
+                <div className={`tier-label ${tier === 'Wildcards' ? 'wildcards' : ''}`} style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -302,7 +386,7 @@ const LandingPage = () => {
 
                 {/* Player cards */}
                 {demoBoard[tier].map((player, idx) => (
-                  <div key={idx} style={{
+                  <div key={idx} className="player-demo-card" style={{
                     background: player.highlighted
                       ? 'linear-gradient(135deg, rgba(0, 191, 255, 0.12), rgba(0, 150, 200, 0.08))'
                       : 'rgba(30, 41, 59, 0.8)',
@@ -318,7 +402,7 @@ const LandingPage = () => {
                     minHeight: '85px'
                   }}>
                     {/* Position badge - top right */}
-                    <div style={{
+                    <div className="demo-pos-badge" style={{
                       position: 'absolute',
                       top: '6px',
                       right: '6px',
@@ -334,7 +418,7 @@ const LandingPage = () => {
                     </div>
 
                     {/* Player name */}
-                    <div style={{
+                    <div className="demo-name" style={{
                       fontWeight: '600',
                       fontSize: '0.95rem',
                       color: '#ffffff',
@@ -351,10 +435,10 @@ const LandingPage = () => {
                       justifyContent: 'space-between',
                       alignItems: 'center'
                     }}>
-                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                      <span className="demo-team-price" style={{ color: '#64748b', fontSize: '0.8rem' }}>
                         {player.team} - ${player.price}
                       </span>
-                      <span style={{
+                      <span className="demo-pos-bottom" style={{
                         background: posBgColors[player.pos],
                         color: posColors[player.pos],
                         fontSize: '0.6rem',
@@ -367,7 +451,7 @@ const LandingPage = () => {
                     </div>
 
                     {/* Matchup */}
-                    <div style={{
+                    <div className="demo-matchup" style={{
                       color: '#475569',
                       fontSize: '0.7rem',
                       marginTop: '0.15rem'
@@ -383,7 +467,7 @@ const LandingPage = () => {
       </div>
 
       {/* CTA */}
-      <div style={{
+      <div className="landing-cta-section" style={{
         textAlign: 'center',
         padding: '3rem 2rem',
         background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(74, 222, 128, 0.05) 100%)'
@@ -412,8 +496,8 @@ const LandingPage = () => {
       </div>
 
       {/* Footer */}
-      <footer style={{ textAlign: 'center', padding: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#8892b0' }}>
-        <div style={{
+      <footer className="landing-footer" style={{ textAlign: 'center', padding: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#8892b0' }}>
+        <div className="footer-logo" style={{
           display: 'inline-block',
           position: 'relative',
           padding: '0.6rem 2.5rem',
