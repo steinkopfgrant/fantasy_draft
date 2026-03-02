@@ -107,7 +107,7 @@ const WaitingRoom = ({ roomData, onLeave, isAdmin = false }) => {
     const cleanupDraftStart = socketService.on('draft-start', (data) => {
       if (data.roomId === roomId) {
         console.log('Draft starting!', data);
-        navigate(`/draft/${contestId}?room=${roomId}`);
+        navigate(`/draft/${roomId}`);
       }
     });
     cleanupFunctions.push(cleanupDraftStart);
@@ -116,7 +116,7 @@ const WaitingRoom = ({ roomData, onLeave, isAdmin = false }) => {
     const cleanupDraftStarting = socketService.on('draft-starting', (data) => {
       if (data.roomId === roomId) {
         console.log('Draft starting (alt)!', data);
-        navigate(`/draft/${contestId}?room=${roomId}`);
+        navigate(`/draft/${roomId}`);
       }
     });
     cleanupFunctions.push(cleanupDraftStarting);
