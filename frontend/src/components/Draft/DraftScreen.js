@@ -795,6 +795,13 @@ const DraftScreen = ({ showToast }) => {
         const missedPicks = serverTurn > clientPickCount + 1;
         
         if (!missedPicks) {
+          // Ensure timer refs are initialized so calculateTimeRemaining works
+          if (!turnStartedAtRef.current && data.timeRemaining !== undefined) {
+            const timeLimit = data.timeLimit || 30;
+            turnStartedAtRef.current = Date.now() - (timeLimit - (data.timeRemaining || 0)) * 1000;
+            timeLimitRef.current = timeLimit;
+          }
+
           dispatch(updateDraftState({
             currentTurn: data.currentTurn,
             currentPick: data.currentPick || (data.currentTurn + 1),
