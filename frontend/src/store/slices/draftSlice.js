@@ -665,7 +665,8 @@ const draftSlice = createSlice({
         }
       })
       .addCase(joinDraftRoom.rejected, (state, action) => {
-        state.error = action.payload || 'Failed to join draft room';
+        // Join works via direct socket emit in DraftScreen - thunk timeout is not a real error
+        console.warn('joinDraftRoom thunk rejected (non-fatal):', action.payload);
       })
       .addCase(leaveDraftRoom.fulfilled, (state) => {
       })
