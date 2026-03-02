@@ -1268,6 +1268,17 @@ const DraftScreen = ({ showToast }) => {
       return;
     }
 
+    if (!socketService.isConnected()) {
+      console.error('❌ Socket disconnected at pick time, attempting reconnect...');
+      toast('Reconnecting...', 'info');
+      socketService.connect();
+      setTimeout(() => {
+        if (socketService.isConnected()) selectPlayer(row, col);
+        else toast('Connection lost — please try again', 'error');
+      }, 800);
+      return;
+    }
+
     const rosterSlot = standardizeSlotName(availableSlots[0]);
     setIsPicking(true);
     pickTimeoutRef.current = setTimeout(() => { setIsPicking(false); toast('Pick timed out, please try again', 'error'); }, 10000);
@@ -1500,10 +1511,9 @@ const DraftScreen = ({ showToast }) => {
       stopTimerInterval();
       if (status === 'active') startTimerInterval();
 
-      // Force reconnect if stale > 10s
-      if (timeSinceActive > 10000) {
-        socketService.disconnect();
-        await new Promise(r => setTimeout(r, 200));
+      // Only reconnect if the socket is actually dead
+      if (!socketService.isConnected()) {
+        console.log(`📴 Socket dead after ${Math.round(timeSinceActive / 1000)}s idle, reconnecting...`);
         socketService.connect();
         await new Promise(r => setTimeout(r, 500));
       }
@@ -1529,7 +1539,11 @@ const DraftScreen = ({ showToast }) => {
     const handleVisibility = () => { document.visibilityState === 'visible' && forceRefresh('visibility'); };
     const handleFocus = () => forceRefresh('focus');
     const handlePageShow = (e) => forceRefresh(e.persisted ? 'pageshow-bfcache' : 'pageshow');
-    const handleInteraction = () => { Date.now() - lastActiveAt > 3000 ? forceRefresh('interaction') : markActive(); };
+    const handleInteraction = () => {
+      const timeSinceActive = Date.now() - lastActiveAt;
+      markActive();
+      if (timeSinceActive > 30000) forceRefresh('interaction-long-idle');
+    };
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleFocus);
