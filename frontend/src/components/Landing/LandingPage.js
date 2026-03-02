@@ -215,13 +215,15 @@ const LandingPage = () => {
             }
             .tier-label.wildcards { font-size: 0.45rem !important; }
 
-            /* Card: match DraftScreen.mobile.css layout */
+            /* Card: fixed size, match DraftScreen.mobile.css layout */
             .player-demo-card {
               min-height: unset !important;
+              height: 52px !important;
               padding: 0.25rem 0.3rem !important;
               border-radius: 6px !important;
               border-width: 1px !important;
               justify-content: flex-start !important;
+              overflow: hidden !important;
             }
 
             /* Position badge: top-LEFT like real draft */
@@ -285,6 +287,7 @@ const LandingPage = () => {
             .landing-logo h1 { font-size: 1.8rem !important; }
             .tier-row { grid-template-columns: 26px repeat(5, 1fr) !important; }
             .tier-label { font-size: 0.6rem !important; }
+            .player-demo-card { height: 46px !important; }
             .demo-last-name { font-size: 0.58rem !important; }
             .demo-first-name { font-size: 0.42rem !important; }
           }
