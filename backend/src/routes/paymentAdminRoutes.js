@@ -3,10 +3,10 @@
 
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../../middleware/auth');
-const { adminMiddleware } = require('../../middleware/admin');
-const db = require('../../models');
-const StripeService = require('../../services/stripeService');
+const authMiddleware = require('../middleware/auth');
+const { adminMiddleware } = require('../middleware/admin');
+const db = require('../models');
+const StripeService = require('../services/stripeService');
 
 // Initialize Stripe service
 const stripeService = new StripeService(db);
