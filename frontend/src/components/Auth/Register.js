@@ -4,6 +4,37 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { register, clearError, selectAuthLoading, selectAuthError } from '../../store/slices/authSlice';
 
+const US_STATES = [
+  { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' },
+  { code: 'AZ', name: 'Arizona' }, { code: 'AR', name: 'Arkansas' },
+  { code: 'CA', name: 'California' }, { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' }, { code: 'DE', name: 'Delaware' },
+  { code: 'FL', name: 'Florida' }, { code: 'GA', name: 'Georgia' },
+  { code: 'HI', name: 'Hawaii' }, { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' }, { code: 'IN', name: 'Indiana' },
+  { code: 'IA', name: 'Iowa' }, { code: 'KS', name: 'Kansas' },
+  { code: 'KY', name: 'Kentucky' }, { code: 'LA', name: 'Louisiana' },
+  { code: 'ME', name: 'Maine' }, { code: 'MD', name: 'Maryland' },
+  { code: 'MA', name: 'Massachusetts' }, { code: 'MI', name: 'Michigan' },
+  { code: 'MN', name: 'Minnesota' }, { code: 'MS', name: 'Mississippi' },
+  { code: 'MO', name: 'Missouri' }, { code: 'MT', name: 'Montana' },
+  { code: 'NE', name: 'Nebraska' }, { code: 'NV', name: 'Nevada' },
+  { code: 'NH', name: 'New Hampshire' }, { code: 'NJ', name: 'New Jersey' },
+  { code: 'NM', name: 'New Mexico' }, { code: 'NY', name: 'New York' },
+  { code: 'NC', name: 'North Carolina' }, { code: 'ND', name: 'North Dakota' },
+  { code: 'OH', name: 'Ohio' }, { code: 'OK', name: 'Oklahoma' },
+  { code: 'OR', name: 'Oregon' }, { code: 'PA', name: 'Pennsylvania' },
+  { code: 'RI', name: 'Rhode Island' }, { code: 'SC', name: 'South Carolina' },
+  { code: 'SD', name: 'South Dakota' }, { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' }, { code: 'UT', name: 'Utah' },
+  { code: 'VT', name: 'Vermont' }, { code: 'VA', name: 'Virginia' },
+  { code: 'WA', name: 'Washington' }, { code: 'WV', name: 'West Virginia' },
+  { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' },
+  { code: 'DC', name: 'District of Columbia' },
+];
+
+const BLOCKED_STATES = ['MT', 'ID', 'LA', 'NV', 'WA'];
+
 const Register = () => {
   const [formData, setFormData] = useState({
     username: '',
@@ -11,6 +42,7 @@ const Register = () => {
     password: '',
     confirmPassword: '',
     dateOfBirth: '',
+    state: '',
     tosAccepted: false
   });
   const [localError, setLocalError] = useState('');
@@ -37,6 +69,11 @@ const Register = () => {
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
+
+    // Clear error when user changes state selection
+    if (name === 'state' && localError.includes('state')) {
+      setLocalError('');
+    }
   };
 
   const calculateAge = (dob) => {
@@ -50,9 +87,22 @@ const Register = () => {
     return age;
   };
 
+  const isBlockedState = formData.state && BLOCKED_STATES.includes(formData.state);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
+
+    // State validation
+    if (!formData.state) {
+      setLocalError('Please select your state of residence');
+      return;
+    }
+
+    if (BLOCKED_STATES.includes(formData.state)) {
+      setLocalError('Paid fantasy sports contests are not currently available in your state.');
+      return;
+    }
 
     // Age verification
     if (!formData.dateOfBirth) {
@@ -87,6 +137,7 @@ const Register = () => {
         username: formData.username,
         email: formData.email,
         password: formData.password,
+        state: formData.state,
         dateOfBirth: formData.dateOfBirth,
         tosAcceptedAt: new Date().toISOString()
       }));
@@ -145,6 +196,41 @@ const Register = () => {
       boxSizing: 'border-box',
       transition: 'border-color 0.2s',
     },
+    select: {
+      display: 'block',
+      width: '100%',
+      padding: '10px 12px',
+      backgroundColor: '#112240',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '6px',
+      color: '#ccd6f6',
+      fontSize: '0.95rem',
+      outline: 'none',
+      boxSizing: 'border-box',
+      transition: 'border-color 0.2s',
+      cursor: 'pointer',
+      appearance: 'none',
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238892b0' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 12px center',
+      paddingRight: '32px',
+    },
+    blockedWarning: {
+      color: '#e74c3c',
+      backgroundColor: 'rgba(231, 76, 60, 0.1)',
+      border: '1px solid rgba(231, 76, 60, 0.3)',
+      borderRadius: '6px',
+      padding: '10px 12px',
+      marginTop: '0.4rem',
+      fontSize: '0.8rem',
+      lineHeight: 1.4,
+    },
+    stateNote: {
+      color: '#8892b0',
+      fontSize: '0.8rem',
+      marginTop: '0.3rem',
+      fontStyle: 'italic',
+    },
     inputFocus: {
       borderColor: '#00d4aa',
     },
@@ -175,11 +261,11 @@ const Register = () => {
     button: {
       width: '100%',
       padding: '12px',
-      backgroundColor: loading ? '#1a3a5c' : '#00d4aa',
-      color: loading ? '#8892b0' : '#0a192f',
+      backgroundColor: (loading || isBlockedState) ? '#1a3a5c' : '#00d4aa',
+      color: (loading || isBlockedState) ? '#8892b0' : '#0a192f',
       border: 'none',
       borderRadius: '8px',
-      cursor: loading ? 'not-allowed' : 'pointer',
+      cursor: (loading || isBlockedState) ? 'not-allowed' : 'pointer',
       fontSize: '1rem',
       fontWeight: 600,
       transition: 'background-color 0.2s',
@@ -242,6 +328,36 @@ const Register = () => {
             onFocus={(e) => e.target.style.borderColor = '#00d4aa'}
             onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
           />
+        </div>
+
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>State of Residence</label>
+          <select
+            name="state"
+            value={formData.state}
+            onChange={handleChange}
+            required
+            style={{
+              ...styles.select,
+              borderColor: isBlockedState ? '#e74c3c' : 'rgba(255, 255, 255, 0.1)',
+            }}
+            onFocus={(e) => e.target.style.borderColor = isBlockedState ? '#e74c3c' : '#00d4aa'}
+            onBlur={(e) => e.target.style.borderColor = isBlockedState ? '#e74c3c' : 'rgba(255, 255, 255, 0.1)'}
+          >
+            <option value="">Select your state</option>
+            {US_STATES.map(s => (
+              <option key={s.code} value={s.code}>
+                {s.name}{BLOCKED_STATES.includes(s.code) ? ' (unavailable)' : ''}
+              </option>
+            ))}
+          </select>
+          {isBlockedState ? (
+            <div style={styles.blockedWarning}>
+              Paid fantasy sports contests are not currently available in {US_STATES.find(s => s.code === formData.state)?.name}. This is required by state law.
+            </div>
+          ) : (
+            <p style={styles.stateNote}>Required for legal compliance</p>
+          )}
         </div>
 
         <div style={styles.fieldGroup}>
@@ -315,12 +431,12 @@ const Register = () => {
         
         <button 
           type="submit" 
-          disabled={loading}
+          disabled={loading || isBlockedState}
           style={styles.button}
-          onMouseOver={(e) => { if (!loading) e.target.style.backgroundColor = '#00ffcc'; }}
-          onMouseOut={(e) => { if (!loading) e.target.style.backgroundColor = '#00d4aa'; }}
+          onMouseOver={(e) => { if (!loading && !isBlockedState) e.target.style.backgroundColor = '#00ffcc'; }}
+          onMouseOut={(e) => { if (!loading && !isBlockedState) e.target.style.backgroundColor = '#00d4aa'; }}
         >
-          {loading ? 'Creating account...' : 'Create Account'}
+          {loading ? 'Creating account...' : isBlockedState ? 'Unavailable in Your State' : 'Create Account'}
         </button>
       </form>
       
