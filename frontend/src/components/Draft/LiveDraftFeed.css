@@ -464,21 +464,31 @@
 }
 
 /* ============================================
-   MOBILE RESPONSIVE - Tooltip improvements
+   MOBILE RESPONSIVE
    ============================================ */
 @media (max-width: 768px) {
+  .live-draft-feed-container {
+    padding: 0.5rem;
+    margin-bottom: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .feed-header {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
   .pick-slot {
     width: 70px;
     min-width: 70px;
     height: 80px;
   }
-  
+
+  /* HIDE the colored dots legend on mobile */
   .feed-legend {
-    gap: 0.5rem;
-  }
-  
-  .legend-team {
-    font-size: 0.6875rem;
+    display: none;
   }
   
   /* MOBILE: Wider tooltip */

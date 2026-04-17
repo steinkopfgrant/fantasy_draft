@@ -88,6 +88,21 @@
   }
 
   /* -----------------------------------------
+     MOBILE ROSTER BAR - ABOVE BOARD
+     ----------------------------------------- */
+  .mobile-roster-top {
+    background: #1a1f2e;
+    padding: 6px 10px;
+    border-bottom: 1px solid #2a2f3e;
+    flex-shrink: 0;
+  }
+
+  /* Hide bottom team section on mobile - roster is above board now */
+  .my-team-section.mobile-hidden {
+    display: none !important;
+  }
+
+  /* -----------------------------------------
      PLAYER BOARD - Compact grid
      ----------------------------------------- */
   .player-board {
@@ -323,7 +338,7 @@
   }
 
   /* -----------------------------------------
-     MOBILE ROSTER BAR - New compact design
+     MOBILE ROSTER BAR - Compact design
      ----------------------------------------- */
   .mobile-roster-bar {
     display: flex;
@@ -567,16 +582,12 @@
   }
 
   /* -----------------------------------------
-     LIVE DRAFT FEED - Hidden on mobile
-     (or could show minimal version)
+     HIDE DESKTOP-ONLY ELEMENTS
      ----------------------------------------- */
   .live-draft-feed {
     display: none;
   }
 
-  /* -----------------------------------------
-     HIDE DESKTOP-ONLY ELEMENTS
-     ----------------------------------------- */
   .draft-board-filters {
     display: none;
   }

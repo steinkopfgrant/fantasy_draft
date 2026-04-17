@@ -1847,6 +1847,18 @@ const DraftScreen = ({ showToast }) => {
         </div>
       </div>
 
+      {/* Mobile Roster Bar - above board */}
+      {isMobile && safeMyTeam && (
+        <div className="mobile-roster-top">
+          <MobileRosterBar
+            roster={safeMyTeam?.roster}
+            budget={safeMyTeam?.budget}
+            bonus={safeMyTeam?.bonus}
+            positions={sportConfig.positions}
+          />
+        </div>
+      )}
+
       {/* Player Board */}
       <div className={`player-board ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
         {playerBoard?.length > 0 ? (
@@ -1946,16 +1958,9 @@ const DraftScreen = ({ showToast }) => {
         )}
       </div>
 
-      {/* My Team Section */}
-      <div className="my-team-section">
-        {isMobile ? (
-          <MobileRosterBar
-            roster={safeMyTeam?.roster}
-            budget={safeMyTeam?.budget}
-            bonus={safeMyTeam?.bonus}
-            positions={sportConfig.positions}
-          />
-        ) : (
+      {/* My Team Section - desktop only */}
+      <div className={`my-team-section ${isMobile ? 'mobile-hidden' : ''}`}>
+        {isMobile ? null : (
           <>
             <div className="my-team-container">
               {safeMyTeam ? (
