@@ -692,4 +692,72 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// ============================================
+// RECONCILIATION
+// ============================================
+
+/**
+ * GET /api/admin/payments/reconcile
+ * Compare each user's transaction history against their current balance.
+ * Flags any user where SUM(transactions) != current balance.
+ */
+router.get('/reconcile', async (req, res) => {
+  try {
+    // Sum all completed transactions per user
+    const transactionSums = await db.sequelize.query(`
+      SELECT 
+        u.id,
+        u.username,
+        u.balance AS current_balance,
+        COALESCE(SUM(t.amount), 0) AS transaction_sum,
+        COUNT(t.id) AS transaction_count,
+        ROUND(u.balance - COALESCE(SUM(t.amount), 0), 2) AS discrepancy
+      FROM users u
+      LEFT JOIN transactions t ON t.user_id = u.id AND t.status IN ('completed', 'pending')
+      WHERE u.balance > 0 OR EXISTS (SELECT 1 FROM transactions WHERE user_id = u.id)
+      GROUP BY u.id, u.username, u.balance
+      HAVING ABS(u.balance - COALESCE(SUM(t.amount), 0)) > 0.01
+      ORDER BY ABS(u.balance - COALESCE(SUM(t.amount), 0)) DESC
+    `, { type: db.Sequelize.QueryTypes.SELECT });
+
+    // System-wide totals
+    const systemTotals = await db.sequelize.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN type = 'deposit' AND status = 'completed' THEN amount ELSE 0 END), 0) AS total_deposits,
+        COALESCE(SUM(CASE WHEN type = 'withdrawal' AND status IN ('completed', 'approved') THEN ABS(amount) ELSE 0 END), 0) AS total_withdrawals,
+        COALESCE(SUM(CASE WHEN type = 'contest_entry' THEN ABS(amount) ELSE 0 END), 0) AS total_entry_fees,
+        COALESCE(SUM(CASE WHEN type = 'contest_win' THEN amount ELSE 0 END), 0) AS total_payouts,
+        COALESCE(SUM(CASE WHEN type = 'contest_refund' THEN amount ELSE 0 END), 0) AS total_refunds
+      FROM transactions
+    `, { type: db.Sequelize.QueryTypes.SELECT });
+
+    const totalUserBalances = await db.User.sum('balance') || 0;
+
+    const totals = systemTotals[0] || {};
+    const expectedLiability = 
+      parseFloat(totals.total_deposits || 0) - 
+      parseFloat(totals.total_withdrawals || 0) - 
+      parseFloat(totals.total_entry_fees || 0) + 
+      parseFloat(totals.total_payouts || 0) + 
+      parseFloat(totals.total_refunds || 0);
+
+    res.json({
+      success: true,
+      healthy: transactionSums.length === 0,
+      mismatches: transactionSums,
+      mismatchCount: transactionSums.length,
+      system: {
+        totalUserBalances: parseFloat(totalUserBalances),
+        expectedLiability: parseFloat(expectedLiability.toFixed(2)),
+        systemDiscrepancy: parseFloat((totalUserBalances - expectedLiability).toFixed(2)),
+        ...totals
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Reconciliation failed:', error);
+    res.status(500).json({ success: false, error: 'Reconciliation query failed' });
+  }
+});
+
 module.exports = router;

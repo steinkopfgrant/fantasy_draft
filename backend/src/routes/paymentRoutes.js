@@ -579,7 +579,8 @@ router.post('/withdraw/request', async (req, res) => {
     }, { transaction });
 
     // Deduct from balance
-    const newBalance = parseFloat(user.balance) - numAmount;
+    const previousBalance = parseFloat(user.balance);
+    const newBalance = previousBalance - numAmount;
     await user.update({ balance: newBalance }, { transaction });
 
     // Create transaction record
@@ -587,6 +588,7 @@ router.post('/withdraw/request', async (req, res) => {
       user_id: userId,
       type: 'withdrawal',
       amount: -numAmount,
+      balance_before: previousBalance,
       balance_after: newBalance,
       status: 'pending',
       description: `Withdrawal request of $${numAmount}`,
