@@ -14,6 +14,16 @@ const AdminPanel = ({ user, showToast }) => {
   const [readyToSettle, setReadyToSettle] = useState([]);
   const [draftCount, setDraftCount] = useState(3);
   
+  // Money tab state
+  const [moneyData, setMoneyData] = useState(null);
+  const [reconcileData, setReconcileData] = useState(null);
+  const [userLookup, setUserLookup] = useState('');
+  const [userDetail, setUserDetail] = useState(null);
+  const [userTransactions, setUserTransactions] = useState([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+
   // Simulation state
   const [simStatus, setSimStatus] = useState(null);
   const [mmCount, setMmCount] = useState(100);
@@ -247,6 +257,121 @@ const AdminPanel = ({ user, showToast }) => {
     fetchSimStatus();
   };
 
+// ============ MONEY OPERATIONS ============
+
+  const fetchMoneyStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const [statsRes, withdrawalsRes] = await Promise.all([
+        axios.get('/api/admin/payments/stats', { headers }),
+        axios.get('/api/admin/payments/withdrawals?status=pending', { headers })
+      ]);
+      setMoneyData(statsRes.data.stats);
+      setPendingWithdrawals(withdrawalsRes.data.withdrawals || []);
+    } catch (err) {
+      addLog('Failed to fetch money stats: ' + err.message, 'error');
+    }
+  };
+
+  const runReconciliation = async () => {
+    setLoading(prev => ({ ...prev, reconcile: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/admin/payments/reconcile', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setReconcileData(res.data);
+      addLog(res.data.healthy ? '✅ Reconciliation: HEALTHY' : `⚠️ Reconciliation: ${res.data.mismatchCount} mismatches`, res.data.healthy ? 'success' : 'warning');
+    } catch (err) {
+      addLog('Reconciliation failed: ' + err.message, 'error');
+    }
+    setLoading(prev => ({ ...prev, reconcile: false }));
+  };
+
+  const lookupUser = async () => {
+    if (!userLookup.trim()) return;
+    setLoading(prev => ({ ...prev, userLookup: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Find user from users list
+      const found = users.find(u => u.username?.toLowerCase() === userLookup.toLowerCase());
+      if (!found) {
+        addLog(`User "${userLookup}" not found`, 'error');
+        setUserDetail(null);
+        setUserTransactions([]);
+        setLoading(prev => ({ ...prev, userLookup: false }));
+        return;
+      }
+      
+      setUserDetail(found);
+      
+      // Fetch their transactions
+      const txRes = await axios.get(`/api/admin/payments/transactions?userId=${found.id}&limit=20`, { headers });
+      setUserTransactions(txRes.data.transactions || []);
+      addLog(`Loaded ${txRes.data.transactions?.length || 0} transactions for ${found.username}`, 'success');
+    } catch (err) {
+      addLog('User lookup failed: ' + err.message, 'error');
+    }
+    setLoading(prev => ({ ...prev, userLookup: false }));
+  };
+
+  const adjustUserBalance = async () => {
+    if (!userDetail || !adjustAmount || !adjustReason) {
+      addLog('Need user, amount, and reason for adjustment', 'error');
+      return;
+    }
+    if (!window.confirm(`Adjust ${userDetail.username}'s balance by $${adjustAmount}?\nReason: ${adjustReason}`)) return;
+    
+    setLoading(prev => ({ ...prev, adjust: true }));
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/admin/payments/manual-adjustment', {
+        userId: userDetail.id,
+        amount: parseFloat(adjustAmount),
+        reason: adjustReason
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      
+      addLog(`✅ Adjusted ${userDetail.username} by $${adjustAmount}: ${adjustReason}`, 'success');
+      setAdjustAmount('');
+      setAdjustReason('');
+      
+      // Refresh
+      await fetchAll();
+      lookupUser();
+    } catch (err) {
+      addLog('Adjustment failed: ' + (err.response?.data?.error || err.message), 'error');
+    }
+    setLoading(prev => ({ ...prev, adjust: false }));
+  };
+
+  const handleWithdrawal = async (id, action, reason = '') => {
+    setLoading(prev => ({ ...prev, [`wd_${id}`]: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      if (action === 'approve') {
+        await axios.post(`/api/admin/payments/withdrawals/${id}/approve`, {}, { headers });
+        addLog(`✅ Withdrawal ${id.slice(0,8)} approved`, 'success');
+      } else if (action === 'reject') {
+        const rejectReason = reason || prompt('Rejection reason:');
+        if (!rejectReason) { setLoading(prev => ({ ...prev, [`wd_${id}`]: false })); return; }
+        await axios.post(`/api/admin/payments/withdrawals/${id}/reject`, { reason: rejectReason }, { headers });
+        addLog(`❌ Withdrawal ${id.slice(0,8)} rejected`, 'warning');
+      }
+      
+      fetchMoneyStats();
+    } catch (err) {
+      addLog('Withdrawal action failed: ' + (err.response?.data?.error || err.message), 'error');
+    }
+    setLoading(prev => ({ ...prev, [`wd_${id}`]: false }));
+  };
+
+
+
   // ============ SINGLE CONTEST OPERATIONS ============
   
   const createTestUsers = async () => {
@@ -313,9 +438,9 @@ const AdminPanel = ({ user, showToast }) => {
         <h1>Admin Panel</h1>
         <p style={{ color: '#64ffda', fontSize: '0.9rem' }}>Logged in as: {user?.username}</p>
         <div className="admin-tabs">
-          {['sim', 'dev', 'contests', 'users', 'logs'].map(tab => (
-            <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
-              {tab === 'sim' ? '🎮 Simulator' : tab === 'dev' ? '🔧 Dev Tools' : tab === 'logs' ? `Logs (${logs.length})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
+          {['sim', 'dev', 'money', 'contests', 'users', 'logs'].map(tab => (
+            <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => { setActiveTab(tab); if (tab === 'money') fetchMoneyStats(); }}>
+              {tab === 'sim' ? '🎮 Simulator' : tab === 'dev' ? '🔧 Dev Tools' : tab === 'money' ? '💰 Money' : tab === 'logs' ? `Logs (${logs.length})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -607,6 +732,135 @@ const AdminPanel = ({ user, showToast }) => {
             </div>
           </div>
         )}
+
+{/* ============ MONEY TAB ============ */}
+        {activeTab === 'money' && (
+          <div className="money-tab">
+            {/* System Overview */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              <StatusCard title="Total User Balances" value={`$${moneyData?.totalUserBalances?.toFixed(2) || '0.00'}`} color="#f6ad55" />
+              <StatusCard title="Today's Deposits" value={`$${moneyData?.deposits?.today?.toFixed(2) || '0.00'}`} color="#48bb78" />
+              <StatusCard title="Month Deposits" value={`$${moneyData?.deposits?.thisMonth?.toFixed(2) || '0.00'}`} color="#48bb78" />
+              <StatusCard title="Pending Withdrawals" value={`${moneyData?.pendingWithdrawals?.count || 0} ($${moneyData?.pendingWithdrawals?.total?.toFixed(2) || '0.00'})`} color="#f56565" />
+            </div>
+
+            {/* Reconciliation */}
+            <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ color: '#64ffda', margin: 0 }}>🔍 Reconciliation</h3>
+                <button onClick={runReconciliation} disabled={loading.reconcile} style={{ padding: '0.5rem 1.5rem', background: loading.reconcile ? '#4a5568' : '#64ffda', color: '#0a192f', border: 'none', borderRadius: '6px', cursor: loading.reconcile ? 'not-allowed' : 'pointer', fontWeight: '600' }}>
+                  {loading.reconcile ? 'Checking...' : 'Run Check'}
+                </button>
+              </div>
+              {reconcileData && (
+                <div>
+                  <div style={{ padding: '1rem', borderRadius: '8px', marginBottom: '1rem', background: reconcileData.healthy ? 'rgba(72, 187, 120, 0.15)' : 'rgba(245, 101, 101, 0.15)', border: `1px solid ${reconcileData.healthy ? '#48bb78' : '#f56565'}` }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '700', color: reconcileData.healthy ? '#48bb78' : '#f56565' }}>
+                      {reconcileData.healthy ? '✅ HEALTHY — All balances match' : `⚠️ ${reconcileData.mismatchCount} MISMATCHES FOUND`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Deposits: <span style={{ color: '#48bb78' }}>${parseFloat(reconcileData.system?.total_deposits || 0).toFixed(2)}</span></div>
+                    <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Withdrawals: <span style={{ color: '#f56565' }}>${parseFloat(reconcileData.system?.total_withdrawals || 0).toFixed(2)}</span></div>
+                    <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Entry Fees: <span style={{ color: '#f6ad55' }}>${parseFloat(reconcileData.system?.total_entry_fees || 0).toFixed(2)}</span></div>
+                    <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Payouts: <span style={{ color: '#48bb78' }}>${parseFloat(reconcileData.system?.total_payouts || 0).toFixed(2)}</span></div>
+                    <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>System Δ: <span style={{ color: Math.abs(reconcileData.system?.systemDiscrepancy) < 1 ? '#48bb78' : '#f56565' }}>${reconcileData.system?.systemDiscrepancy?.toFixed(2)}</span></div>
+                  </div>
+                  {!reconcileData.healthy && reconcileData.mismatches?.slice(0, 10).map((m, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', marginBottom: '0.25rem', fontSize: '0.8rem' }}>
+                      <span style={{ color: '#e6f1ff' }}>{m.username}</span>
+                      <span style={{ color: '#8892b0' }}>Balance: ${parseFloat(m.current_balance).toFixed(2)}</span>
+                      <span style={{ color: '#f56565' }}>Δ ${parseFloat(m.discrepancy).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* User Lookup */}
+            <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+              <h3 style={{ color: '#64ffda', marginBottom: '1rem' }}>👤 User Lookup</h3>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <input
+                  type="text"
+                  value={userLookup}
+                  onChange={(e) => setUserLookup(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && lookupUser()}
+                  placeholder="Enter username..."
+                  style={{ ...inputStyle, width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem' }}
+                />
+                <button onClick={lookupUser} disabled={loading.userLookup} style={{ padding: '0.5rem 1.5rem', background: '#64ffda', color: '#0a192f', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                  {loading.userLookup ? '...' : 'Look Up'}
+                </button>
+              </div>
+
+              {userDetail && (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                    <div><div style={{ color: '#8892b0', fontSize: '0.7rem' }}>USERNAME</div><div style={{ color: '#e6f1ff', fontWeight: '600' }}>{userDetail.username}</div></div>
+                    <div><div style={{ color: '#8892b0', fontSize: '0.7rem' }}>BALANCE</div><div style={{ color: '#48bb78', fontWeight: '600' }}>${parseFloat(userDetail.balance || 0).toFixed(2)}</div></div>
+                    <div><div style={{ color: '#8892b0', fontSize: '0.7rem' }}>TICKETS</div><div style={{ color: '#f6ad55', fontWeight: '600' }}>{userDetail.tickets || 0}</div></div>
+                    <div><div style={{ color: '#8892b0', fontSize: '0.7rem' }}>STATE</div><div style={{ color: '#e6f1ff', fontWeight: '600' }}>{userDetail.state || 'N/A'}</div></div>
+                    <div><div style={{ color: '#8892b0', fontSize: '0.7rem' }}>ID</div><div style={{ color: '#4a5568', fontSize: '0.7rem' }}>{userDetail.id?.slice(0, 12)}...</div></div>
+                  </div>
+
+                  {/* Adjust Balance */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="number" value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} placeholder="Amount (+/-)" style={{ ...inputStyle, width: '100px', textAlign: 'left' }} />
+                    <input type="text" value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} placeholder="Reason for adjustment" style={{ ...inputStyle, width: '100%', flex: 1, textAlign: 'left', minWidth: '150px' }} />
+                    <button onClick={adjustUserBalance} disabled={loading.adjust || !adjustAmount || !adjustReason} style={{ padding: '0.5rem 1rem', background: (!adjustAmount || !adjustReason) ? '#4a5568' : '#f6ad55', color: '#0a192f', border: 'none', borderRadius: '6px', cursor: (!adjustAmount || !adjustReason) ? 'not-allowed' : 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                      {loading.adjust ? '...' : 'Adjust'}
+                    </button>
+                  </div>
+
+                  {/* Transaction History */}
+                  <h4 style={{ color: '#8892b0', marginBottom: '0.5rem' }}>Recent Transactions</h4>
+                  {userTransactions.length === 0 ? (
+                    <p style={{ color: '#4a5568', fontStyle: 'italic', fontSize: '0.85rem' }}>No transactions found</p>
+                  ) : (
+                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                      {userTransactions.map((tx, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', background: i % 2 === 0 ? 'rgba(0,0,0,0.15)' : 'transparent', borderRadius: '4px', fontSize: '0.8rem', alignItems: 'center' }}>
+                          <span style={{ color: '#8892b0', minWidth: '70px' }}>{tx.type}</span>
+                          <span style={{ color: parseFloat(tx.amount) >= 0 ? '#48bb78' : '#f56565', fontWeight: '600', minWidth: '80px', textAlign: 'right' }}>{parseFloat(tx.amount) >= 0 ? '+' : ''}${parseFloat(tx.amount).toFixed(2)}</span>
+                          <span style={{ color: '#4a5568', minWidth: '80px', textAlign: 'right' }}>→ ${parseFloat(tx.balanceAfter || 0).toFixed(2)}</span>
+                          <span style={{ color: '#4a5568', fontSize: '0.7rem', minWidth: '80px', textAlign: 'right' }}>{new Date(tx.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Pending Withdrawals */}
+            <div style={cardStyle}>
+              <h3 style={{ color: '#f56565', marginBottom: '1rem' }}>💸 Pending Withdrawals ({pendingWithdrawals.length})</h3>
+              {pendingWithdrawals.length === 0 ? (
+                <p style={{ color: '#4a5568', fontStyle: 'italic' }}>No pending withdrawals</p>
+              ) : (
+                pendingWithdrawals.map(w => (
+                  <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', marginBottom: '0.5rem' }}>
+                    <div>
+                      <span style={{ color: '#e6f1ff', fontWeight: '600' }}>{w.username}</span>
+                      <span style={{ color: '#f6ad55', marginLeft: '1rem', fontWeight: '700' }}>${parseFloat(w.amount).toFixed(2)}</span>
+                      <span style={{ color: '#4a5568', marginLeft: '1rem', fontSize: '0.75rem' }}>{new Date(w.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button onClick={() => handleWithdrawal(w.id, 'approve')} disabled={loading[`wd_${w.id}`]} style={{ padding: '0.3rem 0.75rem', background: '#48bb78', color: '#0a192f', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}>
+                        {loading[`wd_${w.id}`] ? '...' : 'Approve'}
+                      </button>
+                      <button onClick={() => handleWithdrawal(w.id, 'reject')} disabled={loading[`wd_${w.id}`]} style={{ padding: '0.3rem 0.75rem', background: '#f56565', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}>
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
 
         {/* ============ CONTESTS TAB ============ */}
         {activeTab === 'contests' && (
