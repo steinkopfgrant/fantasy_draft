@@ -33,7 +33,12 @@ const US_STATES = [
   { code: 'DC', name: 'District of Columbia' },
 ];
 
-const BLOCKED_STATES = ['MT', 'ID', 'LA', 'NV', 'WA'];
+const BLOCKED_STATES = [
+  'HI', 'ID', 'MT', 'NV', 'WA',
+  'AL', 'AZ', 'CO', 'CT', 'DE', 'IN', 'IA', 'LA', 'ME', 'MI',
+  'MS', 'MO', 'NH', 'NJ', 'NY', 'OH', 'PA', 'TN', 'VT', 'VA',
+  'AR', 'MD', 'MA'
+];
 
 const Register = () => {
   const [formData, setFormData] = useState({
