@@ -44,7 +44,7 @@ const generateToken = (user) => {
 // ============================================
 router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, state } = req.body;
     
     console.log('\n=== REGISTRATION ATTEMPT ===');
     console.log('Username:', username);
@@ -112,10 +112,27 @@ router.post('/register', authLimiter, async (req, res) => {
     }
     
     // Create user (password will be hashed by the model hook)
+    // Validate state
+    if (!state || state.length !== 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please select your state of residence'
+      });
+    }
+
+    const { BLOCKED_STATES } = require('../middleware/geoRestriction');
+    if (BLOCKED_STATES.includes(state.toUpperCase())) {
+      return res.status(403).json({
+        success: false,
+        error: 'Paid fantasy sports contests are not currently available in your state.'
+      });
+    }
+
     const user = await db.User.create({
       username: username.toLowerCase(),
       email: email.toLowerCase(),
-      password // Model hook will hash this
+      password, // Model hook will hash this
+      state: state.toUpperCase()
     });
     
     console.log('✅ User created:', user.id);

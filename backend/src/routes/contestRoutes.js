@@ -6,6 +6,7 @@ const db = require('../models');
 const { Contest, ContestEntry, User, DraftPick, Transaction } = db;
 const { v4: uuidv4 } = require('uuid');
 const contestService = require('../services/contestService');
+const { geoRestriction } = require('../middleware/geoRestriction');
 
 // ============================================================================
 // ⚠️  IMPORTANT: NEVER USE "odId" - ALWAYS USE "userId"
@@ -190,7 +191,7 @@ router.get('/my-entries', authMiddleware, async (req, res) => {
 });
 
 // Enter a contest - FIXED TO RETURN ROOM STATUS
-router.post('/enter/:contestId', authMiddleware, async (req, res) => {
+router.post('/enter/:contestId', authMiddleware, geoRestriction, async (req, res) => {
   try {
     const { contestId } = req.params;
     // ⚠️ ALWAYS use userId, NEVER odId

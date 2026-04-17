@@ -40,6 +40,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'User date of birth for age verification (must be 18+)'
     },
+    state: {
+      type: DataTypes.STRING(2),
+      allowNull: true,
+      comment: 'US state abbreviation for geo-restriction compliance'
+    },
     tos_accepted_at: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -47,7 +52,7 @@ module.exports = (sequelize) => {
     },
     balance: {
       type: DataTypes.DECIMAL(10, 2),
-      defaultValue: 1000.00,
+      defaultValue: 0.00,
       validate: {
         min: 0
       }
