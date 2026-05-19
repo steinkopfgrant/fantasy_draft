@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import socketService from '../../services/socket';
 import WaitingRoom from './WaitingRoom';
+import PrizeBreakdownModal from './PrizeBreakdownModal';
 import './Lobby.css';
 
 // Redux imports
@@ -59,6 +60,7 @@ const LobbyScreen = () => {
   const [activeDraft, setActiveDraft] = useState(null);
   const [waitingRoomData, setWaitingRoomData] = useState(null);
   const [isInWaitingRoom, setIsInWaitingRoom] = useState(false);
+  const [prizeModalContest, setPrizeModalContest] = useState(null);
   
   // Refs - prevents double-fetch and duplicate socket handlers
   const hasFetchedRef = useRef(false);
@@ -781,10 +783,22 @@ const LobbyScreen = () => {
                       <div className="detail-row"><span>Slate:</span><span className="detail-value" style={{ color: '#fbbf24', fontSize: '13px' }}>📅 {contest.slateName}</span></div>
                     )}
                     <div className="detail-row"><span>Entry Fee:</span><span className="detail-value">${contest.entryFee || 0}</span></div>
-                    <div className="detail-row">
+                    <div 
+                      className="detail-row" 
+                      onClick={(e) => { e.stopPropagation(); setPrizeModalContest(contest); }}
+                      style={{ cursor: 'pointer' }}
+                      title="View prize breakdown"
+                    >
                       <span>Prize Pool:</span>
-                      <span className="detail-value" style={{ color: contestType === 'market' ? '#fbbf24' : '#48bb78', fontSize: contestType === 'market' ? '20px' : '18px', fontWeight: 'bold' }}>
-                        ${(contest.prizePool || 0).toLocaleString()}
+                      <span className="detail-value" style={{ 
+                        color: contestType === 'market' ? '#fbbf24' : '#48bb78', 
+                        fontSize: contestType === 'market' ? '20px' : '18px', 
+                        fontWeight: 'bold',
+                        textDecoration: 'underline',
+                        textDecorationStyle: 'dotted',
+                        textUnderlineOffset: '3px'
+                      }}>
+                        ${(contest.prizePool || 0).toLocaleString()} ⓘ
                       </span>
                     </div>
                     {contest.startTime && <div className="detail-row"><span>Starts:</span><span className="detail-value">{formatTimeRemaining(contest.startTime)}</span></div>}
@@ -842,6 +856,13 @@ const LobbyScreen = () => {
           </div>
         )}
       </div>
+      
+      {prizeModalContest && (
+        <PrizeBreakdownModal 
+          contest={prizeModalContest} 
+          onClose={() => setPrizeModalContest(null)} 
+        />
+      )}
     </div>
   );
 };
