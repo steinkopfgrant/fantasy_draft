@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../models');
 const authMiddleware = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
+const { geoRestriction } = require('../middleware/geoRestriction');
 
 // ============================================
 // SECURITY: Validate JWT_SECRET exists at startup
@@ -41,8 +42,9 @@ const generateToken = (user) => {
 // ============================================
 // POST /register - Create new account
 // Rate limited: 20 attempts per 15 minutes
+// Geo-restricted: blocks signup from prohibited states (IP-based)
 // ============================================
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register', authLimiter, geoRestriction, async (req, res) => {
   try {
     const { username, email, password, state } = req.body;
     
@@ -51,6 +53,7 @@ router.post('/register', authLimiter, async (req, res) => {
     console.log('Email:', email ? email.substring(0, 3) + '***' : 'not provided');
     console.log('Timestamp:', new Date().toISOString());
     console.log('IP Address:', req.ip);
+    console.log('Detected state (from IP):', req.detectedState || 'unknown');
     
     // Validation
     if (!username || !email || !password) {
@@ -111,8 +114,7 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
     
-    // Create user (password will be hashed by the model hook)
-    // Validate state
+    // Validate declared state
     if (!state || state.length !== 2) {
       return res.status(400).json({
         success: false,
@@ -120,6 +122,9 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
+    // Defense in depth: also check declared state against blocked list
+    // (IP check above is primary; this catches edge cases like user
+    // declaring a blocked state while their IP is in an allowed one)
     const { BLOCKED_STATES } = require('../middleware/geoRestriction');
     if (BLOCKED_STATES.includes(state.toUpperCase())) {
       return res.status(403).json({
@@ -128,6 +133,7 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
+    // Create user (password will be hashed by the model hook)
     const user = await db.User.create({
       username: username.toLowerCase(),
       email: email.toLowerCase(),
