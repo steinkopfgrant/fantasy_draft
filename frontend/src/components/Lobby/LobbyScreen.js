@@ -265,7 +265,8 @@ const LobbyScreen = () => {
         const count = userEntriesArray.filter(e => 
           (e.contestId === contestId || e.contest_id === contestId) && e.status !== 'cancelled'
         ).length;
-        if (count >= 150) throw new Error('Max 150 entries reached');
+        const perUserMax = contest.maxEntriesPerUser || 150;
+        if (count >= perUserMax) throw new Error(`Max ${perUserMax} entries reached`);
       }
       
       const actualContestId = contest.id || contest._id;
@@ -471,7 +472,8 @@ const LobbyScreen = () => {
         const cid = c.id || c._id;
         if (c.type === 'market') {
           const count = userEntriesArray.filter(e => (e.contestId === cid || e.contest_id === cid) && e.status !== 'cancelled').length;
-          return count < 150 && c.status === 'open' && c.currentEntries < c.maxEntries;
+          const perUserMax = c.maxEntriesPerUser || 150;
+          return count < perUserMax && c.status === 'open' && c.currentEntries < c.maxEntries;
         }
         return !userEntries[cid] && c.status === 'open' && c.currentEntries < c.maxEntries;
       });
@@ -511,7 +513,7 @@ const LobbyScreen = () => {
       } else if (userEntries[cid]) stats.userContests++;
       if (c.status === 'open') stats.open++;
       else if (c.status === 'in_progress') stats.inProgress++;
-      stats.totalPrizePool += c.type === 'market' ? 120000 : (c.prizePool || c.prize_pool || 0);
+      stats.totalPrizePool += (c.prizePool || c.prize_pool || 0);
     });
     return stats;
   }, [contests, userEntries, userEntriesArray]);
@@ -529,12 +531,11 @@ const LobbyScreen = () => {
   }, []);
   
   const getFillPercentage = useCallback((c) => {
-    const max = c.type === 'market' ? 5000 : (c.maxEntries || c.max_entries || 1);
+    const max = c.maxEntries || c.max_entries || 1;
     return ((c.currentEntries || c.current_entries || 0) / max) * 100;
   }, []);
   
   const getDraftRoomCount = useCallback((c) => {
-    if (c.type === 'market') return 1000;
     return Math.ceil((c.maxEntries || c.max_entries || 0) / 5);
   }, []);
   
@@ -715,18 +716,19 @@ const LobbyScreen = () => {
               const contestId = contest.id || contest._id;
               const userEntry = userEntries[contestId];
               const isJoining = pendingJoins.has(contestId);
-              const maxEntries = contest.type === 'market' ? 5000 : (contest.maxEntries || contest.max_entries || 1);
+              const maxEntries = contest.maxEntries || contest.max_entries || 1;
               const currentEntries = contest.currentEntries || contest.current_entries || 0;
               const isFull = currentEntries >= maxEntries;
               const hasStarted = ['in_progress', 'completed'].includes(contest.status);
               const fillPercentage = getFillPercentage(contest);
               const contestType = contest.type || 'standard';
+              const perUserMax = contest.maxEntriesPerUser || 150;
               
               const userMarketEntries = contest.type === 'market' ? 
                 userEntriesArray.filter(e => (e.contestId === contestId || e.contest_id === contestId) && e.status !== 'cancelled').length : 0;
               
               const canJoin = !isFull && !hasStarted && contest.status === 'open' && 
-                (contest.type === 'market' ? userMarketEntries < 150 : !userEntry);
+                (contest.type === 'market' ? userMarketEntries < perUserMax : !userEntry);
               
               return (
                 <div key={contestId} className={`contest-card ${contestType} ${userEntry ? 'user-entered' : ''} ${isFull ? 'contest-full' : ''}`}>
@@ -769,7 +771,7 @@ const LobbyScreen = () => {
                     
                     {contestType === 'market' && userMarketEntries > 0 && (
                       <div style={{ background: 'rgba(72,187,120,0.1)', border: '1px solid rgba(72,187,120,0.3)', borderRadius: '8px', padding: '8px', marginBottom: '10px', fontSize: '12px', color: '#48bb78' }}>
-                        Your Entries: {userMarketEntries} / 150 max
+                        Your Entries: {userMarketEntries} / {perUserMax} max
                       </div>
                     )}
                     
@@ -778,11 +780,11 @@ const LobbyScreen = () => {
                     {contest.slateName && (
                       <div className="detail-row"><span>Slate:</span><span className="detail-value" style={{ color: '#fbbf24', fontSize: '13px' }}>📅 {contest.slateName}</span></div>
                     )}
-                    <div className="detail-row"><span>Entry Fee:</span><span className="detail-value">{contestType === 'cash' ? '$5' : contestType === 'market' ? '$25' : `$${contest.entryFee || 0}`}</span></div>
+                    <div className="detail-row"><span>Entry Fee:</span><span className="detail-value">${contest.entryFee || 0}</span></div>
                     <div className="detail-row">
                       <span>Prize Pool:</span>
                       <span className="detail-value" style={{ color: contestType === 'market' ? '#fbbf24' : '#48bb78', fontSize: contestType === 'market' ? '20px' : '18px', fontWeight: 'bold' }}>
-                        ${contestType === 'cash' ? '24' : contestType === 'market' ? '120,000' : (contest.prizePool || 0).toLocaleString()}
+                        ${(contest.prizePool || 0).toLocaleString()}
                       </span>
                     </div>
                     {contest.startTime && <div className="detail-row"><span>Starts:</span><span className="detail-value">{formatTimeRemaining(contest.startTime)}</span></div>}
@@ -790,7 +792,7 @@ const LobbyScreen = () => {
                     
                     <div style={{ marginTop: '15px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#a0aec0' }}>
-                        <span>{currentEntries} / {contestType === 'market' ? '5,000' : maxEntries} entries</span>
+                        <span>{currentEntries} / {maxEntries} entries</span>
                         <span>{fillPercentage.toFixed(0)}% full</span>
                       </div>
                       <div className={`fill-bar ${isFull ? 'full' : ''}`}>
@@ -807,10 +809,10 @@ const LobbyScreen = () => {
                       <>
                         {userMarketEntries > 0 && <div style={{ marginBottom: '8px', fontSize: '12px', color: '#48bb78', textAlign: 'center' }}>You have {userMarketEntries} {userMarketEntries === 1 ? 'entry' : 'entries'}</div>}
                         <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); handleJoinContest(contestId); }}
-                          disabled={!canJoin || isJoining || userMarketEntries >= 150}>
-                          {isJoining ? 'Joining...' : isFull ? 'Full' : contest.status !== 'open' ? 'Not Open' : userMarketEntries >= 150 ? 'Max Reached' : userMarketEntries > 0 ? 'Enter Again' : 'Join'}
+                          disabled={!canJoin || isJoining || userMarketEntries >= perUserMax}>
+                          {isJoining ? 'Joining...' : isFull ? 'Full' : contest.status !== 'open' ? 'Not Open' : userMarketEntries >= perUserMax ? 'Max Reached' : userMarketEntries > 0 ? 'Enter Again' : 'Join'}
                         </button>
-                        {userMarketEntries > 0 && userMarketEntries < 150 && (
+                        {userMarketEntries > 0 && userMarketEntries < perUserMax && (
                           <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); handleLeaveContest(contestId); }} style={{ marginTop: '8px', fontSize: '12px' }}>
                             Withdraw Last
                           </button>
