@@ -61,6 +61,10 @@ module.exports = (sequelize) => {
       type: DataTypes.UUID,
       allowNull: true
     },
+    prizes: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
