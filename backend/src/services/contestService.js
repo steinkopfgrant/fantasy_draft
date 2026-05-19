@@ -191,6 +191,7 @@ class ContestService {
         endTime: contest.end_time,
         scoringType: contest.scoring_type,
         maxSalary: contest.max_salary,
+        prizes: contest.prizes,
         // Add Market Mover specific data
         ...(contest.type === 'market' && {
           fireSaleList: marketMoverStatus.fireSaleList,
@@ -223,7 +224,8 @@ class ContestService {
         maxEntriesPerUser: contest.max_entries_per_user || (contest.type === 'cash' ? 1 : 150),
         playerBoard: contest.player_board,
         startTime: contest.start_time,
-        endTime: contest.end_time
+        endTime: contest.end_time,
+        prizes: contest.prizes
       };
 
       // Add Market Mover specific data
