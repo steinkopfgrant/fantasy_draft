@@ -60,6 +60,12 @@ const STRICT_GEO = process.env.STRICT_GEO === 'true' || process.env.NODE_ENV ===
 // Pure function — reads CF headers and returns geo decision
 // Returns { allowed: bool, reason: string, state: string|null, country: string|null }
 function checkIpGeo(req) {
+  // DEBUG: log all cf-* headers so we can see what's actually arriving
+  const cfHeaders = Object.entries(req.headers)
+    .filter(([k]) => k.toLowerCase().startsWith('cf-'))
+    .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {});
+  console.log('🔍 CF headers received:', JSON.stringify(cfHeaders));
+  
   const country = req.headers['cf-ipcountry'];
   const region = (req.headers['cf-region-code'] || '').toUpperCase();
   
