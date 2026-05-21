@@ -44,10 +44,8 @@ router.get('/', async (req, res) => {
   try {
     console.log('Fetching all contests...');
     
-    // Use contestService to get contests
     const contests = await contestService.getContests();
     
-    // Enrich contests with slate names
     const slateIds = [...new Set(
       contests
         .map(c => c.slateId || c.slate_id)
@@ -65,7 +63,6 @@ router.get('/', async (req, res) => {
     
     const enriched = contests.map(c => {
       const sid = c.slateId || c.slate_id;
-      // Handle both plain objects and Sequelize instances
       if (c.toJSON) {
         const json = c.toJSON();
         return { ...json, slateName: slateMap[sid] || null };
@@ -98,7 +95,6 @@ router.get('/contest/:contestId', async (req, res) => {
       return res.status(404).json({ error: 'Contest not found' });
     }
     
-    // Get entries if needed
     const entries = await ContestEntry.findAll({
       where: {
         contest_id: contest.id,
@@ -131,7 +127,7 @@ router.get('/contest/:contestId', async (req, res) => {
   }
 });
 
-// Get room status - NEW ENDPOINT
+// Get room status
 router.get('/room/:roomId/status', async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -143,12 +139,11 @@ router.get('/room/:roomId/status', async (req, res) => {
       return res.status(404).json({ error: 'Room not found' });
     }
     
-    // Format response
     const response = {
       roomId: roomId,
       contestId: roomStatus.contestId,
       currentPlayers: roomStatus.currentPlayers,
-      maxPlayers: 5, // HARDCODE 5
+      maxPlayers: 5,
       status: roomStatus.status,
       players: roomStatus.entries.map(e => ({
         id: e.userId,
@@ -172,7 +167,6 @@ router.get('/room/:roomId/status', async (req, res) => {
 // Get user's contest entries
 router.get('/my-entries', authMiddleware, async (req, res) => {
   try {
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     console.log('Fetching entries for user:', userId);
     
@@ -194,7 +188,6 @@ router.get('/my-entries', authMiddleware, async (req, res) => {
 router.post('/enter/:contestId', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const username = req.user.username || 'Player';
     
@@ -244,7 +237,6 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
         }
       }
       
-      // Attach detected state for downstream use
       if (geoCheck.state) {
         req.detectedState = geoCheck.state;
         req.userState = geoCheck.state;
@@ -254,17 +246,15 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
     }
     // ====================================================================
     
-    // Use contest service to handle entry
     const result = await contestService.enterContest(contestId, userId, username);
     
-    // Get room status to include current players
     if (result.draftRoomId) {
       const roomStatus = await contestService.getRoomStatus(result.draftRoomId);
       
       if (roomStatus) {
         result.roomStatus = {
           currentPlayers: roomStatus.currentPlayers,
-          maxPlayers: 5, // HARDCODE 5 for all rooms
+          maxPlayers: 5,
           status: roomStatus.status,
           players: roomStatus.entries.map(e => ({
             id: e.userId,
@@ -276,7 +266,6 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
         
         console.log(`✅ Room ${result.draftRoomId} now has ${roomStatus.currentPlayers}/5 players`);
         
-        // Log if room is almost full
         if (roomStatus.currentPlayers === 4) {
           console.log(`⚠️ Room ${result.draftRoomId} needs only 1 more player!`);
         } else if (roomStatus.currentPlayers === 5) {
@@ -285,10 +274,8 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
       }
     }
     
-    // Emit socket events for real-time updates
     const io = req.app.get('io');
     if (io && result.draftRoomId) {
-      // Emit to all clients about the room update
       io.emit('room-player-joined', {
         roomId: result.draftRoomId,
         contestId: contestId,
@@ -302,7 +289,6 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
         }
       });
       
-      // Join user to the room for targeted updates
       io.to(`user_${userId}`).emit('joined-room', {
         roomId: result.draftRoomId,
         contestId: contestId,
@@ -325,7 +311,6 @@ router.post('/enter/:contestId', authMiddleware, async (req, res) => {
 router.post('/withdraw/:entryId', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const result = await contestService.withdrawEntry(entryId, userId);
@@ -343,16 +328,13 @@ router.post('/draft/:entryId/pick', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
     const { player, position } = req.body;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
-    // Verify user owns this entry
     const entry = await contestService.getEntry(entryId);
     if (!entry || entry.userId !== userId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
     
-    // Handle the pick through contest service
     await contestService.handlePlayerPick(entry.draftRoomId, userId, player, position);
     
     res.json({ success: true });
@@ -363,12 +345,11 @@ router.post('/draft/:entryId/pick', authMiddleware, async (req, res) => {
   }
 });
 
-// Complete draft - FIXED TO HANDLE DUPLICATES AND ERRORS PROPERLY
+// Complete draft
 router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
   try {
     const { entryId } = req.params;
     const { roster, totalSpent } = req.body;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     console.log('=== SAVING COMPLETED DRAFT ===');
@@ -377,8 +358,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     console.log('User object:', req.user);
     console.log('Roster:', JSON.stringify(roster));
     
-    // Get the contest entry with contest details
-    // ⚠️ FIXED: Changed odId to userId
     const entry = await ContestEntry.findOne({
       where: { 
         id: entryId,
@@ -391,7 +370,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
     });
     
     if (!entry) {
-      // ⚠️ FIXED: Changed odId to userId in error log
       console.error('Entry not found or unauthorized:', {
         entryId,
         userId,
@@ -410,7 +388,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
       contestName: entry.Contest?.name
     });
     
-    // Check if a lineup already exists for this contest_entry_id
     const existingLineup = await db.Lineup.findOne({
       where: { contest_entry_id: entryId }
     });
@@ -420,7 +397,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
       console.log('Existing lineup user_id:', existingLineup.user_id);
       console.log('Current user_id:', userId);
       
-      // If lineup belongs to different user, this is a problem
       if (existingLineup.user_id !== userId) {
         console.error('❌ Entry ID collision! Multiple users using same entry ID!');
         console.error('Entry belongs to:', existingLineup.user_id);
@@ -431,7 +407,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
         });
       }
       
-      // Update existing lineup for this user
       console.log('Updating existing lineup for user...');
       await existingLineup.update({
         roster: roster,
@@ -451,7 +426,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
         }
       });
     } else {
-      // Create new lineup
       console.log('Creating new lineup...');
       console.log('Data to insert:', {
         user_id: userId,
@@ -470,7 +444,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
         week: 1
       });
       
-      // Update contest entry status
       await entry.update({ status: 'drafted' });
       
       console.log('✅ New lineup created:', lineup.id);
@@ -497,7 +470,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
       sql: error.sql
     });
     
-    // Check for specific database errors
     if (error.name === 'SequelizeUniqueConstraintError') {
       console.error('Unique constraint violation - duplicate entry attempted');
       console.error('Constraint details:', error.fields);
@@ -523,7 +495,6 @@ router.post('/draft/:entryId/complete', authMiddleware, async (req, res) => {
 // Get user's contest history
 router.get('/history', authMiddleware, async (req, res) => {
   try {
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     const limit = parseInt(req.query.limit) || 50;
     
@@ -538,11 +509,9 @@ router.get('/history', authMiddleware, async (req, res) => {
 
 // ==================== SOCKET INTEGRATION ROUTES ====================
 
-// Join contest lobby (for real-time updates)
 router.post('/:contestId/join-lobby', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const io = req.app.get('io');
@@ -556,11 +525,9 @@ router.post('/:contestId/join-lobby', authMiddleware, async (req, res) => {
   }
 });
 
-// Leave contest lobby
 router.post('/:contestId/leave-lobby', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
     const io = req.app.get('io');
@@ -576,24 +543,19 @@ router.post('/:contestId/leave-lobby', authMiddleware, async (req, res) => {
 
 // ==================== MARKET MOVER ROUTES ====================
 
-// Calculate ownership for Market Mover
 router.post('/:contestId/ownership', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
     const { playerName } = req.body;
-    // ⚠️ ALWAYS use userId, NEVER odId
     const userId = req.user.id || req.user.userId;
     
-    // Check if user has tickets
     const user = await User.findByPk(userId);
     if (!user || user.tickets < 1) {
       return res.status(400).json({ error: 'Insufficient tickets' });
     }
     
-    // Calculate ownership
     const ownership = await contestService.calculateOwnership(contestId, playerName);
     
-    // Deduct ticket
     await user.decrement('tickets', { by: 1 });
     
     res.json({
@@ -611,7 +573,6 @@ router.post('/:contestId/ownership', authMiddleware, async (req, res) => {
 
 // ==================== ADMIN/DEBUG ROUTES ====================
 
-// Health check
 router.get('/health', async (req, res) => {
   try {
     const health = await contestService.healthCheck();
@@ -621,7 +582,6 @@ router.get('/health', async (req, res) => {
   }
 });
 
-// Ensure cash game available
 router.post('/ensure-cash-game', async (req, res) => {
   try {
     await contestService.ensureCashGameAvailable();
@@ -631,7 +591,6 @@ router.post('/ensure-cash-game', async (req, res) => {
   }
 });
 
-// Debug route to see all contests
 router.get('/debug/all', async (req, res) => {
   try {
     const contests = await contestService.getAllContests(true);
@@ -645,7 +604,6 @@ router.get('/debug/all', async (req, res) => {
   }
 });
 
-// Create test contest
 router.post('/debug/create-test-contest', async (req, res) => {
   try {
     const { generatePlayerBoard } = require('../utils/gameLogic');
@@ -655,7 +613,7 @@ router.post('/debug/create-test-contest', async (req, res) => {
       type: 'cash',
       status: 'open',
       entry_fee: 0,
-      max_entries: 5, // Changed to 5 for testing
+      max_entries: 5,
       current_entries: 0,
       prize_pool: 25,
       prizes: [25],
@@ -666,7 +624,6 @@ router.post('/debug/create-test-contest', async (req, res) => {
       updated_at: new Date()
     });
     
-    // Schedule injury swap if service available and start_time exists
     if (injurySwapService && contest.start_time) {
       injurySwapService.scheduleSwapForContest(contest.id, contest.start_time);
     }
@@ -687,7 +644,6 @@ router.post('/debug/create-test-contest', async (req, res) => {
 
 // ==================== ADMIN CONTEST CREATION ====================
 
-// Create a new contest (admin route)
 router.post('/admin/create', authMiddleware, async (req, res) => {
   try {
     const { 
@@ -699,10 +655,6 @@ router.post('/admin/create', authMiddleware, async (req, res) => {
       start_time,
       sport = 'NFL'
     } = req.body;
-    
-    // TODO: Add admin check here
-    // const user = await User.findByPk(req.user.id);
-    // if (!user?.is_admin) return res.status(403).json({ error: 'Admin only' });
     
     const { generatePlayerBoard } = require('../utils/gameLogic');
     
@@ -723,7 +675,6 @@ router.post('/admin/create', authMiddleware, async (req, res) => {
       updated_at: new Date()
     });
     
-    // Schedule injury swap for cash and market_mover contests
     if (injurySwapService && ['cash', 'market_mover'].includes(type) && contest.start_time) {
       injurySwapService.scheduleSwapForContest(contest.id, contest.start_time);
       console.log(`📅 Scheduled injury swap for contest ${contest.id}`);
@@ -746,7 +697,6 @@ router.post('/admin/create', authMiddleware, async (req, res) => {
   }
 });
 
-// Update contest start time (and reschedule injury swap)
 router.put('/admin/:contestId/start-time', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
@@ -757,18 +707,15 @@ router.put('/admin/:contestId/start-time', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Contest not found' });
     }
     
-    // Cancel existing scheduled swap
     if (injurySwapService) {
       injurySwapService.cancelScheduledSwap(contestId);
     }
     
-    // Update start time
     await contest.update({ 
       start_time: start_time ? new Date(start_time) : null,
       updated_at: new Date()
     });
     
-    // Reschedule injury swap if applicable
     if (injurySwapService && ['cash', 'market_mover'].includes(contest.type) && start_time) {
       injurySwapService.scheduleSwapForContest(contestId, new Date(start_time));
       console.log(`📅 Rescheduled injury swap for contest ${contestId}`);
@@ -789,7 +736,6 @@ router.put('/admin/:contestId/start-time', authMiddleware, async (req, res) => {
   }
 });
 
-// Force launch draft (admin only)
 router.post('/debug/launch-draft/:roomId', async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -814,20 +760,17 @@ router.post('/debug/launch-draft/:roomId', async (req, res) => {
 
 // ==================== ADMIN: FILL ROOM WITH BOTS ====================
 
-// Admin: Fill lobby with bots (for testing)
 router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id || req.user.userId;
     const user = await User.findByPk(userId);
     
-    // Admin check
     if (!user || (user.username !== 'aaaaaa' && !user.is_admin)) {
       return res.status(403).json({ error: 'Admin only' });
     }
     
     const { roomId } = req.params;
     
-    // Get room status - this uses the same query as the frontend sees
     const roomStatus = await contestService.getRoomStatus(roomId);
     if (!roomStatus) {
       return res.status(404).json({ error: 'Room not found' });
@@ -844,14 +787,11 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
     
     console.log(`Slots needed: ${slotsNeeded}`);
     
-    // Get the contest
     const contest = await Contest.findByPk(roomStatus.contestId);
     if (!contest) {
       return res.status(404).json({ error: 'Contest not found' });
     }
     
-    // Get ALL entries in this room to determine used positions
-    // Include ALL statuses to avoid position conflicts with DB constraints
     const allEntriesInRoom = await ContestEntry.findAll({
       where: {
         draft_room_id: roomId
@@ -864,18 +804,14 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       attributes: ['id', 'user_id', 'draft_position', 'status']
     });
     
- // Track which positions are taken by ACTIVE entries only (not cancelled)
     const usedPositions = new Set();
     const userIdsInRoom = new Set();
     const botUsernamesInRoom = new Set();
     
     allEntriesInRoom.forEach(entry => {
-      // Only count positions from active entries (pending/drafting)
-      // Cancelled entries should NOT block positions
       if (entry.draft_position !== null && entry.status !== 'cancelled') {
         usedPositions.add(entry.draft_position);
       }
-      // Only track active users for duplicate prevention
       if (entry.status !== 'cancelled') {
         userIdsInRoom.add(entry.user_id);
         if (entry.User?.username?.startsWith('botuser')) {
@@ -887,7 +823,6 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
     console.log(`Used positions: ${Array.from(usedPositions).sort().join(', ') || 'none'}`);
     console.log(`Bots already in room: ${Array.from(botUsernamesInRoom).join(', ') || 'none'}`);
     
-    // Find available positions (0-4)
     const availablePositions = [];
     for (let pos = 0; pos < 5; pos++) {
       if (!usedPositions.has(pos)) {
@@ -918,7 +853,6 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
     while (botEntries.length < slotsNeeded && botNum <= maxBotNum && positionIndex < availablePositions.length) {
       const botUsername = `botuser${botNum}`;
       
-      // Skip if this specific bot is already in room
       if (botUsernamesInRoom.has(botUsername)) {
         console.log(`  ⏭️ ${botUsername} already in room, trying next bot`);
         botNum++;
@@ -926,7 +860,6 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       }
       
       try {
-        // Find or create bot user
         const [botUser, created] = await User.findOrCreate({
           where: { username: botUsername },
           defaults: {
@@ -940,19 +873,16 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
           console.log(`  🤖 Created new bot user: ${botUsername}`);
         }
         
-        // Check if this bot user (by ID) already has an entry in this room
         if (userIdsInRoom.has(botUser.id)) {
           console.log(`  ⏭️ ${botUsername} (ID: ${botUser.id}) already has entry in room, trying next bot`);
           botNum++;
           continue;
         }
         
-        // Get the next available position
         const assignedPosition = availablePositions[positionIndex];
         
         console.log(`  📝 Creating entry for ${botUsername} at position ${assignedPosition}...`);
         
-        // Create entry with explicit position
         const entry = await ContestEntry.create({
           id: uuidv4(),
           user_id: botUser.id,
@@ -965,12 +895,10 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
           entered_at: new Date()
         });
         
-        // Mark this position and user as used
         usedPositions.add(assignedPosition);
         userIdsInRoom.add(botUser.id);
         positionIndex++;
         
-        // Increment contest entry count
         await contest.increment('current_entries');
         
         botEntries.push({
@@ -987,20 +915,17 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
         console.log(`  ❌ Failed to add ${botUsername}: ${err.message}`);
         errors.push(errorMsg);
         
-        // If it's a unique constraint error, the position might have been taken
         if (err.name === 'SequelizeUniqueConstraintError') {
           console.log(`  ⚠️ Position conflict detected, skipping position ${availablePositions[positionIndex]}`);
-          positionIndex++; // Skip this position
+          positionIndex++;
         }
       }
       
       botNum++;
       
-      // Small delay to prevent race conditions
       await new Promise(r => setTimeout(r, 50));
     }
     
-    // Get updated room status
     const updatedStatus = await contestService.getRoomStatus(roomId);
     const finalPlayerCount = updatedStatus?.currentPlayers || 0;
     
@@ -1011,7 +936,6 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       console.log(`Errors: ${errors.join(', ')}`);
     }
     
-    // Emit socket event for room update
     const io = req.app.get('io');
     if (io && updatedStatus) {
       io.emit('room-player-joined', {
@@ -1023,81 +947,81 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
       });
     }
     
-// Check if room is now full and should launch draft
-if (finalPlayerCount >= 5) {
-  console.log(`🚀 Room ${roomId} is full (${finalPlayerCount}/5), launching draft...`);
-  
-  // Close the contest and create replacement for cash games
-  if (contest.type === 'cash') {
-    await contest.update({ status: 'closed' });
-    
-    // Create replacement cash game - SPORT AWARE
-    const { generatePlayerBoard } = require('../utils/gameLogic');
-    const contestSport = contest.sport || 'nfl';
-    const namePrefix = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
-    
-    const cashGames = await Contest.findAll({
-      where: { 
-        type: 'cash', 
-        sport: contestSport,
-        name: { [db.Sequelize.Op.like]: `${namePrefix} #%` } 
-      },
-      attributes: ['name']
-    });
-    
-    let maxNumber = 0;
-    cashGames.forEach(game => {
-      const match = game.name.match(/#(\d+)/);
-      if (match) maxNumber = Math.max(maxNumber, parseInt(match[1]));
-    });
-    
-    const newName = `${namePrefix} #${maxNumber + 1}`;
-    console.log(`✅ Creating ${contestSport.toUpperCase()} replacement: ${newName}`);
-    
-    // Look up active slate - no slate = no replacement contest
-    const activeSlate = await db.Slate.findOne({
-      where: { sport: contestSport, status: 'active' }
-    });
-    
-    if (!activeSlate) {
-      console.log(`🚫 No active slate for ${contestSport.toUpperCase()} - skipping replacement cash game`);
-    } else {
-      const newCashGame = await Contest.create({
-        id: uuidv4(),
-        type: 'cash',
-        sport: contestSport,
-        name: newName,
-        status: 'open',
-        entry_fee: contest.entry_fee,
-        prize_pool: contest.prize_pool,
-        max_entries: 5,
-        current_entries: 0,
-        max_entries_per_user: 1,
-        player_board: generatePlayerBoard(null, [], [], contestSport),
-        slate_id: activeSlate.id,
-        start_time: new Date(),
-        end_time: new Date(Date.now() + 7200000),
-        prizes: contest.prizes,
-        currency: contest.currency,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
+    if (finalPlayerCount >= 5) {
+      console.log(`🚀 Room ${roomId} is full (${finalPlayerCount}/5), launching draft...`);
       
-      console.log(`✅ Created replacement: ${newCashGame.name} → slate ${activeSlate.name} (currency: ${newCashGame.currency})`);
+      if (contest.type === 'cash') {
+        await contest.update({ status: 'closed' });
+        
+        // Create replacement cash game - SPORT + CURRENCY AWARE
+        const { generatePlayerBoard } = require('../utils/gameLogic');
+        const contestSport = contest.sport || 'nfl';
+        const isFree = contest.currency === 'tickets';
+        const baseLabel = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
+        const namePrefix = isFree ? `Free ${baseLabel}` : baseLabel;
+        
+        const cashGames = await Contest.findAll({
+          where: { 
+            type: 'cash', 
+            sport: contestSport,
+            currency: contest.currency,
+            name: { [db.Sequelize.Op.like]: `${namePrefix} #%` } 
+          },
+          attributes: ['name']
+        });
+        
+        let maxNumber = 0;
+        cashGames.forEach(game => {
+          const match = game.name.match(/#(\d+)/);
+          if (match) maxNumber = Math.max(maxNumber, parseInt(match[1]));
+        });
+        
+        const newName = `${namePrefix} #${maxNumber + 1}`;
+        console.log(`✅ Creating ${contestSport.toUpperCase()} ${contest.currency} replacement: ${newName}`);
+        
+        const activeSlate = await db.Slate.findOne({
+          where: { sport: contestSport, status: 'active' }
+        });
+        
+        if (!activeSlate) {
+          console.log(`🚫 No active slate for ${contestSport.toUpperCase()} - skipping replacement cash game`);
+        } else {
+          const newCashGame = await Contest.create({
+            id: uuidv4(),
+            type: 'cash',
+            sport: contestSport,
+            name: newName,
+            status: 'open',
+            entry_fee: contest.entry_fee,
+            prize_pool: contest.prize_pool,
+            max_entries: 5,
+            current_entries: 0,
+            max_entries_per_user: 1,
+            player_board: generatePlayerBoard(null, [], [], contestSport),
+            slate_id: activeSlate.id,
+            start_time: new Date(),
+            end_time: new Date(Date.now() + 7200000),
+            prizes: contest.prizes,
+            currency: contest.currency,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          
+          console.log(`✅ Created replacement: ${newCashGame.name} → slate ${activeSlate.name} (currency: ${newCashGame.currency})`);
+          
+          if (io) {
+            io.emit('contest-created', { contest: newCashGame });
+          }
+        }
+      }
       
-      if (io) {
-        io.emit('contest-created', { contest: newCashGame });
+      try {
+        await contestService.launchDraft(roomId, updatedStatus, contest);
+      } catch (launchError) {
+        console.error(`❌ Failed to launch draft: ${launchError.message}`);
+        errors.push(`Draft launch failed: ${launchError.message}`);
       }
     }
-  }
-  
-  try {
-    await contestService.launchDraft(roomId, updatedStatus, contest);
-  } catch (launchError) {
-    console.error(`❌ Failed to launch draft: ${launchError.message}`);
-    errors.push(`Draft launch failed: ${launchError.message}`);
-  }
-}
     
     res.json({ 
       success: botEntries.length > 0 || finalPlayerCount >= 5,

@@ -142,7 +142,7 @@ class ContestService {
     await this.redis.del(lockKey);
   }
 
-  // Get all open contests - UPDATED with Market Mover data and sport field
+  // Get all open contests
   async getContests() {
     try {
       const contests = await db.Contest.findAll({
@@ -155,20 +155,23 @@ class ContestService {
         ]
       });
 
-      // For cash games, only show the latest open one PER SPORT
+      // For cash games, show the latest open one PER (sport + currency)
+      // This ensures both USD ("Cash Game") and ticket ("Free Cash Game") show.
       const cashGames = contests.filter(c => c.type === 'cash');
       const otherContests = contests.filter(c => c.type !== 'cash');
       
-      // Group cash games by sport and take latest of each
-      const cashBySport = {};
+      // Group cash games by sport+currency and take latest of each
+      const cashByKey = {};
       cashGames.forEach(game => {
         const gameSport = game.sport || 'nfl';
-        if (!cashBySport[gameSport]) {
-          cashBySport[gameSport] = game;
+        const gameCurrency = game.currency || 'usd';
+        const key = `${gameSport}_${gameCurrency}`;
+        if (!cashByKey[key]) {
+          cashByKey[key] = game;
         }
       });
       
-      const finalContests = [...Object.values(cashBySport), ...otherContests];
+      const finalContests = [...Object.values(cashByKey), ...otherContests];
 
       // For Market Mover contests, include FIRE SALE status
       const marketMoverService = require('./marketMoverService');
@@ -512,7 +515,6 @@ class ContestService {
             const marketMoverService = require('./marketMoverService');
             const mmStatus = await marketMoverService.getVotingStatus();
             
-            // UPDATED: Pass sport parameter
             let newBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
             
             await this.redis.set(boardKey, JSON.stringify(newBoard), 'EX', 86400);
@@ -601,22 +603,26 @@ class ContestService {
         
         if (contest.type === 'cash') {
           console.log(`Cash game ${contestId} is full, creating replacement...`);
-          console.log(`🔍 REGEN DEBUG: contest.sport = "${contest.sport}", contest.name = "${contest.name}"`);
+          console.log(`🔍 REGEN DEBUG: contest.sport = "${contest.sport}", contest.currency = "${contest.currency}", contest.name = "${contest.name}"`);
           
           try {
             // Get sport from contest
             const contestSport = contest.sport || 'nfl';
             
-            // Use consistent naming: NFL = "Cash Game #X", NBA = "NBA Cash Game #X"
-            const namePrefix = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
+            // Currency-aware naming: USD = "Cash Game #X", tickets = "Free Cash Game #X"
+            // Filter regen lookup by currency too so numbering stays correct per-(sport, currency)
+            const isFree = contest.currency === 'tickets';
+            const baseLabel = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
+            const namePrefix = isFree ? `Free ${baseLabel}` : baseLabel;
             
-            console.log(`🔄 Regenerating ${contestSport.toUpperCase()} cash game, looking for pattern: "${namePrefix} #%"`);
+            console.log(`🔄 Regenerating ${contestSport.toUpperCase()} ${contest.currency} cash game, looking for pattern: "${namePrefix} #%"`);
             
-            // Get all cash games for this sport with matching pattern
+            // Get all cash games for this sport+currency with matching pattern
             const cashGames = await db.Contest.findAll({
               where: {
                 type: 'cash',
                 sport: contestSport,
+                currency: contest.currency,
                 name: { [Op.like]: `${namePrefix} #%` }
               },
               attributes: ['name'],
@@ -634,7 +640,7 @@ class ContestService {
             const nextNumber = maxNumber + 1;
             const newName = `${namePrefix} #${nextNumber}`;
             
-            console.log(`🔄 Creating new cash game: ${newName} (sport: ${contestSport})`);
+            console.log(`🔄 Creating new cash game: ${newName} (sport: ${contestSport}, currency: ${contest.currency})`);
             
             // Look up active slate - no slate = no new contest on lobby
             const activeSlate = await db.Slate.findOne({
@@ -1094,7 +1100,7 @@ class ContestService {
     }
   }
 
-  // NEW: Find the lowest priority entry to withdraw
+  // Find the lowest priority entry to withdraw
   async getLowestPriorityEntry(contestId, userId) {
     try {
       const userEntries = await db.ContestEntry.findAll({
@@ -1209,7 +1215,7 @@ class ContestService {
     }
   }
 
-  // getRoomStatus - UPDATED with sport support
+  // getRoomStatus
   async getRoomStatus(roomId) {
     try {
       console.log(`\n=== GET ROOM STATUS DEBUG ===`);
@@ -1389,7 +1395,6 @@ class ContestService {
           } else {
             const marketMoverService = require('./marketMoverService');
             const mmStatus = await marketMoverService.getVotingStatus();
-            // UPDATED: Pass sport parameter
             playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
             
             await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
@@ -1449,7 +1454,6 @@ class ContestService {
             } else {
               const marketMoverService = require('./marketMoverService');
               const mmStatus = await marketMoverService.getVotingStatus();
-              // UPDATED: Pass sport parameter
               playerBoard = generatePlayerBoard('market', mmStatus.fireSaleList || [], mmStatus.coolDownList || [], contest.sport || 'nfl');
               
               await this.redis.set(boardKey, JSON.stringify(playerBoard), 'EX', 86400);
@@ -1586,7 +1590,6 @@ class ContestService {
     }
   }
 
-  // UPDATED: launchDraft with sport-aware board generation
   async launchDraft(roomId, roomStatus, contest) {
     try {
       console.log(`\n🚀 LAUNCHING DRAFT for room ${roomId}`);
@@ -1610,7 +1613,6 @@ class ContestService {
       let playerBoard = roomStatus.playerBoard;
       if (!playerBoard || !Array.isArray(playerBoard) || playerBoard.length === 0) {
         console.log('📋 Generating fresh player board for draft');
-        // UPDATED: Get sport from contest and pass it
         const contestData = await db.Contest.findByPk(roomStatus.contestId);
         const sport = contestData?.sport || 'nfl';
         playerBoard = generatePlayerBoard(null, [], [], sport);
@@ -1620,7 +1622,7 @@ class ContestService {
         roomId,
         roomStatus.entries,
         playerBoard,
-        roomStatus.contestSport || 'nfl'  // Pass sport to draftService
+        roomStatus.contestSport || 'nfl'
       );
 
       this.activeDrafts.set(roomId, {
@@ -1788,7 +1790,6 @@ class ContestService {
     
     let timeLimit = remainingBudget <= 0 ? 3 : 30;
 
-    // Bots pick in 3 seconds
     if (currentPlayer.username?.startsWith('botuser')) {
       timeLimit = 3;
     }
@@ -1807,10 +1808,10 @@ class ContestService {
       timeLimit: timeLimit
     }), 'EX', 3600);
 
-// Push notification: Your turn (only if not a bot)
-if (!currentPlayer.username?.startsWith('botuser')) {
-  PushNotificationService.notifyYourTurn(currentPlayer.userId, roomId, timeLimit, this.io);
-}
+    if (!currentPlayer.username?.startsWith('botuser')) {
+      PushNotificationService.notifyYourTurn(currentPlayer.userId, roomId, timeLimit, this.io);
+    }
+
     if (this.io) {
       this.io.to(`room_${roomId}`).emit('draft-turn', {
         roomId,
@@ -1850,22 +1851,18 @@ if (!currentPlayer.username?.startsWith('botuser')) {
     const capturedUsername = currentPlayer.username;
     const capturedTimerKey = existingTimerKey;
 
-    // CHANGE 1: Reduced from 3000 to 1000
-    const GRACE_PERIOD_MS = 1000; // 1 second hidden grace period for laggy picks
+    const GRACE_PERIOD_MS = 1000;
     
     const timerId = setTimeout(async () => {
       console.log(`⏰ Timer FIRED for ${capturedUsername} in room ${capturedRoomId} - starting ${GRACE_PERIOD_MS/1000}s grace period`);
       
       this.draftTimers.delete(capturedTimerKey);
       
-      // Store the turn number when timer fired
       const turnWhenTimerFired = draftState.currentTurn;
       
-      // Grace period - wait before auto-picking to allow laggy manual picks
       await new Promise(resolve => setTimeout(resolve, GRACE_PERIOD_MS));
       
       try {
-        // Check if a manual pick arrived during grace period
         const currentDraftState = await draftService.getDraft(capturedRoomId);
         
         if (!currentDraftState) {
@@ -1945,11 +1942,7 @@ if (!currentPlayer.username?.startsWith('botuser')) {
         }
         
         const timeLimitMs = timeLimit * 1000;
-        
-        // AGGRESSIVE STALL DETECTION
-        // If elapsed time exceeds the time limit by more than 2 seconds AND no timer is active,
-        // the timer must have died/been lost - don't wait for grace period + buffer
-        const STALL_THRESHOLD_MS = timeLimitMs + 2000; // Just 2 seconds past time limit
+        const STALL_THRESHOLD_MS = timeLimitMs + 2000;
         
         if (currentTurn === draftState.currentTurn && elapsed > STALL_THRESHOLD_MS) {
           console.log(`⚠️ Draft ${roomId} stalled for ${Math.round(elapsed/1000)}s (threshold: ${STALL_THRESHOLD_MS/1000}s, timeLimit: ${timeLimit}s) - auto-picking now`);
@@ -2088,7 +2081,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
   }
 
   async handlePlayerPick(roomId, userId, playerData, positionData) {
-    // Prevent same user from double-picking (dual device scenario)
     const userPickLock = `picking:${roomId}:${userId}`;
     const gotLock = await this.redis.set(userPickLock, '1', 'NX', 'EX', 5);
     if (!gotLock) {
@@ -2102,89 +2094,88 @@ if (!currentPlayer.username?.startsWith('botuser')) {
         throw new Error('Draft not found');
       }
 
-    const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
-    const row = positionData?.row;
-    const col = positionData?.col;
+      const rosterSlot = typeof positionData === 'string' ? positionData : positionData?.slot;
+      const row = positionData?.row;
+      const col = positionData?.col;
 
-    console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
+      console.log(`Processing pick: Room ${roomId}, User ${userId}, Slot ${rosterSlot}, Row ${row}, Col ${col}`);
 
-    const timerKey = `${roomId}_${userId}`;
-    const timerId = this.draftTimers.get(timerKey);
-    if (timerId) {
-      clearTimeout(timerId);
-      this.draftTimers.delete(timerKey);
-    }
-
-    const updatedDraft = await draftService.makePick(roomId, userId, {
-      player: playerData,
-      rosterSlot: rosterSlot,
-      row: row !== undefined ? row : playerData?.row,
-      col: col !== undefined ? col : playerData?.col,
-      contestType: draft.contestType
-    });
-
-    if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
-      if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
-        updatedDraft.playerBoard[row][col].drafted = true;
-        updatedDraft.playerBoard[row][col].draftedBy = userId;
-        
-        const boardKey = `board:${roomId}`;
-        await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
-        
-        console.log(`✅ Marked player at [${row}][${col}] as drafted`);
+      const timerKey = `${roomId}_${userId}`;
+      const timerId = this.draftTimers.get(timerKey);
+      if (timerId) {
+        clearTimeout(timerId);
+        this.draftTimers.delete(timerKey);
       }
-    }
 
-    const entry = await db.ContestEntry.findOne({
-      where: {
-        draft_room_id: roomId,
-        user_id: userId,
-        status: 'drafting'
-      }
-    });
-
-    if (entry) {
-      await this.saveDraftPick(entry.id, {
+      const updatedDraft = await draftService.makePick(roomId, userId, {
         player: playerData,
         rosterSlot: rosterSlot,
-        pickNumber: updatedDraft.picks.length,
-        isAutoPick: false
+        row: row !== undefined ? row : playerData?.row,
+        col: col !== undefined ? col : playerData?.col,
+        contestType: draft.contestType
       });
-    }
 
-    if (this.io) {
-      const socketRoom = `room_${roomId}`;
-      
-      this.io.to(socketRoom).emit('player-picked', {
-        roomId,
-        userId,
-        player: playerData,
-        position: rosterSlot,
-        row: row,
-        col: col,
-        pickNumber: updatedDraft.picks.length,
-        playerBoard: updatedDraft.playerBoard,
-        teams: updatedDraft.teams,
-        currentTurn: updatedDraft.currentTurn,
-        currentPick: updatedDraft.currentTurn + 1,
-        picks: updatedDraft.picks,
-        turnStartedAt: Date.now(),
-        serverTime: Date.now()
+      if (updatedDraft.playerBoard && row !== undefined && col !== undefined) {
+        if (updatedDraft.playerBoard[row] && updatedDraft.playerBoard[row][col]) {
+          updatedDraft.playerBoard[row][col].drafted = true;
+          updatedDraft.playerBoard[row][col].draftedBy = userId;
+          
+          const boardKey = `board:${roomId}`;
+          await this.redis.set(boardKey, JSON.stringify(updatedDraft.playerBoard), 'EX', 86400);
+          
+          console.log(`✅ Marked player at [${row}][${col}] as drafted`);
+        }
+      }
+
+      const entry = await db.ContestEntry.findOne({
+        where: {
+          draft_room_id: roomId,
+          user_id: userId,
+          status: 'drafting'
+        }
       });
-      
-      this.io.to(socketRoom).emit('draft-state', {
-        ...updatedDraft,
-        playerBoard: updatedDraft.playerBoard,
-        turnStartedAt: Date.now(),
-        serverTime: Date.now()
-      });
-      
-      console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
-    }
+
+      if (entry) {
+        await this.saveDraftPick(entry.id, {
+          player: playerData,
+          rosterSlot: rosterSlot,
+          pickNumber: updatedDraft.picks.length,
+          isAutoPick: false
+        });
+      }
+
+      if (this.io) {
+        const socketRoom = `room_${roomId}`;
+        
+        this.io.to(socketRoom).emit('player-picked', {
+          roomId,
+          userId,
+          player: playerData,
+          position: rosterSlot,
+          row: row,
+          col: col,
+          pickNumber: updatedDraft.picks.length,
+          playerBoard: updatedDraft.playerBoard,
+          teams: updatedDraft.teams,
+          currentTurn: updatedDraft.currentTurn,
+          currentPick: updatedDraft.currentTurn + 1,
+          picks: updatedDraft.picks,
+          turnStartedAt: Date.now(),
+          serverTime: Date.now()
+        });
+        
+        this.io.to(socketRoom).emit('draft-state', {
+          ...updatedDraft,
+          playerBoard: updatedDraft.playerBoard,
+          turnStartedAt: Date.now(),
+          serverTime: Date.now()
+        });
+        
+        console.log(`📢 Broadcasted pick to ${socketRoom} with updated playerBoard`);
+      }
 
       await this.startNextPick(roomId);
     } finally {
-      // Always release the user pick lock
       await this.redis.del(userPickLock);
     }
   }
@@ -2199,9 +2190,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
     }
     
     try {
-      // ==========================================
-      // CHECK FOR PRE-SELECTION FIRST
-      // ==========================================
       let preSelection = null;
       try {
         const preSelectKey = `preselect:${roomId}:${userId}`;
@@ -2212,7 +2200,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
         if (preSelectData) {
           preSelection = JSON.parse(preSelectData);
           console.log(`📱 ✅ Found pre-selection for ${userId}: ${preSelection.name} at [${preSelection.row}][${preSelection.col}]`);
-          // Clear it immediately so it's not used twice
           await this.redis.del(preSelectKey);
         } else {
           console.log(`📱 No pre-selection found for ${userId} in room ${roomId}`);
@@ -2220,7 +2207,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
       } catch (preSelectError) {
         console.error('❌ Error checking pre-selection:', preSelectError);
       }
-      // ==========================================
       
       const updatedDraft = await draftService.autoPick(roomId, userId, preSelection);
       
@@ -2275,7 +2261,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
           
           console.log(`📢 Broadcasted AUTO-PICK to ${socketRoom}: ${lastPick.player?.name}${lastPick.wasPreSelected ? ' (PRE-SELECTED)' : ''}`);
         } else if (lastPick && lastPick.skipped) {
-          // Emit turn-skipped event so frontend can update UI
           this.io.to(socketRoom).emit('turn-skipped', {
             roomId,
             userId,
@@ -2377,7 +2362,6 @@ if (!currentPlayer.username?.startsWith('botuser')) {
     let successCount = 0;
     let failCount = 0;
 
-    // Get sport-specific positions
     const sport = entries[0]?.Contest?.sport || 'nfl';
     const positions = sport === 'nba' 
       ? ['PG', 'SG', 'SF', 'PF', 'C']
@@ -2495,15 +2479,15 @@ if (!currentPlayer.username?.startsWith('botuser')) {
         }
       }
     }
-// Build final rosters for audit log
-const finalRosters = draftState?.teams?.map(team => ({
-  userId: team.userId,
-  username: team.username,
-  roster: team.roster,
-  totalSpent: Object.values(team.roster || {}).reduce((sum, p) => sum + (p?.price || 0), 0)
-})) || [];
 
-DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.playerBoard);
+    const finalRosters = draftState?.teams?.map(team => ({
+      userId: team.userId,
+      username: team.username,
+      roster: team.roster,
+      totalSpent: Object.values(team.roster || {}).reduce((sum, p) => sum + (p?.price || 0), 0)
+    })) || [];
+
+    DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.playerBoard);
     await draftService.completeDraft(roomId);
 
     if (this.io) {
