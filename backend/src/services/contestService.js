@@ -255,7 +255,7 @@ class ContestService {
         },
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board', 'status', 'current_entries', 'max_entries']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board', 'status', 'current_entries', 'max_entries', 'currency']
         }],
         order: [['created_at', 'DESC']]
       });
@@ -268,6 +268,7 @@ class ContestService {
         contestType: entry.Contest?.type,
         contestSport: entry.Contest?.sport || 'nfl',
         contestStatus: entry.Contest?.status,
+        contestCurrency: entry.Contest?.currency || 'usd',
         entryFee: entry.Contest ? parseFloat(entry.Contest.entry_fee) : 0,
         prizePool: entry.Contest ? parseFloat(entry.Contest.prize_pool) : 0,
         draftRoomId: entry.draft_room_id,
@@ -324,7 +325,7 @@ class ContestService {
     }
   }
 
-  // Main enter contest method - UPDATED with TransactionService and sport support
+  // Main enter contest method - currency-aware (USD or tickets)
   async enterContest(contestId, userId, username) {
     const lockKey = `contest:${contestId}:user:${userId}`;
     const lockAcquired = await this.acquireLock(lockKey);
@@ -348,7 +349,8 @@ class ContestService {
         throw new Error('Contest not found');
       }
 
-      console.log(`Entering contest: ${contest.name} (${contest.type}, ${contest.sport || 'nfl'}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
+      const isTicketContest = contest.currency === 'tickets';
+      console.log(`Entering contest: ${contest.name} (${contest.type}, ${contest.sport || 'nfl'}, currency: ${contest.currency}), Status: ${contest.status}, Entries: ${contest.current_entries}/${contest.max_entries}`);
 
       if (contest.status !== 'open') {
         throw new Error('Contest is not accepting entries');
@@ -371,10 +373,22 @@ class ContestService {
       const userBalance = parseFloat(user.balance);
       const entryFee = parseFloat(contest.entry_fee);
       
-      // Early balance check for better error message
-      if (userBalance < entryFee) {
-        throw new Error(`Insufficient balance. You need $${entryFee.toFixed(2)} but only have $${userBalance.toFixed(2)}`);
+      // ====================================================================
+      // EARLY VALIDATION: branch on currency for sufficient-funds check
+      // ====================================================================
+      if (isTicketContest) {
+        const ticketCost = parseInt(contest.entry_fee) || 0;
+        const userTickets = user.tickets || 0;
+        if (userTickets < ticketCost) {
+          throw new Error(`Insufficient tickets. You need ${ticketCost} but only have ${userTickets}. Earn tickets by completing drafts!`);
+        }
+      } else {
+        // USD contest
+        if (userBalance < entryFee) {
+          throw new Error(`Insufficient balance. You need $${entryFee.toFixed(2)} but only have $${userBalance.toFixed(2)}`);
+        }
       }
+      // ====================================================================
 
       // 3. Check user entry limits - properly handle MarketMaker
       if (contest.type === 'market') {
@@ -523,27 +537,50 @@ class ContestService {
       }
 
       // ====================================================================
-      // 6. DEDUCT ENTRY FEE USING TRANSACTIONSERVICE
-      // This replaces the old manual balance update + Transaction.create
+      // 6. DEDUCT ENTRY FEE - branches on currency
+      // USD: TransactionService for proper balance tracking + audit trail
+      // Tickets: direct user.tickets decrement + TicketTransaction log
       // ====================================================================
-      let newBalance;
+      let newBalance = userBalance;
+      let newTicketBalance = user.tickets || 0;
       
-      if (entryFee > 0) {
-        const txService = this.getTransactionService();
-        const txResult = await txService.deductEntryFee(
-          userId,
-          entryFee,
-          contestId,
-          contest.name,
-          { transaction } // Pass the existing DB transaction for atomicity
-        );
-        newBalance = txResult.newBalance;
-        
-        console.log(`💰 Entry fee deducted: $${entryFee.toFixed(2)} from ${username}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+      if (isTicketContest) {
+        const ticketCost = parseInt(contest.entry_fee) || 0;
+        if (ticketCost > 0) {
+          const previousTickets = user.tickets || 0;
+          await user.decrement('tickets', { by: ticketCost, transaction });
+          await user.reload({ transaction });
+          newTicketBalance = user.tickets;
+          
+          await db.TicketTransaction.create({
+            user_id: userId,
+            type: 'contest_entry',
+            amount: -ticketCost,
+            balance_after: newTicketBalance,
+            reason: `Entered ${contest.name}`
+          }, { transaction });
+          
+          console.log(`🎟️ Ticket entry: ${ticketCost} tickets deducted from ${username}. Tickets: ${previousTickets} → ${newTicketBalance}`);
+        } else {
+          console.log(`🆓 Free ticket contest entry for ${username}, no tickets deducted`);
+        }
       } else {
-        // Free contest - no fee to deduct
-        newBalance = userBalance;
-        console.log(`🆓 Free contest entry for ${username}, no fee deducted`);
+        // USD contest
+        if (entryFee > 0) {
+          const txService = this.getTransactionService();
+          const txResult = await txService.deductEntryFee(
+            userId,
+            entryFee,
+            contestId,
+            contest.name,
+            { transaction }
+          );
+          newBalance = txResult.newBalance;
+          
+          console.log(`💰 Entry fee deducted: $${entryFee.toFixed(2)} from ${username}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+        } else {
+          console.log(`🆓 Free USD contest entry for ${username}, no fee deducted`);
+        }
       }
       // ====================================================================
 
@@ -683,7 +720,8 @@ class ContestService {
             name: freshContest.name,
             status: actualStatus,
             currentEntries: actualCurrentEntries,
-            maxEntries: freshContest.max_entries
+            maxEntries: freshContest.max_entries,
+            currency: freshContest.currency
           }
         }, eventId);
 
@@ -725,7 +763,9 @@ class ContestService {
         entryId: entry.id,
         draftRoomId: roomId,
         contestId: contestId,
+        currency: contest.currency,
         newBalance: newBalance,
+        newTicketBalance: newTicketBalance,
         contestFull: actualCurrentEntries >= contest.max_entries,
         newCashGameId: newCashGameData?.id,
         roomStatus: roomStatus
@@ -897,7 +937,7 @@ class ContestService {
     return { roomId: newRoomId, position: 0 };
   }
 
-  // UPDATED: withdrawEntry to use TransactionService for refunds
+  // withdrawEntry - currency-aware (USD or tickets)
   async withdrawEntry(entryId, userId) {
     const lockKey = `withdraw:${entryId}:${userId}`;
     const lockAcquired = await this.acquireLock(lockKey);
@@ -937,35 +977,71 @@ class ContestService {
         throw new Error('Contest not found');
       }
 
+      const isTicketContest = contest.currency === 'tickets';
+
       // Update entry status
       await entry.update({ status: 'cancelled' }, { transaction });
       
-      console.log(`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position})`);
+      console.log(`🚪 User ${userId} withdrew from room ${entry.draft_room_id} (position ${entry.draft_position}, currency: ${contest.currency})`);
 
       // ====================================================================
-      // REFUND ENTRY FEE USING TRANSACTIONSERVICE
-      // This replaces the old manual balance update + Transaction.create
+      // REFUND - branches on currency
+      // USD: TransactionService refund (proper balance tracking)
+      // Tickets: direct user.tickets increment + TicketTransaction log
       // ====================================================================
       const refundAmount = parseFloat(contest.entry_fee);
       let newBalance;
+      let newTicketBalance;
       
-      if (refundAmount > 0) {
-        const txService = this.getTransactionService();
-        const txResult = await txService.refundEntryFee(
-          userId,
-          refundAmount,
-          entry.contest_id,
-          contest.name,
-          { transaction } // Pass the existing DB transaction for atomicity
-        );
-        newBalance = txResult.newBalance;
+      if (isTicketContest) {
+        const ticketRefund = parseInt(contest.entry_fee) || 0;
+        const user = await db.User.findByPk(userId, { 
+          lock: transaction.LOCK.UPDATE,
+          transaction 
+        });
         
-        console.log(`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${userId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
-      } else {
-        // Free contest - no refund needed
-        const user = await db.User.findByPk(userId, { transaction });
+        if (ticketRefund > 0) {
+          const previousTickets = user.tickets || 0;
+          await user.increment('tickets', { by: ticketRefund, transaction });
+          await user.reload({ transaction });
+          newTicketBalance = user.tickets;
+          
+          await db.TicketTransaction.create({
+            user_id: userId,
+            type: 'contest_refund',
+            amount: ticketRefund,
+            balance_after: newTicketBalance,
+            reason: `Refund for ${contest.name}`
+          }, { transaction });
+          
+          console.log(`🎟️ Ticket refund: ${ticketRefund} tickets refunded to user ${userId}. Tickets: ${previousTickets} → ${newTicketBalance}`);
+        } else {
+          newTicketBalance = user.tickets || 0;
+          console.log(`🆓 Free ticket contest withdrawal, no refund needed`);
+        }
         newBalance = parseFloat(user.balance);
-        console.log(`🆓 Free contest withdrawal, no refund needed`);
+      } else {
+        // USD contest
+        if (refundAmount > 0) {
+          const txService = this.getTransactionService();
+          const txResult = await txService.refundEntryFee(
+            userId,
+            refundAmount,
+            entry.contest_id,
+            contest.name,
+            { transaction }
+          );
+          newBalance = txResult.newBalance;
+          
+          console.log(`💰 Entry fee refunded: $${refundAmount.toFixed(2)} to user ${userId}. Balance: $${txResult.previousBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+        } else {
+          const user = await db.User.findByPk(userId, { transaction });
+          newBalance = parseFloat(user.balance);
+          console.log(`🆓 Free USD contest withdrawal, no refund needed`);
+        }
+        // Fetch current ticket balance for return value (unchanged for USD withdrawal)
+        const user = await db.User.findByPk(userId, { transaction });
+        newTicketBalance = user.tickets || 0;
       }
       // ====================================================================
 
@@ -995,7 +1071,8 @@ class ContestService {
             name: freshContest.name,
             status: freshContest.status,
             currentEntries: freshContest.current_entries,
-            maxEntries: freshContest.max_entries
+            maxEntries: freshContest.max_entries,
+            currency: freshContest.currency
           }
         }, eventId);
       }
@@ -1003,7 +1080,9 @@ class ContestService {
       return { 
         success: true, 
         refund: refundAmount,
-        newBalance: newBalance
+        currency: contest.currency,
+        newBalance: newBalance,
+        newTicketBalance: newTicketBalance
       };
 
     } catch (error) {
@@ -1206,6 +1285,7 @@ class ContestService {
             contestId: roomId,
             contestType: 'cash',
             contestSport: contest.sport || 'nfl',
+            contestCurrency: contest.currency || 'usd',
             entries: entries.map((e, index) => ({
               id: e.id,
               userId: e.user_id,
@@ -1241,7 +1321,7 @@ class ContestService {
           attributes: ['username']
         }, {
           model: db.Contest,
-          attributes: ['type', 'sport', 'player_board']
+          attributes: ['type', 'sport', 'player_board', 'currency']
         }],
         order: [['entered_at', 'ASC']],
         limit: 5
@@ -1287,7 +1367,7 @@ class ContestService {
             attributes: ['username']
           }, {
             model: db.Contest,
-            attributes: ['type', 'sport', 'player_board']
+            attributes: ['type', 'sport', 'player_board', 'currency']
           }],
           order: [['draft_position', 'ASC'], ['entered_at', 'ASC']],
           limit: 5
@@ -1325,6 +1405,7 @@ class ContestService {
           contestId: entries[0].contest_id,
           contestType: contest?.type,
           contestSport: contest?.sport || 'nfl',
+          contestCurrency: contest?.currency || 'usd',
           entries: entries.map((e, index) => ({
             id: e.id,
             userId: e.user_id,
@@ -1383,6 +1464,7 @@ class ContestService {
             contestId: contestId,
             contestType: contest.type,
             contestSport: contest.sport || 'nfl',
+            contestCurrency: contest.currency || 'usd',
             entries: [],
             currentPlayers: 0,
             maxPlayers: 5,
@@ -2516,7 +2598,7 @@ DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.play
       const entry = await db.ContestEntry.findByPk(entryId, {
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'player_board', 'currency']
         }]
       });
 
@@ -2548,7 +2630,7 @@ DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.play
         },
         include: [{
           model: db.Contest,
-          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'status']
+          attributes: ['name', 'type', 'sport', 'entry_fee', 'prize_pool', 'status', 'currency']
         }],
         order: [['completed_at', 'DESC']],
         limit
@@ -2560,6 +2642,7 @@ DraftLogService.logDraftComplete(draft.contestId, finalRosters, draftState?.play
         contestType: entry.Contest?.type,
         contestSport: entry.Contest?.sport || 'nfl',
         contestStatus: entry.Contest?.status,
+        contestCurrency: entry.Contest?.currency || 'usd',
         entryFee: entry.Contest ? parseFloat(entry.Contest.entry_fee) : 0,
         prizePool: entry.Contest ? parseFloat(entry.Contest.prize_pool) : 0,
         totalPoints: parseFloat(entry.total_points || 0),

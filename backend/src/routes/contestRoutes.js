@@ -6,7 +6,7 @@ const db = require('../models');
 const { Contest, ContestEntry, User, DraftPick, Transaction } = db;
 const { v4: uuidv4 } = require('uuid');
 const contestService = require('../services/contestService');
-const { geoRestriction } = require('../middleware/geoRestriction');
+const { geoRestriction, checkIpGeo, STATE_NAMES } = require('../middleware/geoRestriction');
 
 // ============================================================================
 // ⚠️  IMPORTANT: NEVER USE "odId" - ALWAYS USE "userId"
@@ -190,8 +190,8 @@ router.get('/my-entries', authMiddleware, async (req, res) => {
   }
 });
 
-// Enter a contest - FIXED TO RETURN ROOM STATUS
-router.post('/enter/:contestId', authMiddleware, geoRestriction, async (req, res) => {
+// Enter a contest - geo check applied ONLY to USD contests (ticket contests are global)
+router.post('/enter/:contestId', authMiddleware, async (req, res) => {
   try {
     const { contestId } = req.params;
     // ⚠️ ALWAYS use userId, NEVER odId
@@ -201,6 +201,58 @@ router.post('/enter/:contestId', authMiddleware, geoRestriction, async (req, res
     console.log(`\n=== CONTEST ENTRY REQUEST ===`);
     console.log(`User: ${username} (${userId})`);
     console.log(`Contest: ${contestId}`);
+    
+    // ====================================================================
+    // CONDITIONAL GEO CHECK
+    // Look up contest currency before running geo logic.
+    // USD contests: geo-restricted to allowed states.
+    // Ticket contests: open globally — free-to-play has no real-money exposure.
+    // ====================================================================
+    const contestPreCheck = await Contest.findByPk(contestId, { 
+      attributes: ['id', 'currency'] 
+    });
+    
+    if (!contestPreCheck) {
+      return res.status(404).json({ error: 'Contest not found' });
+    }
+    
+    if (contestPreCheck.currency === 'usd') {
+      const geoCheck = checkIpGeo(req);
+      
+      if (!geoCheck.allowed) {
+        if (geoCheck.reason === 'non_us') {
+          return res.status(403).json({
+            success: false,
+            error: 'Real-money contests are only available to users physically located in eligible US states. You can still play free ticket contests!',
+            code: 'GEO_NON_US'
+          });
+        }
+        if (geoCheck.reason === 'blocked_state') {
+          return res.status(403).json({
+            success: false,
+            error: `Real-money contests are not currently available in ${STATE_NAMES[geoCheck.state] || geoCheck.state}. You can still play free ticket contests while we work on expanding!`,
+            code: 'GEO_BLOCKED_STATE',
+            state: geoCheck.state
+          });
+        }
+        if (geoCheck.reason === 'geo_unknown') {
+          return res.status(403).json({
+            success: false,
+            error: 'Unable to verify your location for real-money contests. Please disable any VPN or proxy and try again.',
+            code: 'GEO_UNKNOWN'
+          });
+        }
+      }
+      
+      // Attach detected state for downstream use
+      if (geoCheck.state) {
+        req.detectedState = geoCheck.state;
+        req.userState = geoCheck.state;
+      }
+    } else {
+      console.log(`🎟️ Ticket contest entry — skipping geo check`);
+    }
+    // ====================================================================
     
     // Use contest service to handle entry
     const result = await contestService.enterContest(contestId, userId, username);
@@ -1025,11 +1077,13 @@ if (finalPlayerCount >= 5) {
         slate_id: activeSlate.id,
         start_time: new Date(),
         end_time: new Date(Date.now() + 7200000),
+        prizes: contest.prizes,
+        currency: contest.currency,
         created_at: new Date(),
         updated_at: new Date()
       });
       
-      console.log(`✅ Created replacement: ${newCashGame.name} → slate ${activeSlate.name}`);
+      console.log(`✅ Created replacement: ${newCashGame.name} → slate ${activeSlate.name} (currency: ${newCashGame.currency})`);
       
       if (io) {
         io.emit('contest-created', { contest: newCashGame });

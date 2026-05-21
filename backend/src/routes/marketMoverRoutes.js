@@ -4,6 +4,7 @@ const router = express.Router();
 const { body } = require('express-validator');
 const auth = require('../middleware/auth');
 const marketMoverController = require('../controllers/marketMoverController');
+const { geoRestriction } = require('../middleware/geoRestriction');
 
 // Optional auth middleware - populates req.user if token present, but doesn't require it
 const optionalAuth = (req, res, next) => {
@@ -80,7 +81,8 @@ router.get('/bid-up-player', marketMoverController.getBidUpPlayer);
 router.get('/available-players', marketMoverController.getAvailablePlayers);
 
 // Protected routes (auth required)
-router.post('/vote', auth, validateVote, marketMoverController.voteForPlayer);
+// Voting is geo-restricted: only users in allowed US states can influence the Market Mover board
+router.post('/vote', auth, geoRestriction, validateVote, marketMoverController.voteForPlayer);
 router.post('/ownership', auth, validateOwnership, marketMoverController.checkOwnership);
 router.get('/voting-eligibility', auth, marketMoverController.checkVotingEligibility);
 router.get('/voting-history', auth, marketMoverController.getVotingHistory);
