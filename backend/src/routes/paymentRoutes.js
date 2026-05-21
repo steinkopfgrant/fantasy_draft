@@ -1,5 +1,9 @@
 // backend/src/routes/paymentRoutes.js
 // Unified payment routes for Card, ACH Bank, and Solana USDC/USDT deposits
+//
+// CLOSED-LOOP TICKET ECONOMY: USD deposits credit USD balance only.
+// Bonus ticket grants on crypto deposits have been removed — tickets are
+// utility currency earned through gameplay, not purchased with cash.
 
 const express = require('express');
 const router = express.Router();
@@ -45,12 +49,11 @@ router.get('/deposit-options', async (req, res) => {
         solana: {
           enabled: solanaService.isConfigured(),
           name: 'Crypto (USDC/USDT)',
-          description: 'Instant • Zero fees • Bonus tickets!',
+          description: 'Instant • Zero fees',
           fee: 0,
           feeType: 'none',
           minDeposit: solanaLimits.MIN_DEPOSIT,
           maxDeposit: solanaLimits.MAX_DEPOSIT,
-          bonusTiers: solanaService.getBonusTiers(),
           processingTime: 'Instant (under 1 minute)',
           tokens: ['USDC', 'USDT'],
           network: 'Solana',
@@ -108,8 +111,7 @@ router.get('/calculate-fee', (req, res) => {
         result = {
           grossAmount: numAmount,
           fee: 0,
-          netAmount: numAmount,
-          bonusTickets: solanaService.calculateBonusTickets(numAmount)
+          netAmount: numAmount
         };
         break;
 
@@ -177,6 +179,8 @@ router.get('/solana/deposit-info', (req, res) => {
 /**
  * POST /api/payments/solana/verify
  * Verify a Solana transaction and credit the user
+ * NOTE: bonusTickets removed — closed-loop ticket economy.
+ * Crypto deposits credit USD balance only.
  */
 router.post('/solana/verify', depositLimiter, async (req, res) => {
   try {
@@ -205,7 +209,6 @@ router.post('/solana/verify', depositLimiter, async (req, res) => {
         message: 'Deposit successful!',
         amount: result.amount,
         token: result.token,
-        bonusTickets: result.bonusTickets,
         newBalance: result.newBalance
       });
     } else {
