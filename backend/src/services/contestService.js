@@ -613,7 +613,7 @@ class ContestService {
             // Filter regen lookup by currency too so numbering stays correct per-(sport, currency)
             const isFree = contest.currency === 'tickets';
             const baseLabel = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
-            const namePrefix = isFree ? `Free ${baseLabel}` : baseLabel;
+            const namePrefix = isFree ? `FREE PLAY BETA - ${baseLabel} Clone` : baseLabel;
             
             console.log(`🔄 Regenerating ${contestSport.toUpperCase()} ${contest.currency} cash game, looking for pattern: "${namePrefix} #%"`);
             

@@ -958,7 +958,7 @@ router.post('/admin/fill-room/:roomId', authMiddleware, async (req, res) => {
         const contestSport = contest.sport || 'nfl';
         const isFree = contest.currency === 'tickets';
         const baseLabel = contestSport === 'nfl' ? 'Cash Game' : `${contestSport.toUpperCase()} Cash Game`;
-        const namePrefix = isFree ? `Free ${baseLabel}` : baseLabel;
+        const namePrefix = isFree ? `FREE PLAY BETA - ${baseLabel} Clone` : baseLabel;
         
         const cashGames = await Contest.findAll({
           where: { 
