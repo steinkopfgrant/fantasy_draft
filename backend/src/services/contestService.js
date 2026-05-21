@@ -192,6 +192,7 @@ class ContestService {
         scoringType: contest.scoring_type,
         maxSalary: contest.max_salary,
         prizes: contest.prizes,
+        currency: contest.currency,
         // Add Market Mover specific data
         ...(contest.type === 'market' && {
           fireSaleList: marketMoverStatus.fireSaleList,
@@ -225,7 +226,8 @@ class ContestService {
         playerBoard: contest.player_board,
         startTime: contest.start_time,
         endTime: contest.end_time,
-        prizes: contest.prizes
+        prizes: contest.prizes,
+        currency: contest.currency
       };
 
       // Add Market Mover specific data
@@ -625,10 +627,12 @@ class ContestService {
                 start_time: new Date(),
                 end_time: new Date(Date.now() + 7200000),
                 scoring_type: contest.scoring_type,
-                max_salary: 15
+                max_salary: 15,
+                prizes: contest.prizes,
+                currency: contest.currency
               }, { transaction });
               
-              console.log(`✅ Created ${newCashGame.name} assigned to slate ${activeSlate.name}`);
+              console.log(`✅ Created ${newCashGame.name} assigned to slate ${activeSlate.name} (currency: ${newCashGame.currency})`);
               
               newCashGameCreated = true;
               newCashGameData = {
@@ -646,7 +650,9 @@ class ContestService {
                 startTime: newCashGame.start_time,
                 endTime: newCashGame.end_time,
                 scoringType: newCashGame.scoring_type,
-                maxSalary: newCashGame.max_salary
+                maxSalary: newCashGame.max_salary,
+                prizes: newCashGame.prizes,
+                currency: newCashGame.currency
               };
             }
           } catch (error) {

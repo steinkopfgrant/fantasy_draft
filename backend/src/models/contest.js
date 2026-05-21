@@ -65,6 +65,11 @@ module.exports = (sequelize) => {
       type: DataTypes.JSONB,
       allowNull: true
     },
+    currency: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: 'usd'
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
