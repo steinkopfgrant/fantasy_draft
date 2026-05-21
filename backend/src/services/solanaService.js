@@ -1,5 +1,10 @@
 // backend/src/services/solanaService.js
 // Solana USDC/USDT deposit monitoring service
+//
+// CLOSED-LOOP TICKET ECONOMY: USD deposits credit USD balance ONLY.
+// All bonus ticket logic has been removed — tickets are utility currency
+// earned through gameplay (signup, draft completion, contest wins), never
+// purchased with cash or granted as a cash incentive.
 
 const { Connection, PublicKey } = require('@solana/web3.js');
 
@@ -17,15 +22,6 @@ const TOKENS = {
   }
 };
 
-// Bonus ticket tiers
-const BONUS_TIERS = [
-  { min: 10, max: 49.99, tickets: 1 },
-  { min: 50, max: 99.99, tickets: 2 },
-  { min: 100, max: 249.99, tickets: 3 },
-  { min: 250, max: 499.99, tickets: 5 },
-  { min: 500, max: Infinity, tickets: 10 }
-];
-
 // Limits
 const LIMITS = {
   MIN_DEPOSIT: 10,
@@ -40,7 +36,6 @@ class SolanaService {
     this.db = db;
     this.tokens = TOKENS;
     this.limits = LIMITS;
-    this.bonusTiers = BONUS_TIERS;
     
     // Your deposit wallet address (set in env)
     this.depositWallet = process.env.SOLANA_DEPOSIT_WALLET;
@@ -77,28 +72,14 @@ class SolanaService {
       network: 'Solana',
       minDeposit: this.limits.MIN_DEPOSIT,
       maxDeposit: this.limits.MAX_DEPOSIT,
-      bonusTiers: this.bonusTiers,
       instructions: [
         '1. Copy the wallet address below',
         '2. Send USDC or USDT from your Solana wallet (Phantom, Solflare, etc.)',
         '3. IMPORTANT: Include the memo code in your transaction',
         '4. Wait for confirmation (usually under 1 minute)',
-        '5. Your balance will be credited automatically + bonus tickets!'
+        '5. Your balance will be credited automatically.'
       ]
     };
-  }
-
-  // ============================================
-  // BONUS TICKET CALCULATION
-  // ============================================
-
-  calculateBonusTickets(amount) {
-    for (const tier of this.bonusTiers) {
-      if (amount >= tier.min && amount <= tier.max) {
-        return tier.tickets;
-      }
-    }
-    return 0;
   }
 
   // ============================================
@@ -255,7 +236,6 @@ class SolanaService {
           success: true,
           amount: depositInfo.amount,
           token: depositInfo.token,
-          bonusTickets: result.bonusTickets,
           newBalance: result.newBalance,
           transactionId: result.transactionId
         };
@@ -405,6 +385,8 @@ class SolanaService {
   /**
    * Credit deposit to user atomically
    * 
+   * CLOSED-LOOP: Credits USD balance only. No ticket grants.
+   * 
    * CRITICAL: Relies on database unique constraint on metadata->>'solana_signature'
    * If duplicate, the INSERT will fail and we catch the error in verifyTransaction
    */
@@ -425,16 +407,12 @@ class SolanaService {
       }
 
       const amount = depositInfo.amount;
-      const bonusTickets = this.calculateBonusTickets(amount);
       const currentBalance = parseFloat(user.balance);
-      const currentTickets = user.tickets || 0;
       const newBalance = currentBalance + amount;
-      const newTickets = currentTickets + bonusTickets;
 
-      // Update user balance + tickets + lifetime deposits
+      // Update user balance + lifetime deposits ONLY — no ticket grant
       await user.update({
         balance: newBalance,
-        tickets: newTickets,
         lifetime_deposits: parseFloat(user.lifetime_deposits || 0) + amount
       }, { transaction: dbTransaction });
 
@@ -455,38 +433,18 @@ class SolanaService {
           solana_signature: signature,  // UNIQUE INDEXED
           sender: depositInfo.sender,
           memo: depositInfo.memo,
-          bonus_tickets: bonusTickets,
           network: 'solana'
         }
       }, { transaction: dbTransaction });
 
-      // Create bonus ticket transaction if applicable
-      if (bonusTickets > 0) {
-        await this.db.Transaction.create({
-          user_id: userId,
-          type: 'ticket_bonus',
-          amount: 0,
-          balance_after: newBalance,
-          status: 'completed',
-          description: `Crypto deposit bonus: +${bonusTickets} tickets`,
-          metadata: {
-            tickets_awarded: bonusTickets,
-            deposit_transaction_id: txRecord.id,
-            deposit_amount: amount
-          }
-        }, { transaction: dbTransaction });
-      }
-
       await dbTransaction.commit();
 
-      console.log(`✅ Solana deposit credited: User ${user.username}, $${amount} ${depositInfo.token}, +${bonusTickets} tickets`);
+      console.log(`✅ Solana deposit credited: User ${user.username}, $${amount} ${depositInfo.token}`);
 
       return {
         transactionId: txRecord.id,
         amount: amount,
-        bonusTickets: bonusTickets,
-        newBalance: newBalance,
-        newTickets: newTickets
+        newBalance: newBalance
       };
 
     } catch (error) {
@@ -568,10 +526,6 @@ class SolanaService {
 
   getLimits() {
     return this.limits;
-  }
-
-  getBonusTiers() {
-    return this.bonusTiers;
   }
 
   isConfigured() {
