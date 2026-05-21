@@ -67,19 +67,13 @@ const LobbyScreen = () => {
   const socketHandlersSetRef = useRef(false);
   const roomPollingInterval = useRef(null);
   const rejoinHandledRef = useRef(false);
-  // Capture rejoin param immediately before auth redirects can strip it
   const rejoinRoomIdRef = useRef(new URLSearchParams(window.location.search).get('rejoin'));
-  // Track the current waiting room ID in a ref so socket handler always has fresh value
   const waitingRoomIdRef = useRef(null);
   
-  // Keep ref in sync with state
   useEffect(() => {
     waitingRoomIdRef.current = waitingRoomData?.roomId || null;
   }, [waitingRoomData]);
   
-  // ============================================
-  // ROOM POLLING (defined early so rejoin effect can reference it)
-  // ============================================
   const startRoomPolling = useCallback((roomId) => {
     if (roomPollingInterval.current) clearInterval(roomPollingInterval.current);
     
@@ -122,38 +116,27 @@ const LobbyScreen = () => {
     roomPollingInterval.current = setInterval(pollRoom, 2000);
   }, [dispatch]);
   
-  // ============================================
-  // SINGLE DATA FETCH ON MOUNT - NO HEALTH CHECK
-  // ============================================
   useEffect(() => {
     if (!user?.id || hasFetchedRef.current) return;
     
     hasFetchedRef.current = true;
     console.log('🚀 Fetching lobby data for:', user.username);
     
-    // Fetch both in parallel - no unnecessary health check
     Promise.all([
       dispatch(fetchContests()),
       dispatch(fetchUserEntries())
     ]).catch(err => console.error('❌ Fetch error:', err));
   }, [dispatch, user?.id, user?.username]);
   
-  // Reset fetch flag on user change
   useEffect(() => {
     return () => { hasFetchedRef.current = false; };
   }, [user?.id]);
   
-  // ============================================
-  // REJOIN FROM TEAMS PAGE (query param: ?rejoin=roomId)
-  // Uses ref captured at init time + single room status API call
-  // ============================================
   useEffect(() => {
     const rejoinRoomId = rejoinRoomIdRef.current;
     if (!rejoinRoomId || !user?.id || rejoinHandledRef.current) return;
     
     rejoinHandledRef.current = true;
-    
-    // Clear URL without triggering React state change
     window.history.replaceState({}, '', window.location.pathname);
     
     console.log('🔄 Rejoin requested for room:', rejoinRoomId);
@@ -166,17 +149,12 @@ const LobbyScreen = () => {
         });
         
         const roomStatus = response.data;
-        console.log('📋 Room status:', JSON.stringify(roomStatus));
-        
-        // Find our entry from the room's player list
         const myPlayer = roomStatus.players?.find(p => p.id === user.id);
         
         if (!myPlayer) {
           dispatch(showToast({ message: 'No active entry found for this room', type: 'info' }));
           return;
         }
-        
-        console.log('✅ Found my entry:', myPlayer.entryId);
         
         setWaitingRoomData({
           contestId: roomStatus.contestId,
@@ -204,18 +182,13 @@ const LobbyScreen = () => {
     rejoinRoom();
   }, [user?.id, dispatch, navigate, startRoomPolling]);
   
-  // Reset rejoin flag when leaving waiting room
   useEffect(() => {
     if (!isInWaitingRoom) {
       rejoinHandledRef.current = false;
     }
   }, [isInWaitingRoom]);
   
-  // ============================================
-  // CHECK FOR ACTIVE DRAFTS
-  // ============================================
   useEffect(() => {
-    // ONLY match entries with 'drafting' status - NOT pending
     const draftingEntry = userEntriesArray.find(entry => {
       const roomId = entry.draft_room_id || entry.draftRoomId;
       return roomId && entry.status === 'drafting';
@@ -236,7 +209,6 @@ const LobbyScreen = () => {
     }
   }, [userEntriesArray, contests]);
   
-  // Cleanup polling
   useEffect(() => {
     return () => {
       if (roomPollingInterval.current) clearInterval(roomPollingInterval.current);
@@ -250,9 +222,6 @@ const LobbyScreen = () => {
     }
   }, [isInWaitingRoom]);
   
-  // ============================================
-  // JOIN CONTEST
-  // ============================================
   const handleJoinContest = useCallback(async (contestId) => {
     try {
       const contest = contests.find(c => c.id === contestId || c._id === contestId);
@@ -281,7 +250,6 @@ const LobbyScreen = () => {
           { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, timeout: 10000 }
         );
         
-        // Refresh data
         Promise.all([dispatch(fetchContests()), dispatch(fetchUserEntries())]);
         
         dispatch(showToast({ 
@@ -326,9 +294,6 @@ const LobbyScreen = () => {
     }
   }, [dispatch, user, contests, userEntriesArray, userEntries, startRoomPolling]);
   
-  // ============================================
-  // LEAVE CONTEST
-  // ============================================
   const handleLeaveContest = useCallback(async (contestId) => {
     try {
       if (!user?.id) return;
@@ -370,9 +335,6 @@ const LobbyScreen = () => {
     }
   }, [dispatch, user, contests, userEntriesArray, userEntries, isInWaitingRoom, waitingRoomData]);
   
-  // ============================================
-  // SOCKET HANDLERS
-  // ============================================
   useEffect(() => {
     if (!user?.id || !socketService.isConnected() || socketHandlersSetRef.current) return;
     
@@ -395,14 +357,9 @@ const LobbyScreen = () => {
     }));
     
     cleanups.push(socketService.on('draft-starting', (data) => {
-      console.log('📢 Received draft-starting event:', data.roomId);
-      console.log('📢 Current waiting room:', waitingRoomIdRef.current);
-      
       const isMyWaitingRoom = waitingRoomIdRef.current === data.roomId;
       
       if (isMyWaitingRoom) {
-        console.log(`✅ Draft starting for MY room: ${data.roomId}`);
-        
         if (roomPollingInterval.current) {
           clearInterval(roomPollingInterval.current);
           roomPollingInterval.current = null;
@@ -427,8 +384,6 @@ const LobbyScreen = () => {
             }
           }
         });
-      } else {
-        console.log(`⏭️ Draft starting for different room: ${data.roomId}, my room is: ${waitingRoomIdRef.current}`);
       }
     }));
     
@@ -443,7 +398,8 @@ const LobbyScreen = () => {
   }, [user?.id, dispatch, navigate, waitingRoomData]);
   
   // ============================================
-  // FILTERS & SORTING
+  // FILTERS & SORTING — currency-aware ordering
+  // Order: Free Cash → Free MM → Real Cash → Real MM
   // ============================================
   const filteredAndSortedContests = useMemo(() => {
     let filtered = [...contests];
@@ -481,14 +437,17 @@ const LobbyScreen = () => {
       });
     }
     
+    // Sort order: free first (currency=tickets), then real (currency=usd).
+    // Within each currency tier: cash before market.
     const getContestOrder = (contest) => {
-      const sport = (contest.sport || 'nfl').toLowerCase();
+      const isFree = contest.currency === 'tickets';
       const type = contest.type || '';
       
-      if (type === 'cash' && sport === 'nba') return 0;
-      if (type === 'cash' && sport === 'nfl') return 1;
-      if (type === 'market') return 2;
-      return 3;
+      if (isFree && type === 'cash') return 0;
+      if (isFree && type === 'market') return 1;
+      if (!isFree && type === 'cash') return 2;
+      if (!isFree && type === 'market') return 3;
+      return 4;
     };
     
     filtered.sort((a, b) => {
@@ -506,8 +465,18 @@ const LobbyScreen = () => {
     return filtered;
   }, [contests, searchTerm, selectedSport, filterBy, activeTab, sortBy, userEntries, userEntriesArray]);
   
+  // ============================================
+  // STATS — split USD vs ticket prize pools
+  // ============================================
   const contestStats = useMemo(() => {
-    const stats = { total: contests.length, open: 0, inProgress: 0, userContests: 0, totalPrizePool: 0 };
+    const stats = { 
+      total: contests.length, 
+      open: 0, 
+      inProgress: 0, 
+      userContests: 0, 
+      totalUsdPool: 0,
+      totalTicketPool: 0
+    };
     contests.forEach(c => {
       const cid = c.id || c._id;
       if (c.type === 'market') {
@@ -515,14 +484,17 @@ const LobbyScreen = () => {
       } else if (userEntries[cid]) stats.userContests++;
       if (c.status === 'open') stats.open++;
       else if (c.status === 'in_progress') stats.inProgress++;
-      stats.totalPrizePool += (c.prizePool || c.prize_pool || 0);
+      
+      const pool = c.prizePool || c.prize_pool || 0;
+      if (c.currency === 'tickets') {
+        stats.totalTicketPool += pool;
+      } else {
+        stats.totalUsdPool += pool;
+      }
     });
     return stats;
   }, [contests, userEntries, userEntriesArray]);
   
-  // ============================================
-  // UTILITIES
-  // ============================================
   const formatTimeRemaining = useCallback((startTime) => {
     if (!startTime) return 'No start time';
     const diff = new Date(startTime) - new Date();
@@ -545,9 +517,6 @@ const LobbyScreen = () => {
     Promise.all([dispatch(fetchContests()), dispatch(fetchUserEntries())]);
   }, [dispatch]);
   
-  // ============================================
-  // RENDER
-  // ============================================
   if (!user) {
     return (
       <div className="lobby-container">
@@ -586,7 +555,6 @@ const LobbyScreen = () => {
     <div className="lobby-container">
       <div className="lobby-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-          {/* LEFT SIDE - Pools & Rules buttons stacked */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button
               onClick={() => navigate('/pools')}
@@ -612,7 +580,6 @@ const LobbyScreen = () => {
             </button>
           </div>
           
-          {/* CENTER - Title */}
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ margin: 0 }}>Contest Lobby</h1>
             <p style={{ margin: '0.25rem 0 0 0', color: '#8892b0', fontSize: '0.95rem' }}>
@@ -620,7 +587,6 @@ const LobbyScreen = () => {
             </p>
           </div>
           
-          {/* RIGHT SIDE - Active Draft button */}
           {activeDraft ? (
             <button 
               onClick={() => navigate(`/draft/${activeDraft.roomId}`, { state: { entryId: activeDraft.entryId, rejoin: true } })}
@@ -644,12 +610,14 @@ const LobbyScreen = () => {
           )}
         </div>
         
+        {/* SPLIT PRIZE TOTALS: USD and tickets shown separately */}
         <div style={{ display: 'flex', gap: '20px', margin: '10px 0', fontSize: '14px', color: '#a0aec0' }}>
           <span>Total: {contestStats.total}</span>
           <span>Open: {contestStats.open}</span>
           <span>Live: {contestStats.inProgress}</span>
           <span>Your Contests: {contestStats.userContests}</span>
-          <span>Total Prizes: ${contestStats.totalPrizePool.toLocaleString()}</span>
+          <span>USD Prizes: ${contestStats.totalUsdPool.toLocaleString()}</span>
+          <span>🎟️ Ticket Prizes: {contestStats.totalTicketPool.toLocaleString()}</span>
         </div>
         
         <div style={{ display: 'flex', gap: '10px', margin: '10px 0', flexWrap: 'wrap' }}>
@@ -726,6 +694,18 @@ const LobbyScreen = () => {
               const contestType = contest.type || 'standard';
               const perUserMax = contest.maxEntriesPerUser || 150;
               
+              // ===== CURRENCY-AWARE RENDERING =====
+              const isFree = contest.currency === 'tickets';
+              const currencySymbol = isFree ? '🎟️ ' : '$';
+              const prizeColor = isFree ? '#ffffff' : (contestType === 'market' ? '#fbbf24' : '#48bb78');
+              
+              // White border for free play contests
+              const freeBorderStyle = isFree ? {
+                border: '2px solid rgba(255, 255, 255, 0.85)',
+                boxShadow: '0 0 20px rgba(255, 255, 255, 0.15)'
+              } : {};
+              // =====================================
+              
               const userMarketEntries = contest.type === 'market' ? 
                 userEntriesArray.filter(e => (e.contestId === contestId || e.contest_id === contestId) && e.status !== 'cancelled').length : 0;
               
@@ -733,13 +713,25 @@ const LobbyScreen = () => {
                 (contest.type === 'market' ? userMarketEntries < perUserMax : !userEntry);
               
               return (
-                <div key={contestId} className={`contest-card ${contestType} ${userEntry ? 'user-entered' : ''} ${isFull ? 'contest-full' : ''}`}>
+                <div 
+                  key={contestId} 
+                  className={`contest-card ${contestType} ${userEntry ? 'user-entered' : ''} ${isFull ? 'contest-full' : ''}`}
+                  style={freeBorderStyle}
+                >
                   {contestType === 'cash' && (
                     <div style={{
                       fontSize: '32px', fontWeight: '800', color: '#60a5fa', textAlign: 'center',
                       padding: '20px 10px', background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0.05) 100%)',
-                      borderRadius: '12px', marginBottom: '20px', letterSpacing: '3px', textTransform: 'uppercase'
-                    }}>💵 CASH</div>
+                      borderRadius: '12px', marginBottom: '20px', letterSpacing: '3px', textTransform: 'uppercase',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
+                    }}>
+                      💵 CASH
+                      {isFree && (
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff', letterSpacing: '1.5px' }}>
+                          FREE PLAY BETA
+                        </div>
+                      )}
+                    </div>
                   )}
                   
                   {contestType === 'market' && (
@@ -750,7 +742,9 @@ const LobbyScreen = () => {
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
                     }}>
                       📈 MARKETMAKER
-                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#a0aec0' }}>FIRE SALE TOURNAMENT</div>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: isFree ? '#ffffff' : '#a0aec0' }}>
+                        {isFree ? 'FREE PLAY BETA' : 'FIRE SALE TOURNAMENT'}
+                      </div>
                     </div>
                   )}
                   
@@ -782,7 +776,14 @@ const LobbyScreen = () => {
                     {contest.slateName && (
                       <div className="detail-row"><span>Slate:</span><span className="detail-value" style={{ color: '#fbbf24', fontSize: '13px' }}>📅 {contest.slateName}</span></div>
                     )}
-                    <div className="detail-row"><span>Entry Fee:</span><span className="detail-value">${contest.entryFee || 0}</span></div>
+                    
+                    {/* Entry Fee — currency-aware */}
+                    <div className="detail-row">
+                      <span>Entry Fee:</span>
+                      <span className="detail-value">{currencySymbol}{contest.entryFee || 0}</span>
+                    </div>
+                    
+                    {/* Prize Pool — currency-aware */}
                     <div 
                       className="detail-row" 
                       onClick={(e) => { e.stopPropagation(); setPrizeModalContest(contest); }}
@@ -791,16 +792,17 @@ const LobbyScreen = () => {
                     >
                       <span>Prize Pool:</span>
                       <span className="detail-value" style={{ 
-                        color: contestType === 'market' ? '#fbbf24' : '#48bb78', 
+                        color: prizeColor,
                         fontSize: contestType === 'market' ? '20px' : '18px', 
                         fontWeight: 'bold',
                         textDecoration: 'underline',
                         textDecorationStyle: 'dotted',
                         textUnderlineOffset: '3px'
                       }}>
-                        ${(contest.prizePool || 0).toLocaleString()} ⓘ
+                        {currencySymbol}{(contest.prizePool || 0).toLocaleString()} ⓘ
                       </span>
                     </div>
+                    
                     {contest.startTime && <div className="detail-row"><span>Starts:</span><span className="detail-value">{formatTimeRemaining(contest.startTime)}</span></div>}
                     <div className="detail-row"><span>Draft Rooms:</span><span className="detail-value">{getDraftRoomCount(contest).toLocaleString()}</span></div>
                     
@@ -812,7 +814,11 @@ const LobbyScreen = () => {
                       <div className={`fill-bar ${isFull ? 'full' : ''}`}>
                         <div className="fill-progress" style={{ 
                           width: `${fillPercentage}%`,
-                          background: contestType === 'market' ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' : 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+                          background: isFree
+                            ? 'linear-gradient(90deg, #ffffff 0%, #e5e7eb 100%)'
+                            : contestType === 'market' 
+                              ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' 
+                              : 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
                         }} />
                       </div>
                     </div>
