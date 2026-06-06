@@ -28,6 +28,7 @@ import PoolsPage from './components/Pools/PoolsPage';
 import DepositPage from './components/Wallet/DepositPage';
 import WithdrawalPage from './components/Wallet/WithdrawalPage';
 import CosmeticsPage from './components/Cosmetics/CosmeticsPage';
+import LeaderboardScreen from './components/Leaderboard/LeaderboardScreen';
 
 // Legal pages
 import TermsOfService from './components/Legal/TermsOfService';
@@ -360,6 +361,13 @@ const AppContent = () => {
           <Route path="/teams" element={
             <ProtectedRoute>
               <TeamsPage />
+            </ProtectedRoute>
+          } />
+
+          {/* Leaderboard for settled/closed Market Mover contests */}
+          <Route path="/leaderboard/:contestId" element={
+            <ProtectedRoute>
+              <LeaderboardScreen />
             </ProtectedRoute>
           } />
 

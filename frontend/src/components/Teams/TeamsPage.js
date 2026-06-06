@@ -238,6 +238,18 @@ const TeamsPage = () => {
     }
   };
 
+  // History card click: Market Mover entries open leaderboard,
+  // cash games keep existing team-detail modal behavior
+  const handleHistoryCardClick = (team) => {
+    const isMarketMover = ['market', 'bash'].includes(team.contestType?.toLowerCase());
+    const contestId = team.contestId || team.contest_id;
+    if (isMarketMover && contestId) {
+      navigate(`/leaderboard/${contestId}`);
+    } else {
+      setSelectedTeam(team);
+    }
+  };
+
   const closeModal = () => {
     setSelectedTeam(null);
     setTeamDetails(null);
@@ -439,7 +451,7 @@ const TeamsPage = () => {
             <>
               <div className="history-list">
                 {filteredHistoryTeams.map(team => (
-                  <div key={team.id} className={`history-card ${team.isWinner ? 'winner' : 'loser'}`} onClick={() => setSelectedTeam(team)}>
+                  <div key={team.id} className={`history-card ${team.isWinner ? 'winner' : 'loser'}`} onClick={() => handleHistoryCardClick(team)}>
                     <div className="result-badge">
                       <span className={`net-result ${team.netResult >= 0 ? 'positive' : 'negative'}`}>
                         {team.netResult >= 0 ? '+' : ''}${team.netResult.toFixed(2)}
