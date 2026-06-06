@@ -571,6 +571,131 @@ router.post('/:contestId/ownership', authMiddleware, async (req, res) => {
   }
 });
 
+// ============================================================
+// LEADERBOARD ENDPOINT
+// Returns top 100 entries by total_points DESC, total_spent ASC
+// (cheapest roster wins ties), using PostgreSQL RANK() so ties
+// share a rank and the next entry skips appropriately
+// (two 47s → next is 49).
+//
+// Also returns the requesting user's entries that are OUTSIDE the
+// top 100 (entries IN the top 100 are deduplicated to avoid showing
+// the same row twice). If all user entries are in top 100,
+// userEntries is empty and the frontend hides that section.
+//
+// Gated to contest.status !== 'open' so the leaderboard isn't
+// visible while drafts are still active.
+// ============================================================
+router.get('/:contestId/leaderboard', authMiddleware, async (req, res) => {
+  try {
+    const { contestId } = req.params;
+    const userId = req.user.id || req.user.userId;
+
+    const contest = await Contest.findByPk(contestId);
+    if (!contest) {
+      return res.status(404).json({ error: 'Contest not found' });
+    }
+
+    // Gate: leaderboard only available once contest closes
+    if (contest.status === 'open') {
+      return res.status(403).json({
+        error: 'Leaderboard not available until contest closes',
+        code: 'LEADERBOARD_NOT_READY',
+        contestStatus: contest.status
+      });
+    }
+
+    // Build leaderboard using RANK() — entries with identical
+    // total_points AND total_spent share a rank; next rank skips.
+    const rankedEntries = await db.sequelize.query(`
+      WITH ranked AS (
+        SELECT 
+          ce.id,
+          ce.user_id,
+          ce.total_points,
+          ce.total_spent,
+          ce.prize_won,
+          ce.roster,
+          u.username,
+          RANK() OVER (
+            ORDER BY 
+              COALESCE(ce.total_points, 0) DESC,
+              COALESCE(ce.total_spent, 0) ASC
+          ) AS rank
+        FROM contest_entries ce
+        JOIN users u ON u.id = ce.user_id
+        WHERE ce.contest_id = :contestId
+          AND ce.status NOT IN ('cancelled', 'pending', 'drafting')
+      )
+      SELECT *
+      FROM ranked
+      WHERE rank <= 100 OR user_id = :userId
+      ORDER BY rank ASC, id ASC
+    `, {
+      replacements: { contestId, userId },
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    // Split top 100 from user's outside-top-100 entries.
+    // If user is in top 100 they already appear there — don't duplicate.
+    const topEntries = [];
+    const userEntries = [];
+
+    rankedEntries.forEach(entry => {
+      const formatted = {
+        rank: parseInt(entry.rank),
+        entryId: entry.id,
+        userId: entry.user_id,
+        username: entry.username,
+        totalPoints: parseFloat(entry.total_points || 0),
+        totalSpent: parseFloat(entry.total_spent || 0),
+        prizeWon: parseFloat(entry.prize_won || 0),
+        roster: entry.roster,
+        isCurrentUser: entry.user_id === userId
+      };
+
+      if (formatted.rank <= 100) {
+        topEntries.push(formatted);
+      } else if (formatted.userId === userId) {
+        userEntries.push(formatted);
+      }
+    });
+
+    // Total entry count for header display
+    const totalEntries = await ContestEntry.count({
+      where: {
+        contest_id: contestId,
+        status: { [db.Sequelize.Op.notIn]: ['cancelled', 'pending', 'drafting'] }
+      }
+    });
+
+    res.json({
+      contest: {
+        id: contest.id,
+        name: contest.name,
+        type: contest.type,
+        sport: contest.sport || 'nfl',
+        status: contest.status,
+        currency: contest.currency || 'usd',
+        prizes: contest.prizes || [],
+        prizePool: parseFloat(contest.prize_pool || 0),
+        entryFee: parseFloat(contest.entry_fee || 0),
+        totalEntries,
+        maxEntries: contest.max_entries,
+        endTime: contest.end_time
+      },
+      topEntries,
+      userEntries,
+      userInTop100: userEntries.length === 0 && topEntries.some(e => e.isCurrentUser),
+      userHasEntries: topEntries.some(e => e.isCurrentUser) || userEntries.length > 0
+    });
+
+  } catch (error) {
+    console.error('Leaderboard fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard', message: error.message });
+  }
+});
+
 // ==================== ADMIN/DEBUG ROUTES ====================
 
 router.get('/health', async (req, res) => {
