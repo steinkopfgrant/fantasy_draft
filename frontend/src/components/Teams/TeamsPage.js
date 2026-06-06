@@ -34,6 +34,15 @@ const getTeamSport = (team) => {
   return (team?.sport || team?.contestSport || 'nfl').toLowerCase();
 };
 
+// Helper: is this a Market Mover/Bash entry whose contest is closed or settled?
+const isMarketMoverViewable = (team) => {
+  const isMM = ['market', 'bash'].includes(team?.contestType?.toLowerCase());
+  const status = team?.contestStatus?.toLowerCase();
+  const isClosedOrSettled = ['closed', 'settled'].includes(status);
+  const contestId = team?.contestId || team?.contest_id;
+  return isMM && isClosedOrSettled && Boolean(contestId);
+};
+
 const TeamsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -255,7 +264,7 @@ const TeamsPage = () => {
     setTeamDetails(null);
   };
 
-  // FIXED: Sport-aware roster rendering
+  // Sport-aware roster rendering
   const renderRoster = (roster, team) => {
     if (!roster) return null;
     const positions = getPositionsForTeam(team);
@@ -393,6 +402,9 @@ const TeamsPage = () => {
               {filteredActiveTeams.map(team => {
                 const badge = getStatusBadge(team.status, team.contestStatus);
                 const sport = getTeamSport(team);
+                const showLeaderboardBtn = isMarketMoverViewable(team);
+                const leaderboardContestId = team.contestId || team.contest_id;
+                
                 return (
                   <div key={team.id} className={`team-card ${badge.class}`} onClick={() => handleTeamClick(team)}>
                     <div className="team-card-header">
@@ -416,7 +428,24 @@ const TeamsPage = () => {
                     </div>
                     <div className="team-card-footer">
                       {team.status === 'pending' || team.status === 'drafting' ? (
-                        <button className="btn-action">{team.status === 'drafting' ? 'Rejoin Draft →' : 'Waiting for players...'}</button>
+                        <button className="btn-action">
+                          {team.status === 'drafting' ? 'Rejoin Draft →' : 'Waiting for players...'}
+                        </button>
+                      ) : showLeaderboardBtn ? (
+                        <button 
+                          className="btn-action" 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            navigate(`/leaderboard/${leaderboardContestId}`); 
+                          }}
+                          style={{
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            fontWeight: '600'
+                          }}
+                        >
+                          📊 View Leaderboard →
+                        </button>
                       ) : (
                         <span className="players-count">{team.playerCount}/5 players</span>
                       )}
@@ -544,7 +573,7 @@ const TeamsPage = () => {
                   {getModalTeam()?.rank && <div className="stat"><span className="stat-label">Final Rank</span><span className="stat-value">#{getModalTeam().rank}</span></div>}
                 </div>
 
-                {/* Your Lineup with Scores - FIXED: Sport-aware */}
+                {/* Your Lineup with Scores - Sport-aware */}
                 <div className="modal-roster">
                   <h3>Lineup</h3>
                   <div className="roster-detail">
