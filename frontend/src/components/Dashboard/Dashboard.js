@@ -432,7 +432,8 @@ const Dashboard = ({ showToast }) => {
               </button>
             )}
             
-            <Link to="/profile" style={{ textDecoration: 'none' }}>
+            {/* SETTINGS BUTTON (replaces Edit Profile — Settings will absorb profile editing later) */}
+            <Link to="/settings" style={{ textDecoration: 'none' }}>
               <button style={{ 
                 width: '100%',
                 padding: '1rem',
@@ -444,7 +445,7 @@ const Dashboard = ({ showToast }) => {
                 cursor: 'pointer',
                 transition: 'all 0.3s'
               }}>
-                ⚙️ Edit Profile
+                ⚙️ Settings
               </button>
             </Link>
           </div>
