@@ -452,35 +452,6 @@ const Dashboard = ({ showToast }) => {
         </div>
       </div>
       
-      {/* Recent Activity Section */}
-      <div style={{ 
-        padding: '2rem', 
-        background: '#1a1f2e',
-        border: '2px solid #2a2f3e', 
-        borderRadius: '16px',
-        marginBottom: '2rem'
-      }}>
-        <h3 style={{ color: '#00d4ff', marginBottom: '1.5rem' }}>Recent Activity</h3>
-        <p style={{ color: '#8892b0' }}>
-          No recent activity. Join a contest to get started!
-        </p>
-        
-        {/* Placeholder for recent contests, votes, etc. */}
-        <div style={{ marginTop: '1rem' }}>
-          <Link 
-            to="/lobby" 
-            style={{ 
-              color: '#00d4ff', 
-              textDecoration: 'none',
-              fontSize: '1rem',
-              fontWeight: '500'
-            }}
-          >
-            → Browse Available Contests
-          </Link>
-        </div>
-      </div>
-
       {/* Legal Links Footer */}
       <div style={{
         display: 'flex',
