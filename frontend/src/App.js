@@ -29,6 +29,7 @@ import DepositPage from './components/Wallet/DepositPage';
 import WithdrawalPage from './components/Wallet/WithdrawalPage';
 import CosmeticsPage from './components/Cosmetics/CosmeticsPage';
 import LeaderboardScreen from './components/Leaderboard/LeaderboardScreen';
+import SettingsPage from './components/Settings/SettingsPage';
 
 // Legal pages
 import TermsOfService from './components/Legal/TermsOfService';
@@ -64,7 +65,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const user = useSelector(selectAuthUser);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const loading = useSelector(selectAuthLoading);
-  
+
   console.log('🔐 ProtectedRoute Check:', {
     path: window.location.pathname,
     isAuthenticated,
@@ -74,7 +75,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     isAdmin: user?.is_admin,
     username: user?.username
   });
-  
+
   // WAIT for auth check to complete before making any decisions
   if (loading) {
     console.log('⏳ Auth still loading, showing spinner...');
@@ -90,18 +91,18 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     console.log('❌ Not authenticated, redirecting to login');
     return <Navigate to="/login" />;
   }
-  
+
   // Check admin using helper function (supports both role and is_admin)
   if (requireAdmin && !isUserAdmin(user)) {
     console.log('❌ Admin required but user is not admin, redirecting to dashboard');
     return <Navigate to="/dashboard" />;
   }
-  
+
   console.log('✅ Protected route access granted');
   return children;
 };
@@ -110,7 +111,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
 const PublicRoute = ({ children }) => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const loading = useSelector(selectAuthLoading);
-  
+
   // Wait for auth check before redirecting
   if (loading) {
     return (
@@ -125,11 +126,11 @@ const PublicRoute = ({ children }) => {
       </div>
     );
   }
-  
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" />;
   }
-  
+
   return children;
 };
 
@@ -207,16 +208,15 @@ const AppContent = () => {
   // Socket connection management
   useEffect(() => {
     const token = localStorage.getItem('token');
-    
+
     if (isAuthenticated && user && token) {
       console.log('🔌 Initializing socket connection for user:', user.username);
-      
+
       // Connect socket with Redux action
       dispatch(connectSocket(token));
-      
+
       // Set up socket event emitter for Redux integration
       socketService.setEventEmitter((event, data) => {
-        // Handle socket events that should update Redux state
         switch (event) {
           case 'socket:connected':
             break;
@@ -236,17 +236,16 @@ const AppContent = () => {
             break;
         }
       });
-      
+
       // Listen for rejoin-draft event (when user reconnects mid-draft)
       const handleRejoinDraft = (data) => {
         console.log('🔄 Received rejoin-draft event:', data);
         const currentPath = window.location.pathname;
-        
-        // Only navigate if not already on the draft screen
+
         if (!currentPath.includes('/draft/')) {
           console.log(`🔄 Navigating to draft room: ${data.roomId}`);
-          navigate(`/draft/${data.roomId}`, { 
-            state: { 
+          navigate(`/draft/${data.roomId}`, {
+            state: {
               rejoin: true,
               contestId: data.contestId,
               contestType: data.contestType
@@ -254,14 +253,13 @@ const AppContent = () => {
           });
         }
       };
-      
+
       socketService.on('rejoin-draft', handleRejoinDraft);
-      
-      // Cleanup listener on effect re-run
+
       return () => {
         socketService.off('rejoin-draft', handleRejoinDraft);
       };
-      
+
     } else if (!isAuthenticated && socketService.isConnected()) {
       console.log('🔌 Disconnecting socket - user logged out');
       dispatch(disconnectSocket());
@@ -288,19 +286,19 @@ const AppContent = () => {
   return (
     <div className="App">
       <Header />
-      
+
       <main className="main-content">
         {console.log('📋 ROUTES MOUNTING - User:', user?.username, 'Loading:', loading)}
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
-          
+
           <Route path="/login" element={
             <PublicRoute>
               <Login />
             </PublicRoute>
           } />
-          
+
           <Route path="/register" element={
             <PublicRoute>
               <Register />
@@ -313,48 +311,55 @@ const AppContent = () => {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/responsible-gaming" element={<ResponsibleGaming />} />
           <Route path="/support" element={<Support />} />
-          
+
           {/* Admin routes */}
-          <Route 
-            path="/admin" 
+          <Route
+            path="/admin"
             element={
               <ProtectedRoute requireAdmin>
                 <AdminPanel user={user} showToast={showToast} />
               </ProtectedRoute>
-            } 
+            }
           />
-          
-          <Route 
-            path="/admin/settlement" 
+
+          <Route
+            path="/admin/settlement"
             element={
               <ProtectedRoute requireAdmin>
                 <SettlementPanel />
               </ProtectedRoute>
-            } 
+            }
           />
-          
+
           {/* Protected routes */}
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/lobby" element={
             <ProtectedRoute>
               <LobbyScreen />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/draft/:roomId" element={
             <ProtectedRoute>
               <DraftScreenWrapper />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/profile" element={
             <ProtectedRoute>
               <ProfileScreen />
+            </ProtectedRoute>
+          } />
+
+          {/* Settings page (sound toggle, future user preferences) */}
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           } />
 
@@ -405,7 +410,7 @@ const AppContent = () => {
               <WithdrawalPage />
             </ProtectedRoute>
           } />
-          
+
           {/* 404 route */}
           <Route path="*" element={
             <div className="not-found">
@@ -416,7 +421,7 @@ const AppContent = () => {
           } />
         </Routes>
       </main>
-      
+
       {/* Toast notifications */}
       <ToastContainer />
     </div>

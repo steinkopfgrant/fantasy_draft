@@ -6,6 +6,7 @@ import { store } from '../../store/store';
 import axios from 'axios';
 import LiveDraftFeed from './LiveDraftFeed';
 import { getStampComponent } from './Stamps/Stamp';
+import soundService from '../../services/soundService';
 import {
   initializeDraft,
   joinDraftRoom,
@@ -100,6 +101,9 @@ const DraftScreen = ({ showToast }) => {
   const lastSocketRequestTime = useRef(0);
   const preSelectRestoredRef = useRef(false);
   const hiddenAtRef = useRef(null);
+  // Tracks whether the draft entry sound has fired this draft session.
+  // Reset on unmount so the next draft plays it fresh.
+  const draftStartSoundPlayedRef = useRef(false);
 
   // Timer sync refs
   const turnStartedAtRef = useRef(null);
@@ -529,10 +533,6 @@ const DraftScreen = ({ showToast }) => {
       dispatch(resetDraft());
     }
 
-    // FIX 3 CONTINUED: Removed the hasExistingDraftState early return.
-    // Since we now properly resetDraft() on unmount, we always do a full init.
-    // This prevents stale state when bouncing between drafts via notifications.
-
     if (initializationAttemptedRef.current) {
       console.log('⏭️ Initialization already attempted');
       return;
@@ -557,13 +557,11 @@ const DraftScreen = ({ showToast }) => {
       .catch((err) => {
         console.error('❌ Init failed:', err);
         moduleInitializedRoomId = null;
-        
-        // On timeout, retry instead of giving up (PWA resume scenario)
+
         if (err?.message?.includes('timeout') && mountedRef.current) {
           console.log('🔄 Init timed out, retrying after reconnect...');
           initializationAttemptedRef.current = false;
-          
-          // Wait for socket to reconnect, then retry
+
           const retryTimer = setTimeout(() => {
             if (mountedRef.current && socketConnected) {
               console.log('🔄 Retrying draft initialization...');
@@ -587,15 +585,14 @@ const DraftScreen = ({ showToast }) => {
               navigate('/lobby');
             }
           }, 2000);
-          
+
           return () => clearTimeout(retryTimer);
         }
-        
+
         toast(`Failed to initialize draft: ${err?.message || err?.error || 'Unknown error'}`, 'error');
         if (mountedRef.current) navigate('/lobby');
       });
 
-    // FIX 1: Proper cleanup on unmount
     return () => {
       console.log('=== DRAFT SCREEN UNMOUNTING ===', { roomId });
       mountedRef.current = false;
@@ -605,25 +602,20 @@ const DraftScreen = ({ showToast }) => {
 
       stopTimerInterval();
 
-      // Reset timer sync refs for clean next-draft state
       turnStartedAtRef.current = null;
       timerSyncedForTurnRef.current = null;
       lastSyncTimeRef.current = 0;
+      draftStartSoundPlayedRef.current = false;
 
       if (autoPickTimeoutRef.current) clearTimeout(autoPickTimeoutRef.current);
       if (pickTimeoutRef.current) clearTimeout(pickTimeoutRef.current);
 
-      // CRITICAL: Leave the socket room to stop receiving events for this draft
       if (socketConnected && roomId) {
         socketService.emit('leave-draft-room', { roomId });
       }
 
-      // Reset draft state so the next draft starts completely clean.
-      // If we re-mount the SAME room, init will re-fetch from server.
-      // If we mount a DIFFERENT room, we need clean state anyway.
       dispatch(resetDraft());
 
-      // Reset module tracking so next mount always initializes
       moduleInitializedRoomId = null;
       moduleLastInitTime = 0;
     };
@@ -650,7 +642,6 @@ const DraftScreen = ({ showToast }) => {
       setTimeout(() => {
         socketService.emit('get-draft-state', { roomId });
 
-        // Restore pre-selection from localStorage
         try {
           const savedPreSelect = localStorage.getItem(`preselect_${roomId}`);
           if (savedPreSelect && currentUserId) {
@@ -670,7 +661,7 @@ const DraftScreen = ({ showToast }) => {
       }, 500);
     }
   }, [socketConnected, status, contestData, entryId, roomId, dispatch, currentUserId, isMobile, mobileSelectPlayer]);
-// Track which draft room we're actively viewing (for push notification suppression)
+
   useEffect(() => {
     if (socketConnected && roomId) {
       socketService.emit('viewing-draft', { roomId });
@@ -680,7 +671,6 @@ const DraftScreen = ({ showToast }) => {
     };
   }, [socketConnected, roomId]);
 
-  // Request draft state when socket is ready
   useEffect(() => {
     if (socketConnected && roomId && hasJoinedRef.current) {
       requestDraftState();
@@ -744,25 +734,21 @@ const DraftScreen = ({ showToast }) => {
     const calculatedBudget = Math.max(0, 15 - rosterSpend);
     const playerCount = Object.values(finalRoster).filter(p => p?.name).length;
 
-    // Absolute $0 protection
     if (existingTeam?.budget === 0) return 0;
     if (rosterSpend >= 15) return 0;
 
-    // Server budget (with protection)
     if (team.budget !== undefined && typeof team.budget === 'number') {
       if (existingTeam?.budget === 0 && team.budget > 0) return 0;
       if (Math.abs(team.budget - calculatedBudget) <= 1 || finalBonus > 0) return Math.max(0, team.budget);
       return calculatedBudget;
     }
 
-    // Existing budget
     if (existingTeam?.budget !== undefined) {
       if (existingTeam.budget === 0 || (existingTeam.budget < 1 && rosterSpend > 0)) return 0;
       if (Math.abs(existingTeam.budget - calculatedBudget) <= 1) return Math.max(0, existingTeam.budget);
       return calculatedBudget;
     }
 
-    // Fallback + safety checks
     let finalBudget = calculatedBudget;
     if (finalBudget === 15 && rosterSpend > 0) finalBudget = Math.max(0, 15 - rosterSpend);
     if (playerCount >= 4 && finalBudget > 5 && rosterSpend > 10) finalBudget = Math.max(0, 15 - rosterSpend);
@@ -777,10 +763,8 @@ const DraftScreen = ({ showToast }) => {
     console.log('🎮 Setting up socket event handlers');
     socketHandlersRef.current = true;
 
-    // Suppress room-status-update spam
     socketService.on('room-status-update', () => {});
 
-    // ----- DRAFT STATE -----
     const handleDraftState = (data) => {
       if (data.roomId !== roomId) return;
 
@@ -788,14 +772,12 @@ const DraftScreen = ({ showToast }) => {
       const isActiveDraft = data.status === 'active' || (data.currentTurn > 0 && data.currentTurn < 25);
       const isCompletedDraft = data.status === 'completed' || currentState.status === 'completed';
 
-      // During active/completed drafts, only update turn/timer IF we haven't missed any picks
       if ((isActiveDraft || isCompletedDraft) && currentState.teams?.length > 0) {
         const serverTurn = data.currentTurn || 0;
         const clientPickCount = (currentState.picks || []).length;
         const missedPicks = serverTurn > clientPickCount + 1;
-        
+
         if (!missedPicks) {
-          // Ensure timer refs are initialized so calculateTimeRemaining works
           if (!turnStartedAtRef.current && data.timeRemaining !== undefined) {
             const timeLimit = data.timeLimit || 30;
             turnStartedAtRef.current = Date.now() - (timeLimit - (data.timeRemaining || 0)) * 1000;
@@ -812,18 +794,15 @@ const DraftScreen = ({ showToast }) => {
           }));
           return;
         }
-        // Missed picks detected - fall through to full state sync
         console.log(`⚠️ Missed picks: server turn ${serverTurn}, client picks ${clientPickCount}. Full sync.`);
       }
 
-      // Timer sync
       if (data.turnStartedAt || data.serverTime || data.timeLimit) {
         syncTimerFromServer(data);
       } else if (data.currentTurn !== undefined) {
         timerSyncedForTurnRef.current = data.currentTurn;
       }
 
-      // Process teams
       const teamsData = data.teams || data.entries || data.participants || [];
       let processedTeams = [];
 
@@ -863,7 +842,6 @@ const DraftScreen = ({ showToast }) => {
 
       const shouldUpdateTeams = processedTeams.length > 0;
 
-      // Calculate isMyTurn with snake draft fallback
       let calculatedIsMyTurn = data.isMyTurn ||
         (data.currentDrafter && getUserId(data.currentDrafter) === currentUserId);
 
@@ -883,15 +861,14 @@ const DraftScreen = ({ showToast }) => {
         ? calculateTimeRemaining()
         : (data.timeRemaining ?? data.timeLimit ?? 30);
 
-      // Rebuild picks array from playerBoard if we have board data
       const board = data.playerBoard || currentState.playerBoard;
       if (board?.length > 0) {
         const reconstructedPicks = [];
         board.forEach((row, rowIdx) => {
           row.forEach((cell, colIdx) => {
             if (cell?.drafted && cell.pickNumber) {
-              const pickerTeam = shouldUpdateTeams 
-                ? processedTeams[cell.draftedBy] 
+              const pickerTeam = shouldUpdateTeams
+                ? processedTeams[cell.draftedBy]
                 : currentState.teams?.[cell.draftedBy];
               reconstructedPicks.push({
                 pickNumber: cell.pickNumber,
@@ -912,8 +889,7 @@ const DraftScreen = ({ showToast }) => {
           });
         });
         reconstructedPicks.sort((a, b) => (a.turn || 0) - (b.turn || 0));
-        
-        // Only use reconstructed picks if we have more than current
+
         const currentPicks = currentState.picks || [];
         if (reconstructedPicks.length > currentPicks.length) {
           data.picks = reconstructedPicks;
@@ -931,7 +907,6 @@ const DraftScreen = ({ showToast }) => {
       }));
     };
 
-    // ----- DRAFT TURN -----
     const handleDraftTurn = (data) => {
       if (data.roomId !== roomId) return;
 
@@ -954,12 +929,10 @@ const DraftScreen = ({ showToast }) => {
       }));
     };
 
-    // ----- PLAYER PICKED -----
     const handlePlayerPicked = (data) => {
       if (data.roomId !== roomId) return;
       lastPickTimeRef.current = Date.now();
 
-      // Duplicate prevention
       const incomingTurn = data.currentTurn ?? data.turn;
       const incomingPickNumber = data.pickNumber || (incomingTurn != null ? incomingTurn + 1 : null);
       if (incomingPickNumber) {
@@ -987,7 +960,6 @@ const DraftScreen = ({ showToast }) => {
         timestamp: data.timestamp || new Date().toISOString()
       }));
 
-      // Resolve teamIndex robustly
       let resolvedTeamIndex = data.teamIndex;
       if (resolvedTeamIndex === undefined && data.draftPosition !== undefined) resolvedTeamIndex = data.draftPosition;
       if (resolvedTeamIndex === undefined) {
@@ -999,7 +971,6 @@ const DraftScreen = ({ showToast }) => {
         }
       }
 
-      // Update player board cell
       const stampUserId = data.userId || data.user_id;
       const eventTeamForStamp = data.teams?.find(t =>
         (t.userId || t.user_id || t.id) === stampUserId
@@ -1019,7 +990,6 @@ const DraftScreen = ({ showToast }) => {
         }));
       }
 
-      // Update roster (skip own non-autopicks - already optimistically updated)
       const pickedUserId = data.userId || data.user_id || getUserId(data);
       const isMyPick = pickedUserId === currentUserId;
       const isAutoPick = data.isAutoPick === true;
@@ -1068,7 +1038,6 @@ const DraftScreen = ({ showToast }) => {
       toast(error.message || 'Pick failed', 'error');
     };
 
-    // ----- TURN SKIPPED -----
     const handleTurnSkipped = (data) => {
       if (data.roomId !== roomId) return;
       if (data.turnStartedAt || data.serverTime) syncTimerFromServer(data);
@@ -1096,9 +1065,15 @@ const DraftScreen = ({ showToast }) => {
       }));
     };
 
-    // ----- COUNTDOWN -----
     const handleDraftCountdown = (data) => {
       if (data.roomId === roomId) {
+        // Play draft entry sound once per draft session.
+        // Gated on ref so subsequent per-pick countdown events don't replay it.
+        if (!draftStartSoundPlayedRef.current) {
+          draftStartSoundPlayedRef.current = true;
+          soundService.play('draftStart');
+        }
+
         dispatch(updateDraftState({
           status: 'countdown',
           countdownTime: data.countdown || data.countdownTime || data.time || data.seconds || 5
@@ -1106,7 +1081,6 @@ const DraftScreen = ({ showToast }) => {
       }
     };
 
-    // ----- DRAFT COMPLETE -----
     const handleDraftComplete = async (data) => {
       console.log('🎉 DRAFT COMPLETE');
       stopTimerInterval();
@@ -1137,7 +1111,6 @@ const DraftScreen = ({ showToast }) => {
         };
       });
 
-      // Infer sport
       const inferSport = () => {
         if (currentReduxState?.sport) return currentReduxState.sport;
         if (currentReduxState?.contestData?.sport) return currentReduxState.contestData.sport;
@@ -1167,7 +1140,6 @@ const DraftScreen = ({ showToast }) => {
         currentViewTeam: myTeamIndex >= 0 ? myTeamIndex : 0
       }));
 
-      // Save to backend
       try {
         const myCompleteTeam = completedTeams.find(t => getUserId(t) === currentUserId);
         const reduxEntryId = currentReduxState.entryId;
@@ -1194,7 +1166,6 @@ const DraftScreen = ({ showToast }) => {
       }
     };
 
-    // ----- TIMER EVENTS -----
     const handleTimerUpdate = (data) => {
       if (data.roomId !== roomId) return;
       if (data.turnStartedAt || data.serverTime) syncTimerFromServer(data);
@@ -1205,7 +1176,6 @@ const DraftScreen = ({ showToast }) => {
       if (data.roomId === roomId) syncTimerFromServer(data);
     };
 
-    // Register all handlers
     socketService.on('draft-state', handleDraftState);
     socketService.on('draft-turn', handleDraftTurn);
     socketService.on('player-picked', handlePlayerPicked);
@@ -1232,7 +1202,6 @@ const DraftScreen = ({ showToast }) => {
     };
   }, [socketConnected, roomId, dispatch, getUserId, currentUserId, processRosterData, mergeRosterData, standardizeSlotName, toast, calculateTotalSpent, requestDraftState, entryId, syncTimerFromServer, stopTimerInterval, calculateTimeRemaining, contestData, sport, calculateFinalBudget]);
 
-  // Show toast for errors
   useEffect(() => {
     if (error && mountedRef.current) toast(error, 'error');
   }, [error, toast]);
@@ -1265,7 +1234,6 @@ const DraftScreen = ({ showToast }) => {
     const availableSlots = getAvailableSlots(fixedMyTeam, player);
     if (!availableSlots.length) { toast(`No available slots for ${player.name}!`, 'error'); return; }
 
-    // Budget validation (use more conservative estimate)
     const totalBudget = Math.max(0, fixedMyTeam.budget || 0) + (fixedMyTeam.bonus || 0);
     const calculatedBudget = Math.max(0, 15 - calculateTotalSpent(fixedMyTeam.roster)) + (fixedMyTeam.bonus || 0);
     const actualBudget = Math.min(totalBudget, calculatedBudget);
@@ -1292,7 +1260,6 @@ const DraftScreen = ({ showToast }) => {
 
     const teamIndex = teams.findIndex(t => getUserId(t) === currentUserId);
 
-    // Optimistic updates
     dispatch(updatePlayerBoardCell({
       row, col,
       updates: {
@@ -1327,7 +1294,6 @@ const DraftScreen = ({ showToast }) => {
   const handleAutoPick = useCallback(() => {
     if (!actualIsMyTurn || isPicking) return;
 
-    // Ref-based debounce
     const now = Date.now();
     if (autoPickTriggeredRef.current > now - 2000) return;
     autoPickTriggeredRef.current = now;
@@ -1336,7 +1302,6 @@ const DraftScreen = ({ showToast }) => {
 
     console.log(`🤖 Auto-pick triggered for ${myTeam.name} at turn ${currentTurn}`);
 
-    // Check for mobile pre-selection
     let preSelectedPlayer = mobileSelectedPlayer;
     if (!preSelectedPlayer && isMobile && roomId) {
       try {
@@ -1351,7 +1316,6 @@ const DraftScreen = ({ showToast }) => {
         wasPlayerDraftedRef.current = true;
         clearSelection();
         try { localStorage.removeItem(`preselect_${roomId}`); } catch (e) { /* ignore */ }
-        // Fall through to algorithm
       } else {
         console.log(`🤖 Auto-drafting pre-selected: ${preSelectedPlayer.name}`);
         wasPlayerDraftedRef.current = true;
@@ -1377,7 +1341,6 @@ const DraftScreen = ({ showToast }) => {
   }, [actualIsMyTurn, roomId, dispatch, isPicking]);
 
   // ==================== MOBILE HANDLERS ====================
-  // Restore pre-selection visual from localStorage
   useEffect(() => {
     if (!isMobile || mobileSelectedPlayer || !playerBoard || !roomId || preSelectRestoredRef.current) return;
     try {
@@ -1396,7 +1359,6 @@ const DraftScreen = ({ showToast }) => {
 
   useEffect(() => { preSelectRestoredRef.current = false; }, [roomId]);
 
-  // Clear selection when selected player gets drafted
   useEffect(() => {
     if (!mobileSelectedPlayer || !playerBoard) return;
     const { row, col } = mobileSelectedPlayer;
@@ -1406,7 +1368,6 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [playerBoard, mobileSelectedPlayer, clearSelection]);
 
-  // Backup clear when picks change
   useEffect(() => {
     if (!mobileSelectedPlayer || !picks?.length) return;
     const lastPick = picks[picks.length - 1];
@@ -1416,7 +1377,6 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [picks, mobileSelectedPlayer, clearSelection]);
 
-  // Sync pre-selection to server
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
@@ -1495,7 +1455,6 @@ const DraftScreen = ({ showToast }) => {
     return () => stopTimerInterval();
   }, [status, startTimerInterval, stopTimerInterval]);
 
-  // Wake detection (visibility, focus, heartbeat)
   useEffect(() => {
     let lastActiveAt = Date.now();
     let lastHeartbeat = Date.now();
@@ -1511,14 +1470,11 @@ const DraftScreen = ({ showToast }) => {
 
       if (!roomId || !hasJoinedRef.current) { refreshInProgress = false; return; }
 
-      // Recalculate timer
       if (turnStartedAtRef.current) dispatch(updateTimer(calculateTimeRemaining()));
 
-      // Restart timer interval
       stopTimerInterval();
       if (status === 'active') startTimerInterval();
 
-      // Only reconnect if the socket is actually dead
       if (!socketService.isConnected()) {
         console.log(`📴 Socket dead after ${Math.round(timeSinceActive / 1000)}s idle, reconnecting...`);
         socketService.connect();
@@ -1572,7 +1528,6 @@ const DraftScreen = ({ showToast }) => {
     };
   }, [status, roomId, calculateTimeRemaining, dispatch, startTimerInterval, stopTimerInterval]);
 
-  // Background pause (CSS animation toggle + mobile reload)
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState === 'hidden') {
@@ -1591,7 +1546,6 @@ const DraftScreen = ({ showToast }) => {
     return () => { document.removeEventListener('visibilitychange', handler); document.body.classList.remove('app-backgrounded'); };
   }, [isMobile]);
 
-  // Stall detection (timer at 0 for 5s+)
   useEffect(() => {
     if (status !== 'active' || timeRemaining > 0) return;
     const timer = setTimeout(() => {
@@ -1605,7 +1559,6 @@ const DraftScreen = ({ showToast }) => {
     return () => clearTimeout(timer);
   }, [status, timeRemaining, roomId]);
 
-  // Countdown decrement
   useEffect(() => {
     if (status === 'countdown' && countdownTime > 0) {
       const timer = setTimeout(() => dispatch(updateDraftState({ countdownTime: countdownTime - 1 })), 1000);
@@ -1613,7 +1566,6 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [status, countdownTime, dispatch]);
 
-  // Auto-pick on timer expiry
   useEffect(() => {
     if (actualIsMyTurn && status === 'active' && timeRemaining === 0 && !isPicking) {
       if (timerSyncedForTurnRef.current !== currentTurn) return;
@@ -1624,7 +1576,6 @@ const DraftScreen = ({ showToast }) => {
     }
   }, [actualIsMyTurn, status, timeRemaining, isPicking, handleAutoPick, currentTurn, mobileSelectedPlayer]);
 
-  // Draft order validation
   useEffect(() => {
     if (status === 'active' && currentTurn !== undefined && teams?.length > 0) {
       if (!validateDraftOrder(currentTurn, teams)) {
@@ -1694,7 +1645,6 @@ const DraftScreen = ({ showToast }) => {
 
   // ==================== RENDER ====================
 
-  // Error
   if (status === 'error') {
     return (
       <div className="draft-container">
@@ -1707,7 +1657,6 @@ const DraftScreen = ({ showToast }) => {
     );
   }
 
-  // Loading
   if (status === 'loading' || status === 'initializing' || (status === 'initialized' && !socketConnected)) {
     return (
       <div className="draft-container">
@@ -1723,7 +1672,6 @@ const DraftScreen = ({ showToast }) => {
     );
   }
 
-  // Waiting
   if (status === 'waiting') {
     return (
       <div className="draft-container">
@@ -1747,7 +1695,6 @@ const DraftScreen = ({ showToast }) => {
     );
   }
 
-  // Results
   if ((showResults || (status === 'completed' && currentTurn > 0)) && status !== 'countdown') {
     return (
       <div className="draft-container">
@@ -1794,13 +1741,11 @@ const DraftScreen = ({ showToast }) => {
     );
   }
 
-  // Active draft
   const safeMyTeam = myTeam ? validateAndFixBudget(myTeam) : null;
   const showLowTimeWarning = actualIsMyTurn && status === 'active' && timeRemaining <= 10 && timeRemaining > 0;
 
   return (
     <div className={`draft-container ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
-      {/* Countdown overlay */}
       {status === 'countdown' && countdownTime > 0 && (
         <div className="countdown-overlay">
           <div className="countdown-modal">
@@ -1811,7 +1756,6 @@ const DraftScreen = ({ showToast }) => {
         </div>
       )}
 
-      {/* Mobile: Auto-draft bar */}
       {isMobile && (
         <AutoDraftBar
           selectedPlayer={mobileSelectedPlayer}
@@ -1820,7 +1764,6 @@ const DraftScreen = ({ showToast }) => {
         />
       )}
 
-      {/* Live Draft Feed */}
       <LiveDraftFeed
         teams={teams}
         currentTurn={currentTurn}
@@ -1847,7 +1790,6 @@ const DraftScreen = ({ showToast }) => {
         </div>
       </div>
 
-      {/* Mobile Roster Bar - above board */}
       {isMobile && safeMyTeam && (
         <div className="mobile-roster-top">
           <MobileRosterBar
@@ -1859,7 +1801,6 @@ const DraftScreen = ({ showToast }) => {
         </div>
       )}
 
-      {/* Player Board */}
       <div className={`player-board ${showLowTimeWarning ? 'low-time-warning' : ''}`}>
         {playerBoard?.length > 0 ? (
           playerBoard.map((row, rowIndex) => (
@@ -1882,8 +1823,8 @@ const DraftScreen = ({ showToast }) => {
                 return (
                   <div
                     key={`${rowIndex}-${colIndex}`}
-                    className={`player-card 
-                      ${player.drafted ? 'drafted' : ''} 
+                    className={`player-card
+                      ${player.drafted ? 'drafted' : ''}
                       ${(draftedByColor && !hasUniqueStamp) ? `drafted-by-${draftedByColor}` : ''}
                       ${isAutoSuggestion ? 'auto-suggestion' : ''}
                       ${actualIsMyTurn && !player.drafted && !isPicking ? 'clickable' : ''}
@@ -1958,7 +1899,6 @@ const DraftScreen = ({ showToast }) => {
         )}
       </div>
 
-      {/* My Team Section - desktop only */}
       <div className={`my-team-section ${isMobile ? 'mobile-hidden' : ''}`}>
         {isMobile ? null : (
           <>
@@ -2009,7 +1949,6 @@ const DraftScreen = ({ showToast }) => {
         )}
       </div>
 
-      {/* Mobile confirmation modal */}
       {isMobile && (
         <MobileConfirmModal
           player={mobileSelectedPlayer}
@@ -2021,7 +1960,6 @@ const DraftScreen = ({ showToast }) => {
         />
       )}
 
-      {/* Picking overlay */}
       {isPicking && (
         <div className="picking-overlay">
           <div className="picking-spinner"></div>
