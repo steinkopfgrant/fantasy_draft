@@ -223,6 +223,14 @@ const initialState = {
 // ==================== ASYNC THUNKS ====================
 
 // Initialize draft via HTTP (works for both waiting rooms and active drafts)
+//
+// IMPORTANT: This thunk intentionally does NOT carry teams[] through to the
+// reducer. Team state (and its ordering) is owned exclusively by the socket
+// draft-state flow during a live draft. draftOrder[] holds indices into
+// teams[], so teams[] MUST stay in the exact order the socket provides it.
+// A previous change populated state.teams from this HTTP response, which
+// reordered teams[] without updating draftOrder[] and corrupted turn order
+// (1.01 skipped, picks landing in the wrong seat). Do not reintroduce it.
 export const initializeDraft = createAsyncThunk(
   'draft/initialize',
   async ({ roomId, userId }, { rejectWithValue }) => {
@@ -242,9 +250,6 @@ export const initializeDraft = createAsyncThunk(
         currentPlayers: data.currentPlayers,
         maxPlayers: data.maxPlayers,
         contestData: data.contestData,
-        // NEW: pass teams[] through so .fulfilled handler can populate rosters.
-        // Fixes empty-roster bug when joining mid-draft via notification.
-        teams: data.teams,
         users: data.users
       };
     } catch (error) {
@@ -646,24 +651,12 @@ const draftSlice = createSlice({
           state.playerBoard = action.payload.playerBoard;
         }
         
-        // NEW: Populate teams[] with rosters from init response.
-        // This fixes the empty-roster-on-rejoin bug. Before, teams was only
-        // populated by socket events; if the user joined mid-draft via push
-        // notification, picks already made (especially by bots, which never
-        // persist to DB) would never appear in the client's team state.
-        if (action.payload.teams && Array.isArray(action.payload.teams) && action.payload.teams.length > 0) {
-          state.teams = action.payload.teams.map((team, index) => ({
-            ...team,
-            userId: team.userId || team.user_id,
-            entryId: team.entryId || team.entry_id || team.id,
-            name: team.name || team.username || team.teamName || `Team ${index + 1}`,
-            roster: processRosterData(team.roster || {}),
-            budget: typeof team.budget === 'number' ? team.budget : 15,
-            bonus: team.bonus || 0,
-            color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5],
-            draftPosition: team.draftPosition !== undefined ? team.draftPosition : index
-          }));
-        }
+        // NOTE: teams[] is deliberately NOT populated here. The socket
+        // draft-state flow owns teams[] and its ordering, which must stay
+        // in lockstep with draftOrder[]. Populating teams from this HTTP
+        // response reorders teams[] without updating draftOrder[] and
+        // corrupts turn order. Rejoin roster hydration is handled by the
+        // socket sendDraftState path instead.
         
         if (action.payload.users) {
           state.users = action.payload.users;
