@@ -34,11 +34,14 @@ async function buildTeamsForRoom(roomId) {
   console.log(`\n[buildTeamsForRoom] === Building teams for room ${roomId} ===`);
 
   // 1) Pull all human entries from DB for this room
+  // Note: keep User attributes minimal - only 'id' and 'username' confirmed
+  // to exist. Adding cosmetic columns like equipped_stamp / equipped_avatar
+  // requires verifying they exist on the users table first.
   const allEntries = await db.ContestEntry.findAll({
     where: { draft_room_id: roomId },
     include: [{
       model: db.User,
-      attributes: ['id', 'username', 'equipped_stamp', 'equipped_avatar']
+      attributes: ['id', 'username']
     }]
   });
 
@@ -113,8 +116,8 @@ async function buildTeamsForRoom(roomId) {
       bonus: 0,
       color: TEAM_COLORS[draftPos % TEAM_COLORS.length],
       draftPosition: draftPos,
-      equipped_stamp: entry.User?.equipped_stamp || null,
-      equipped_avatar: entry.User?.equipped_avatar || null,
+      equipped_stamp: null,
+      equipped_avatar: null,
       isBot: false
     };
   });
