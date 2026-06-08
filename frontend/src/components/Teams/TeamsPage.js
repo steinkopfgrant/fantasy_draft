@@ -34,6 +34,35 @@ const getTeamSport = (team) => {
   return (team?.sport || team?.contestSport || 'nfl').toLowerCase();
 };
 
+// ---- Currency helpers ----------------------------------------------------
+// Free-play / beta contests are denominated in tickets; everything else in USD.
+// entry_fee and prize_pool for ticket contests are stored as whole ticket
+// counts, so no conversion is needed — just format with the ticket icon.
+const getTeamCurrency = (team) => (team?.contestCurrency || team?.currency || 'usd').toLowerCase();
+const isTicketTeam = (team) => getTeamCurrency(team) === 'tickets';
+
+// Format a value in the contest's own currency.
+// USD → $X.XX ; tickets → whole-ticket count + 🎟️
+const formatAmount = (amount, currency) => {
+  const value = Number(amount) || 0;
+  if (currency === 'tickets') {
+    return `${Math.round(value)} 🎟️`;
+  }
+  return `$${value.toFixed(2)}`;
+};
+
+// Signed result for the settled-card badge, in the contest's currency.
+// USD → +$X.XX / -$X.XX ; tickets → +N 🎟️ / 0 🎟️
+const formatNetResult = (amount, currency) => {
+  const value = Number(amount) || 0;
+  if (currency === 'tickets') {
+    const rounded = Math.round(value);
+    return `${rounded >= 0 ? '+' : ''}${rounded} 🎟️`;
+  }
+  return `${value >= 0 ? '+' : ''}$${value.toFixed(2)}`;
+};
+// --------------------------------------------------------------------------
+
 // Helper: is this a Market Mover/Bash entry whose contest is closed or settled?
 const isMarketMoverViewable = (team) => {
   const isMM = ['market', 'bash'].includes(team?.contestType?.toLowerCase());
@@ -404,6 +433,7 @@ const TeamsPage = () => {
                 const sport = getTeamSport(team);
                 const showLeaderboardBtn = isMarketMoverViewable(team);
                 const leaderboardContestId = team.contestId || team.contest_id;
+                const currency = getTeamCurrency(team);
                 
                 return (
                   <div key={team.id} className={`team-card ${badge.class}`} onClick={() => handleTeamClick(team)}>
@@ -421,8 +451,8 @@ const TeamsPage = () => {
                     </div>
                     <div className="team-card-body">
                       <div className="entry-info">
-                        <span className="entry-fee">Entry: ${team.entryFee.toFixed(2)}</span>
-                        <span className="prize-pool">Prize: ${team.prizePool.toFixed(2)}</span>
+                        <span className="entry-fee">Entry: {formatAmount(team.entryFee, currency)}</span>
+                        <span className="prize-pool">Prize: {formatAmount(team.prizePool, currency)}</span>
                       </div>
                       {team.playerCount > 0 && <div className="roster-preview">{renderRoster(team.roster, team)}</div>}
                     </div>
@@ -460,11 +490,11 @@ const TeamsPage = () => {
         <div className="history-section">
           {historySummary && (
             <div className="history-summary">
-              <div className="summary-card"><span className="summary-label">Contests</span><span className="summary-value">{historySummary.totalContests}</span></div>
+              <div className="summary-card"><span className="summary-label">Cash Contests</span><span className="summary-value">{historySummary.totalContests}</span></div>
               <div className="summary-card"><span className="summary-label">Record</span><span className="summary-value">{historySummary.wins}W - {historySummary.losses}L</span></div>
               <div className="summary-card"><span className="summary-label">Win Rate</span><span className="summary-value">{historySummary.winRate}%</span></div>
               <div className={`summary-card ${historySummary.netProfit >= 0 ? 'positive' : 'negative'}`}>
-                <span className="summary-label">Net Profit</span>
+                <span className="summary-label">Net Profit (Cash)</span>
                 <span className="summary-value">{historySummary.netProfit >= 0 ? '+' : ''}${historySummary.netProfit.toFixed(2)}</span>
               </div>
             </div>
@@ -479,37 +509,40 @@ const TeamsPage = () => {
           ) : (
             <>
               <div className="history-list">
-                {filteredHistoryTeams.map(team => (
-                  <div key={team.id} className={`history-card ${team.isWinner ? 'winner' : 'loser'}`} onClick={() => handleHistoryCardClick(team)}>
-                    <div className="result-badge">
-                      <span className={`net-result ${team.netResult >= 0 ? 'positive' : 'negative'}`}>
-                        {team.netResult >= 0 ? '+' : ''}${team.netResult.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="history-card-content">
-                      <div className="history-main">
-                        <h3>{team.contestName}</h3>
-                        <div className="history-details">
-                          <span className="contest-type">{formatContestType(team.contestType)}</span>
-                          <span className="separator">•</span>
-                          <span>{SPORT_CONFIG[getTeamSport(team)]?.label || 'NFL'}</span>
-                          <span className="separator">•</span>
-                          <span>Entry: ${team.entryFee.toFixed(2)}</span>
-                          {team.rank && <><span className="separator">•</span><span>Rank: #{team.rank}</span></>}
-                          <span className="separator">•</span>
-                          <span>{team.totalPoints.toFixed(1)} pts</span>
+                {filteredHistoryTeams.map(team => {
+                  const currency = getTeamCurrency(team);
+                  return (
+                    <div key={team.id} className={`history-card ${team.isWinner ? 'winner' : 'loser'}`} onClick={() => handleHistoryCardClick(team)}>
+                      <div className="result-badge">
+                        <span className={`net-result ${team.netResult >= 0 ? 'positive' : 'negative'}`}>
+                          {formatNetResult(team.netResult, currency)}
+                        </span>
+                      </div>
+                      <div className="history-card-content">
+                        <div className="history-main">
+                          <h3>{team.contestName}</h3>
+                          <div className="history-details">
+                            <span className="contest-type">{formatContestType(team.contestType)}</span>
+                            <span className="separator">•</span>
+                            <span>{SPORT_CONFIG[getTeamSport(team)]?.label || 'NFL'}</span>
+                            <span className="separator">•</span>
+                            <span>Entry: {formatAmount(team.entryFee, currency)}</span>
+                            {team.rank && <><span className="separator">•</span><span>Rank: #{team.rank}</span></>}
+                            <span className="separator">•</span>
+                            <span>{team.totalPoints.toFixed(1)} pts</span>
+                          </div>
+                        </div>
+                        <div className="history-roster-mini">
+                          {team.roster && Object.entries(team.roster).slice(0, 3).map(([pos, player]) => (
+                            <span key={pos} className="mini-player">{player?.name?.split(' ').pop() || '—'}</span>
+                          ))}
+                          {team.playerCount > 3 && <span className="more-players">+{team.playerCount - 3}</span>}
                         </div>
                       </div>
-                      <div className="history-roster-mini">
-                        {team.roster && Object.entries(team.roster).slice(0, 3).map(([pos, player]) => (
-                          <span key={pos} className="mini-player">{player?.name?.split(' ').pop() || '—'}</span>
-                        ))}
-                        {team.playerCount > 3 && <span className="more-players">+{team.playerCount - 3}</span>}
-                      </div>
+                      <div className="history-date">{new Date(team.completedAt).toLocaleDateString()}</div>
                     </div>
-                    <div className="history-date">{new Date(team.completedAt).toLocaleDateString()}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {historyPagination && historyPagination.totalPages > 1 && (
                 <div className="pagination">
@@ -548,7 +581,11 @@ const TeamsPage = () => {
                   <div className="modal-result-split">
                     <div className={`result-side ${getModalTeam().netResult >= 0 ? 'positive' : 'negative'}`}>
                       <span className="result-label">{getModalTeam().netResult >= 0 ? 'WON' : 'LOST'}</span>
-                      <span className="result-amount">${Math.abs(getModalTeam().netResult).toFixed(2)}</span>
+                      <span className="result-amount">
+                        {isTicketTeam(getModalTeam())
+                          ? `${Math.abs(Math.round(getModalTeam().netResult))} 🎟️`
+                          : `$${Math.abs(getModalTeam().netResult).toFixed(2)}`}
+                      </span>
                     </div>
                     <div className="winner-side">
                       <span className="winner-label">🏆 Winning Lineup ({getWinners()[0]?.points?.toFixed(1) || '—'} pts)</span>
@@ -568,7 +605,7 @@ const TeamsPage = () => {
                 )}
 
                 <div className="modal-stats">
-                  <div className="stat"><span className="stat-label">Entry Fee</span><span className="stat-value">${getModalTeam()?.entryFee?.toFixed(2)}</span></div>
+                  <div className="stat"><span className="stat-label">Entry Fee</span><span className="stat-value">{formatAmount(getModalTeam()?.entryFee, getTeamCurrency(getModalTeam()))}</span></div>
                   <div className="stat"><span className="stat-label">Total Points</span><span className="stat-value">{getModalTeam()?.totalPoints?.toFixed(1)}</span></div>
                   {getModalTeam()?.rank && <div className="stat"><span className="stat-label">Final Rank</span><span className="stat-value">#{getModalTeam().rank}</span></div>}
                 </div>

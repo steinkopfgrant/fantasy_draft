@@ -16,7 +16,7 @@ router.get('/active', authMiddleware, async (req, res) => {
         model: db.Contest,
         where: { status: { [Op.notIn]: ['settled'] } },
         required: true,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'sport']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'sport', 'currency']
       }, {
         model: db.Lineup,
         required: false,
@@ -33,6 +33,7 @@ router.get('/active', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name || 'Unknown Contest',
         contestType: entry.Contest?.type || 'cash',
         contestStatus: entry.Contest?.status || 'unknown',
+        contestCurrency: entry.Contest?.currency || 'usd',
         sport: entry.Contest?.sport || 'nfl',
         entryFee: parseFloat(entry.Contest?.entry_fee || 0),
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
@@ -65,7 +66,7 @@ router.get('/history', authMiddleware, async (req, res) => {
         model: db.Contest,
         where: { status: 'settled' },
         required: true,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'end_time', 'sport']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'start_time', 'end_time', 'sport', 'currency']
       }, {
         model: db.Lineup,
         required: false,
@@ -90,6 +91,7 @@ router.get('/history', authMiddleware, async (req, res) => {
         contestId: entry.contest_id,
         contestName: entry.Contest?.name || 'Unknown Contest',
         contestType: entry.Contest?.type || 'cash',
+        contestCurrency: entry.Contest?.currency || 'usd',
         sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
@@ -99,6 +101,8 @@ router.get('/history', authMiddleware, async (req, res) => {
         rank: entry.result?.final_rank || entry.final_rank || null,
         totalPoints: parseFloat(entry.result?.total_score || entry.total_points || 0),
         prizeWon,
+        // netResult is in the contest's own currency units:
+        // dollars for cash, tickets for free-play/ticket contests.
         netResult: prizeWon - entryFee,
         isWinner: prizeWon > 0,
         completedAt: entry.completed_at,
@@ -106,14 +110,16 @@ router.get('/history', authMiddleware, async (req, res) => {
       };
     });
 
-    // Summary stats
+    // Summary stats — CASH CONTESTS ONLY.
+    // Free-play / ticket contests are excluded so the dollar P&L stays accurate
+    // (you can't meaningfully add ticket results into a cash net-profit figure).
     const allSettled = await db.ContestEntry.findAll({
       where: { user_id: userId, status: { [Op.notIn]: ['cancelled', 'pending'] } },
       include: [{
         model: db.Contest,
         where: { status: 'settled' },
         required: true,
-        attributes: ['entry_fee']
+        attributes: ['entry_fee', 'currency']
       }, {
         model: db.ContestResult,
         as: 'result',
@@ -123,8 +129,13 @@ router.get('/history', authMiddleware, async (req, res) => {
       attributes: ['id', 'prize_won']
     });
 
+    // Keep only USD contests for the cash P&L summary.
+    const cashSettled = allSettled.filter(
+      entry => (entry.Contest?.currency || 'usd') !== 'tickets'
+    );
+
     let totalWagered = 0, totalWon = 0, wins = 0, losses = 0;
-    allSettled.forEach(entry => {
+    cashSettled.forEach(entry => {
       const fee = parseFloat(entry.Contest?.entry_fee || 0);
       const prize = parseFloat(entry.result?.payout || entry.prize_won || 0);
       totalWagered += fee;
@@ -136,7 +147,9 @@ router.get('/history', authMiddleware, async (req, res) => {
       success: true,
       teams,
       pagination: { total: count, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(count / limit), hasMore: offset + entries.length < count },
-      summary: { totalContests: allSettled.length, wins, losses, winRate: allSettled.length > 0 ? ((wins / allSettled.length) * 100).toFixed(1) : 0, totalWagered, totalWon, netProfit: totalWon - totalWagered }
+      // Summary reflects CASH contests only. Ticket contests still appear in
+      // the list above, they just don't factor into dollar W/L or net profit.
+      summary: { totalContests: cashSettled.length, wins, losses, winRate: cashSettled.length > 0 ? ((wins / cashSettled.length) * 100).toFixed(1) : 0, totalWagered, totalWon, netProfit: totalWon - totalWagered }
     });
   } catch (error) {
     console.error('Error fetching team history:', error);
@@ -154,7 +167,7 @@ router.get('/:entryId/details', authMiddleware, async (req, res) => {
       where: { id: entryId, user_id: userId },
       include: [{
         model: db.Contest,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport', 'currency']
       }, {
         model: db.Lineup,
         required: false
@@ -272,6 +285,7 @@ router.get('/:entryId/details', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
         contestStatus: entry.Contest?.status,
+        contestCurrency: entry.Contest?.currency || 'usd',
         sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
@@ -300,7 +314,7 @@ router.get('/:entryId', authMiddleware, async (req, res) => {
       where: { id: entryId, user_id: userId },
       include: [{
         model: db.Contest,
-        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport']
+        attributes: ['id', 'name', 'type', 'status', 'entry_fee', 'prize_pool', 'sport', 'currency']
       }, {
         model: db.Lineup,
         required: false
@@ -325,6 +339,7 @@ router.get('/:entryId', authMiddleware, async (req, res) => {
         contestName: entry.Contest?.name,
         contestType: entry.Contest?.type,
         contestStatus: entry.Contest?.status,
+        contestCurrency: entry.Contest?.currency || 'usd',
         sport: entry.Contest?.sport || 'nfl',
         entryFee,
         prizePool: parseFloat(entry.Contest?.prize_pool || 0),
