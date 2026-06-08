@@ -42,6 +42,9 @@ class ContestService {
     }
     this.activeDrafts = new Map();
     this.draftTimers = new Map();
+    // Rooms in their pre-draft countdown. The stalled-draft watchdog must NOT
+    // start the first pick for these, or bots auto-pick during the countdown.
+    this.draftsStarting = new Set();
     
     // Track emitted events to prevent duplicates
     this.recentEvents = new Map();
@@ -1618,9 +1621,40 @@ class ContestService {
         playerBoard = generatePlayerBoard(null, [], [], sport);
       }
 
+      // ====================================================================
+      // RANDOMIZE DRAFT ORDER (once, when the room fills).
+      // Shuffle positions 0..N-1 and persist to contest_entries.draft_position
+      // so the DB, lobby, draft strip, and server snake all share ONE order.
+      // startDraft() then orders teams by draft_position (no internal shuffle).
+      // If you ever want join-order instead, just delete this block.
+      // ====================================================================
+      const entriesToOrder = [...roomStatus.entries];
+      const shuffledPositions = entriesToOrder.map((_, i) => i);
+      for (let i = shuffledPositions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPositions[i], shuffledPositions[j]] = [shuffledPositions[j], shuffledPositions[i]];
+      }
+
+      await Promise.all(entriesToOrder.map((entry, idx) => {
+        const newPos = shuffledPositions[idx];
+        entry.draftPosition = newPos; // update in-memory copy handed to startDraft
+        return db.ContestEntry.update(
+          { draft_position: newPos },
+          { where: { id: entry.id } }
+        );
+      }));
+
+      console.log(`🎲 Randomized draft order for room ${roomId}: ` +
+        entriesToOrder
+          .slice()
+          .sort((a, b) => a.draftPosition - b.draftPosition)
+          .map(e => `${e.draftPosition}:${e.username}`)
+          .join(', '));
+      // ====================================================================
+
       const draftState = await draftService.startDraft(
         roomId,
-        roomStatus.entries,
+        entriesToOrder,
         playerBoard,
         roomStatus.contestSport || 'nfl'
       );
@@ -1645,6 +1679,10 @@ class ContestService {
           }
         }
       );
+
+      // Guard the countdown window so the stalled-draft watchdog doesn't fire
+      // the first pick (and bot auto-picks) before the countdown completes.
+      this.draftsStarting.add(roomId);
 
       console.log(`📢 Emitting draft-countdown to ${socketRoomId}`);
       
@@ -1707,6 +1745,7 @@ class ContestService {
             });
           } else {
             clearInterval(countdownInterval);
+            this.draftsStarting.delete(roomId);
             console.log(`🎲 Starting first pick for room ${roomId}`);
             this.startNextPick(roomId);
           }
@@ -1718,11 +1757,15 @@ class ContestService {
     } catch (error) {
       console.error('❌ Error launching draft:', error);
       this.activeDrafts.delete(roomId);
+      this.draftsStarting.delete(roomId);
       throw error;
     }
   }
 
   async startNextPick(roomId) {
+    // First pick is being opened — clear the countdown guard if still set.
+    this.draftsStarting.delete(roomId);
+
     let draft = this.activeDrafts.get(roomId);
     
     if (!draft) {
@@ -2054,6 +2097,12 @@ class ContestService {
       console.log(`🔍 checkAllStalledDrafts: Found ${uniqueRooms.length} rooms with drafting entries`);
       
       for (const roomId of uniqueRooms) {
+        // Skip rooms still in their pre-draft countdown — not stalled, just
+        // haven't opened the first pick yet.
+        if (this.draftsStarting.has(roomId)) {
+          continue;
+        }
+
         let hasActiveTimer = false;
         for (const [key] of this.draftTimers) {
           if (key.startsWith(`${roomId}_`)) {
@@ -2501,6 +2550,7 @@ class ContestService {
     }
 
     this.activeDrafts.delete(roomId);
+    this.draftsStarting.delete(roomId);
     
     for (const [key, timerId] of this.draftTimers) {
       if (key.startsWith(`${roomId}_`)) {

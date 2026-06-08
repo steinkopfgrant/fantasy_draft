@@ -175,14 +175,35 @@ class DraftService {
     return roster;
   }
   
+  // ==========================================================================
+  // startDraft
+  //
+  // IMPORTANT: entries are ordered by their assigned draft_position, NOT
+  // shuffled. The randomized draft order is decided upstream (in
+  // contestService.launchDraft, when the room fills) and persisted to
+  // contest_entries.draft_position, so the DB, lobby, draft strip, and this
+  // server-side snake all share ONE order. A previous version shuffled here
+  // (server-side only), which desynced the server turn order from the UI —
+  // that skipped the player shown at 1.01 and scrambled the snake.
+  //
+  // Do NOT reintroduce a shuffle in this method. To randomize order, shuffle
+  // draft_position at room-fill time (upstream) so the UI reflects it.
+  // ==========================================================================
   async startDraft(contestId, entries, playerBoard, sport = 'nfl') {
-    const shuffledEntries = [...entries].sort(() => Math.random() - 0.5);
+    // Order entries by their assigned draft_position (NOT shuffled).
+    const orderedEntries = [...entries].sort((a, b) => {
+      const ap = a.draftPosition ?? a.draft_position ?? 0;
+      const bp = b.draftPosition ?? b.draft_position ?? 0;
+      return ap - bp;
+    });
     
     // Only apply stacked WR rule for NFL
     const processedBoard = this.ensureStackedWRInBottomRight(playerBoard, sport);
     
     console.log(`🎮 Starting ${sport.toUpperCase()} draft for contest ${contestId}`);
-    console.log('🔍 ENTRIES DEBUG:', shuffledEntries.map(e => ({
+    console.log('🔍 ENTRIES DEBUG (ordered by draft_position):', orderedEntries.map((e, i) => ({
+      slot: i,
+      draftPosition: e.draftPosition ?? e.draft_position,
       id: e.id,
       userId: e.userId,
       user_id: e.user_id,
@@ -190,7 +211,7 @@ class DraftService {
     })));
     
     const db = require('../models');
-    const userIds = shuffledEntries.map(e => e.userId || e.user_id).filter(Boolean);
+    const userIds = orderedEntries.map(e => e.userId || e.user_id).filter(Boolean);
     
     let userStamps = {};
     try {
@@ -212,14 +233,17 @@ class DraftService {
       playerBoard: processedBoard,
       entries,
       currentTurn: 0,
-      draftOrder: this.createSnakeDraftOrder(shuffledEntries.length),
+      // Snake order indexes into teams[]; teams[] is ordered by draft_position
+      // below, so index i === draft slot i (1.01 = index 0, etc).
+      draftOrder: this.createSnakeDraftOrder(orderedEntries.length),
       picks: [],
-      teams: shuffledEntries.map((entry, index) => {
+      teams: orderedEntries.map((entry, index) => {
         const oddsId = entry.userId || entry.user_id;
         return {
           entryId: entry.id,
           userId: oddsId,
           username: entry.username,
+          // index === the player's real draft slot now that entries are ordered.
           draftPosition: index,
           color: this.getTeamColor(index),
           roster: this.createEmptyRoster(sport), // Sport-specific roster
@@ -236,6 +260,7 @@ class DraftService {
       contestId,
       sport,
       teamsLength: draftState.teams.length,
+      order: draftState.teams.map(t => `${t.draftPosition}:${t.username}`).join(', '),
       rosterSlots: Object.keys(draftState.teams[0]?.roster || {})
     });
     
