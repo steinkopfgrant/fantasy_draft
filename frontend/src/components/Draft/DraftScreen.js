@@ -896,6 +896,80 @@ const DraftScreen = ({ showToast }) => {
         }
       }
 
+      // ======================================================================
+      // REJOIN ROSTER HYDRATION  (the only addition vs. the prior version)
+      //
+      // On a mid-draft rejoin the server's team payload can arrive without
+      // rosters, leaving the "Your Team" panel and results empty even though
+      // the board shows everyone's drafted players. Rebuild each team's roster
+      // from the board's drafted cells.
+      //
+      // SAFETY: mutates ONLY roster + budget on processedTeams. Never reads or
+      // writes currentTurn / draftOrder / currentDrafter / isMyTurn. Runs only
+      // in this full-processing branch (skipped by the early-return guard
+      // during smooth live play). No-op if the server already sent rosters.
+      // Uses the same draftedBy -> teams[] index convention the draft-piece
+      // coloring already relies on.
+      // ======================================================================
+      if (shouldUpdateTeams && board?.length > 0) {
+        const hydratedIdx = new Set();
+        const draftedCells = [];
+
+        board.forEach((row) => {
+          row.forEach((cell) => {
+            if (cell?.drafted && cell.name &&
+                cell.draftedBy !== undefined && cell.draftedBy !== null) {
+              draftedCells.push(cell);
+            }
+          });
+        });
+        // Order by pick so slot assignment is deterministic
+        draftedCells.sort((a, b) => (a.pickNumber || 0) - (b.pickNumber || 0));
+
+        draftedCells.forEach((cell) => {
+          const team = processedTeams[cell.draftedBy];
+          if (!team) return;
+          team.roster = team.roster || {};
+
+          // Already have this player (server sent rosters, or earlier event)? skip.
+          if (Object.values(team.roster).some(p => p?.name === cell.name)) return;
+
+          const natural = standardizeSlotName(cell.originalPosition || cell.position);
+
+          // Prefer the explicit slot the player was drafted into; otherwise
+          // infer (natural slot, falling back to FLEX), mirroring pick logic.
+          let slot = standardizeSlotName(cell.draftedToPosition || '');
+          if (!slot || !VALID_ROSTER_KEYS.has(slot) || team.roster[slot]) {
+            if (!team.roster[natural]) {
+              slot = natural;
+            } else if (sportConfig.flexEligible.includes(natural) && !team.roster['FLEX']) {
+              slot = 'FLEX';
+            } else {
+              slot = natural;
+            }
+          }
+
+          team.roster[slot] = {
+            name: cell.name,
+            position: natural,
+            team: cell.team || '',
+            price: cell.price || cell.value || 0,
+            value: cell.price || cell.value || 0,
+            playerId: cell.playerId || cell._id || cell.id || cell.name
+          };
+          hydratedIdx.add(cell.draftedBy);
+        });
+
+        // Recompute budget only for teams we just hydrated (server budget for
+        // those was based on an empty roster and would be wrong).
+        hydratedIdx.forEach((i) => {
+          const spent = Object.values(processedTeams[i].roster || {})
+            .reduce((s, p) => s + (p?.price || 0), 0);
+          processedTeams[i].budget = Math.max(0, 15 - spent);
+        });
+      }
+      // ===================== END REJOIN ROSTER HYDRATION =====================
+
       dispatch(updateDraftState({
         ...data,
         teams: shouldUpdateTeams ? processedTeams : undefined,
