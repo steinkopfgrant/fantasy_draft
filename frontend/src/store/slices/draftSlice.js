@@ -242,6 +242,9 @@ export const initializeDraft = createAsyncThunk(
         currentPlayers: data.currentPlayers,
         maxPlayers: data.maxPlayers,
         contestData: data.contestData,
+        // NEW: pass teams[] through so .fulfilled handler can populate rosters.
+        // Fixes empty-roster bug when joining mid-draft via notification.
+        teams: data.teams,
         users: data.users
       };
     } catch (error) {
@@ -641,6 +644,25 @@ const draftSlice = createSlice({
         
         if (action.payload.playerBoard) {
           state.playerBoard = action.payload.playerBoard;
+        }
+        
+        // NEW: Populate teams[] with rosters from init response.
+        // This fixes the empty-roster-on-rejoin bug. Before, teams was only
+        // populated by socket events; if the user joined mid-draft via push
+        // notification, picks already made (especially by bots, which never
+        // persist to DB) would never appear in the client's team state.
+        if (action.payload.teams && Array.isArray(action.payload.teams) && action.payload.teams.length > 0) {
+          state.teams = action.payload.teams.map((team, index) => ({
+            ...team,
+            userId: team.userId || team.user_id,
+            entryId: team.entryId || team.entry_id || team.id,
+            name: team.name || team.username || team.teamName || `Team ${index + 1}`,
+            roster: processRosterData(team.roster || {}),
+            budget: typeof team.budget === 'number' ? team.budget : 15,
+            bonus: team.bonus || 0,
+            color: team.color || ['green', 'red', 'blue', 'yellow', 'purple'][index % 5],
+            draftPosition: team.draftPosition !== undefined ? team.draftPosition : index
+          }));
         }
         
         if (action.payload.users) {
