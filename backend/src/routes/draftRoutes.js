@@ -16,23 +16,24 @@ try {
 const TEAM_COLORS = ['green', 'red', 'blue', 'yellow', 'purple'];
 
 /**
- * Build teams[] with rosters by reading from DB (humans) and merging in
- * in-memory draftService state (bots + any fresher data).
+ * Build teams[] with rosters for a given draft room.
  *
- * Why this exists: the previous init endpoint returned only `users` metadata.
- * When a client rejoined an active draft via push notification, state.teams
- * stayed empty (no rosters) until socket events trickled in — and bots were
- * never in the DB at all, so their rosters never showed up.
+ * Schema notes (confirmed against Railway prod 2026-06):
+ *   contest_entries: id (uuid), user_id, draft_room_id, draft_position, roster (jsonb), total_spent
+ *   draft_picks:     id (uuid), entry_id, pick_number, player_data (jsonb), roster_slot
  *
- * Sources:
- *   - db.ContestEntry: one row per human player; entry.roster is set on draft
- *     completion (post-draft only)
- *   - db.DraftPick: one row per pick made by a human; reconstructible mid-draft
- *   - draftService in-memory state: source of truth for bot rosters (bots
- *     never persist to DB) and freshest human picks
+ * IMPORTANT: draft_picks has NO draft_room_id column. We have to join via
+ * entry_id. This was the bug in the previous version of this helper —
+ * `where: { draft_room_id: roomId }` against draft_picks returns nothing.
+ *
+ * For bots: bot picks are never written to the DB (see DraftSocketHandler's
+ * processPick - "Save to backend only for real players"). To get bot rosters
+ * we consult draftService.getDraft() in-memory state.
  */
 async function buildTeamsForRoom(roomId) {
-  // 1) Pull all human entries + their picks from DB
+  console.log(`\n[buildTeamsForRoom] === Building teams for room ${roomId} ===`);
+
+  // 1) Pull all human entries from DB for this room
   const allEntries = await db.ContestEntry.findAll({
     where: { draft_room_id: roomId },
     include: [{
@@ -41,9 +42,9 @@ async function buildTeamsForRoom(roomId) {
     }]
   });
 
-  const allPicks = await db.DraftPick.findAll({
-    where: { draft_room_id: roomId },
-    order: [['pick_number', 'ASC']]
+  console.log(`[buildTeamsForRoom] Found ${allEntries.length} entries in contest_entries`);
+  allEntries.forEach(e => {
+    console.log(`  - entry ${e.id} user=${e.User?.username} pos=${e.draft_position} roster_keys=${Object.keys(e.roster || {}).length}`);
   });
 
   // Sort entries by draft_position so colors and order are deterministic
@@ -53,19 +54,38 @@ async function buildTeamsForRoom(roomId) {
     return aPos - bPos;
   });
 
-  // 2) Build human team objects with rosters reconstructed from picks
+  // 2) Pull all picks for these entries.
+  // draft_picks has no draft_room_id - must join via entry_id.
+  const entryIds = allEntries.map(e => e.id);
+  let allPicks = [];
+
+  if (entryIds.length > 0) {
+    try {
+      allPicks = await db.DraftPick.findAll({
+        where: {
+          entry_id: { [db.Sequelize.Op.in]: entryIds }
+        },
+        order: [['pick_number', 'ASC']]
+      });
+      console.log(`[buildTeamsForRoom] Found ${allPicks.length} picks across ${entryIds.length} entries`);
+    } catch (pickErr) {
+      console.error(`[buildTeamsForRoom] DraftPick query failed:`, pickErr.message);
+      // Continue with empty picks - we'll still try to populate from entry.roster + draftService
+    }
+  }
+
+  // 3) Build human team objects with rosters reconstructed from picks
   const teams = allEntries.map((entry, idx) => {
     const draftPos = entry.draft_position ?? idx;
     const roster = {};
     let totalSpent = 0;
+    let rosterSource = 'none';
 
-    // Prefer entry.roster if populated (post-draft); otherwise reconstruct
-    // from DraftPick rows (mid-draft)
-    if (entry.roster && typeof entry.roster === 'object' && Object.keys(entry.roster).length > 0) {
-      Object.assign(roster, entry.roster);
-      totalSpent = entry.total_spent || 0;
-    } else {
-      const entryPicks = allPicks.filter(p => p.entry_id === entry.id);
+    // Prefer draft_picks (live source during draft).
+    // Fall back to entry.roster (set on completion).
+    const entryPicks = allPicks.filter(p => p.entry_id === entry.id);
+
+    if (entryPicks.length > 0) {
       entryPicks.forEach(pick => {
         const slot = (pick.roster_slot || '').toString().toUpperCase();
         const playerData = pick.player_data;
@@ -74,7 +94,15 @@ async function buildTeamsForRoom(roomId) {
           totalSpent += (playerData.price || 0);
         }
       });
+      rosterSource = `${entryPicks.length} draft_picks rows`;
+    } else if (entry.roster && typeof entry.roster === 'object' && Object.keys(entry.roster).length > 0) {
+      Object.assign(roster, entry.roster);
+      totalSpent = entry.total_spent || 0;
+      rosterSource = 'entry.roster';
     }
+
+    const rosterPlayerCount = Object.keys(roster).length;
+    console.log(`[buildTeamsForRoom] team ${idx} (${entry.User?.username || 'unknown'}): ${rosterPlayerCount} players from ${rosterSource}`);
 
     return {
       userId: entry.user_id,
@@ -82,7 +110,7 @@ async function buildTeamsForRoom(roomId) {
       username: entry.User?.username || `Player ${idx + 1}`,
       roster,
       budget: Math.max(0, 15 - totalSpent),
-      bonus: 0, // bonus only matters for kingpin/firesale and gets recalculated client-side
+      bonus: 0,
       color: TEAM_COLORS[draftPos % TEAM_COLORS.length],
       draftPosition: draftPos,
       equipped_stamp: entry.User?.equipped_stamp || null,
@@ -91,11 +119,12 @@ async function buildTeamsForRoom(roomId) {
     };
   });
 
-  // 3) Merge in-memory draftService state for bots + fresher human data
+  // 4) Merge in-memory draftService state for bots + fresher human data
   if (draftService && typeof draftService.getDraft === 'function') {
     try {
       const activeDraft = await draftService.getDraft(roomId);
       const memTeams = activeDraft?.teams || [];
+      console.log(`[buildTeamsForRoom] draftService.getDraft returned ${memTeams.length} in-memory teams`);
 
       memTeams.forEach(memTeam => {
         const memUserId = memTeam.userId || memTeam.id;
@@ -105,8 +134,9 @@ async function buildTeamsForRoom(roomId) {
         const isBot = (typeof memUserId === 'string' && memUserId.startsWith('bot_')) || memTeam.isBot === true;
 
         if (existingIdx === -1 && isBot) {
-          // Bot not in DB - add it
           const pos = memTeam.position ?? memTeam.draftPosition ?? teams.length;
+          const memRosterCount = Object.keys(memTeam.roster || {}).length;
+          console.log(`[buildTeamsForRoom] Adding bot ${memTeam.username || memUserId} with ${memRosterCount} players`);
           teams.push({
             userId: memUserId,
             entryId: null,
@@ -121,11 +151,12 @@ async function buildTeamsForRoom(roomId) {
             isBot: true
           });
         } else if (existingIdx !== -1 && memTeam.roster) {
-          // Human already in teams[] - use whichever roster has more picks
+          // Human in both - use whichever roster has more picks
           const existing = teams[existingIdx];
           const dbCount = Object.keys(existing.roster).length;
           const memCount = Object.keys(memTeam.roster).length;
           if (memCount > dbCount) {
+            console.log(`[buildTeamsForRoom] In-memory has fresher roster for ${existing.username} (${memCount} vs ${dbCount} players), using it`);
             existing.roster = { ...memTeam.roster };
             if (typeof memTeam.budget === 'number') existing.budget = memTeam.budget;
             if (typeof memTeam.bonus === 'number') existing.bonus = memTeam.bonus;
@@ -133,18 +164,21 @@ async function buildTeamsForRoom(roomId) {
         }
       });
 
-      // Re-sort by draftPosition after bot merge
       teams.sort((a, b) => (a.draftPosition ?? 999) - (b.draftPosition ?? 999));
     } catch (memErr) {
-      console.warn(`[draftRoutes] Could not merge in-memory draft state for ${roomId}:`, memErr.message);
-      // Non-fatal - we still return DB-derived teams
+      console.warn(`[buildTeamsForRoom] Could not merge in-memory draft state for ${roomId}:`, memErr.message);
     }
+  } else {
+    console.log(`[buildTeamsForRoom] draftService not available - skipping in-memory merge`);
   }
+
+  const totalPlayers = teams.reduce((sum, t) => sum + Object.keys(t.roster || {}).length, 0);
+  console.log(`[buildTeamsForRoom] === FINAL: ${teams.length} teams, ${totalPlayers} total players ===\n`);
 
   return teams;
 }
 
-// Initialize draft - NEW ENDPOINT that DraftScreen needs
+// Initialize draft endpoint
 router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -154,7 +188,6 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
     console.log(`Room ID: ${roomId}`);
     console.log(`User ID: ${userId}`);
 
-    // Get room status
     const roomStatus = await contestService.getRoomStatus(roomId);
 
     if (!roomStatus) {
@@ -169,7 +202,6 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
       status: roomStatus.status
     });
 
-    // Find user's entry in this room
     const userEntry = roomStatus.entries.find(e => e.userId === userId);
 
     if (!userEntry) {
@@ -183,7 +215,6 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
       status: userEntry.status
     });
 
-    // Get contest details
     const contest = await contestService.getContest(roomStatus.contestId);
 
     if (!contest) {
@@ -191,20 +222,16 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Contest not found' });
     }
 
-    // NEW: Build full teams[] array with rosters from DB + in-memory state.
-    // This is the fix for the empty-roster-on-rejoin bug.
+    // Build full teams[] array with rosters from DB + in-memory state
     let teams = [];
     try {
       teams = await buildTeamsForRoom(roomId);
-      const totalPlayers = teams.reduce((sum, t) => sum + Object.keys(t.roster || {}).length, 0);
-      console.log(`Built ${teams.length} teams with ${totalPlayers} total players in rosters`);
     } catch (teamsErr) {
       console.error('Failed to build teams[] for init response:', teamsErr);
-      // Non-fatal - client falls back to socket draft-state for teams
+      console.error('Stack:', teamsErr.stack);
       teams = [];
     }
 
-    // Build response with all necessary data
     const response = {
       success: true,
       roomId: roomId,
@@ -222,22 +249,22 @@ router.get('/initialize/:roomId', authMiddleware, async (req, res) => {
         type: contest.type,
         sport: contest.sport || roomStatus.contestSport || 'nfl'
       },
-      // NEW: Full team data with rosters - prevents empty-team display on rejoin
       teams: teams,
       users: roomStatus.entries.map((entry, index) => ({
         userId: entry.userId,
         username: entry.username,
         position: entry.draftPosition || index,
-        connected: false, // Will be updated via socket
+        connected: false,
         entryId: entry.id
       }))
     };
 
-    console.log('Draft initialization successful');
+    console.log(`Draft initialization successful. Returning ${teams.length} teams with rosters.`);
     res.json(response);
 
   } catch (error) {
     console.error('Draft initialization error:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       error: 'Failed to initialize draft',
       message: error.message
@@ -251,14 +278,12 @@ router.get('/:draftId/status', authMiddleware, async (req, res) => {
     const { draftId } = req.params;
     const userId = req.user.id || req.user.userId;
 
-    // Get draft/room status
     const roomStatus = await contestService.getRoomStatus(draftId);
 
     if (!roomStatus) {
       return res.status(404).json({ error: 'Draft not found' });
     }
 
-    // Check if user is part of this draft
     const isParticipant = roomStatus.entries.some(e => e.userId === userId);
 
     if (!isParticipant) {
@@ -314,14 +339,12 @@ router.post('/:draftId/pick', authMiddleware, async (req, res) => {
     const { playerId, playerData, position } = req.body;
     const userId = req.user.id || req.user.userId;
 
-    // Validate pick data
     if (!position || (!playerId && !playerData)) {
       return res.status(400).json({
         error: 'Missing required pick data'
       });
     }
 
-    // Process pick through contest service
     await contestService.handlePlayerPick(
       draftId,
       userId,
@@ -346,7 +369,6 @@ router.post('/:draftId/auto-pick', authMiddleware, async (req, res) => {
     const { draftId } = req.params;
     const userId = req.user.id || req.user.userId;
 
-    // Trigger auto-pick
     await contestService.handleAutoPick(draftId, userId);
 
     res.json({
@@ -361,12 +383,12 @@ router.post('/:draftId/auto-pick', authMiddleware, async (req, res) => {
 });
 
 // Get draft picks for a room
+// FIX: also query by entry_id since draft_picks has no draft_room_id column
 router.get('/:draftId/picks', authMiddleware, async (req, res) => {
   try {
     const { draftId } = req.params;
     const userId = req.user.id || req.user.userId;
 
-    // Get room status to verify user is participant
     const roomStatus = await contestService.getRoomStatus(draftId);
 
     if (!roomStatus) {
@@ -379,26 +401,42 @@ router.get('/:draftId/picks', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Not a participant in this draft' });
     }
 
-    // Get all picks for this draft room
-    const picks = await db.DraftPick.findAll({
+    // Get entry IDs for this room
+    const entries = await db.ContestEntry.findAll({
       where: { draft_room_id: draftId },
+      attributes: ['id', 'user_id'],
       include: [{
         model: db.User,
         attributes: ['id', 'username']
-      }],
-      order: [['pick_number', 'ASC']]
+      }]
     });
 
-    const formattedPicks = picks.map(pick => ({
-      id: pick.id,
-      userId: pick.user_id,
-      username: pick.User?.username,
-      playerData: pick.player_data,
-      rosterSlot: pick.roster_slot,
-      pickNumber: pick.pick_number,
-      isAutoPick: pick.is_auto_pick,
-      pickTime: pick.created_at
-    }));
+    const entryIds = entries.map(e => e.id);
+    const entryToUser = {};
+    entries.forEach(e => {
+      entryToUser[e.id] = { userId: e.user_id, username: e.User?.username };
+    });
+
+    const picks = entryIds.length > 0
+      ? await db.DraftPick.findAll({
+          where: { entry_id: { [db.Sequelize.Op.in]: entryIds } },
+          order: [['pick_number', 'ASC']]
+        })
+      : [];
+
+    const formattedPicks = picks.map(pick => {
+      const userInfo = entryToUser[pick.entry_id] || {};
+      return {
+        id: pick.id,
+        userId: userInfo.userId,
+        username: userInfo.username,
+        playerData: pick.player_data,
+        rosterSlot: pick.roster_slot,
+        pickNumber: pick.pick_number,
+        isAutoPick: pick.is_auto_pick,
+        pickTime: pick.created_at
+      };
+    });
 
     res.json(formattedPicks);
 
@@ -414,7 +452,6 @@ router.get('/:draftId/lineup/:userId', authMiddleware, async (req, res) => {
     const { draftId, userId: targetUserId } = req.params;
     const requestingUserId = req.user.id || req.user.userId;
 
-    // Get the entry
     const entry = await db.ContestEntry.findOne({
       where: {
         draft_room_id: draftId,
@@ -426,7 +463,6 @@ router.get('/:draftId/lineup/:userId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
-    // Only allow viewing own lineup or if draft is completed
     if (targetUserId !== requestingUserId && entry.status !== 'completed') {
       return res.status(403).json({ error: 'Cannot view other lineups during draft' });
     }
@@ -450,7 +486,6 @@ router.post('/:draftId/complete', authMiddleware, async (req, res) => {
     const { draftId } = req.params;
     const userId = req.user.id || req.user.userId;
 
-    // Get user's entry for this draft
     const entry = await db.ContestEntry.findOne({
       where: {
         draft_room_id: draftId,
@@ -463,20 +498,18 @@ router.post('/:draftId/complete', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Active draft entry not found' });
     }
 
-    // Check if user has completed all picks
     const pickCount = await db.DraftPick.count({
       where: {
         entry_id: entry.id
       }
     });
 
-    if (pickCount < 5) { // Changed from 8 to 5 for your game
+    if (pickCount < 5) {
       return res.status(400).json({
         error: `Draft incomplete. You have ${pickCount}/5 picks.`
       });
     }
 
-    // Get all picks and build roster
     const picks = await db.DraftPick.findAll({
       where: { entry_id: entry.id },
       order: [['pick_number', 'ASC']]
@@ -495,7 +528,6 @@ router.post('/:draftId/complete', authMiddleware, async (req, res) => {
       totalSpent += pick.player_data.price || 0;
     });
 
-    // Complete the draft
     await contestService.completeDraft(entry.id, roster, totalSpent);
 
     res.json({
@@ -516,7 +548,6 @@ router.get('/:draftId/timer', authMiddleware, async (req, res) => {
   try {
     const { draftId } = req.params;
 
-    // Try to get active draft from draftService if available
     let activeDraft = null;
     try {
       const ds = draftService || require('../services/draftService');
@@ -533,7 +564,6 @@ router.get('/:draftId/timer', authMiddleware, async (req, res) => {
     }
 
     if (!activeDraft) {
-      // Fallback to contest service
       const roomStatus = await contestService.getRoomStatus(draftId);
       if (!roomStatus) {
         return res.status(404).json({ error: 'No active draft found' });
@@ -558,7 +588,7 @@ router.get('/:draftId/timer', authMiddleware, async (req, res) => {
         userId: currentPlayer.userId,
         username: currentPlayer.username || currentPlayer.name
       } : null,
-      timeRemaining: 30 // Always 30 seconds per pick
+      timeRemaining: 30
     });
 
   } catch (error) {
