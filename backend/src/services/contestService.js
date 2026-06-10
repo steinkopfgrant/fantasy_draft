@@ -1635,14 +1635,31 @@ class ContestService {
         [shuffledPositions[i], shuffledPositions[j]] = [shuffledPositions[j], shuffledPositions[i]];
       }
 
-      await Promise.all(entriesToOrder.map((entry, idx) => {
-        const newPos = shuffledPositions[idx];
-        entry.draftPosition = newPos; // update in-memory copy handed to startDraft
-        return db.ContestEntry.update(
-          { draft_position: newPos },
-          { where: { id: entry.id } }
-        );
-      }));
+      // Persist draft positions SEQUENTIALLY in two phases to avoid the
+      // Postgres deadlock + unique-constraint collisions on
+      // (draft_room_id, draft_position). Phase 1 parks every entry at a
+      // negative temp position (can't collide with the real 0..4 range);
+      // Phase 2 assigns the final shuffled positions.
+      try {
+        for (let idx = 0; idx < entriesToOrder.length; idx++) {
+          await db.ContestEntry.update(
+            { draft_position: -(idx + 1) },
+            { where: { id: entriesToOrder[idx].id } }
+          );
+        }
+        for (let idx = 0; idx < entriesToOrder.length; idx++) {
+          const entry = entriesToOrder[idx];
+          const newPos = shuffledPositions[idx];
+          entry.draftPosition = newPos; // keep in-memory copy in sync for startDraft
+          await db.ContestEntry.update(
+            { draft_position: newPos },
+            { where: { id: entry.id } }
+          );
+        }
+      } catch (orderErr) {
+        console.error(`❌ Failed to set draft order for room ${roomId}:`, orderErr.message);
+        throw orderErr; // bubble to launchDraft's catch instead of dying mid-shuffle
+      }
 
       console.log(`🎲 Randomized draft order for room ${roomId}: ` +
         entriesToOrder
