@@ -23,6 +23,7 @@ class SoundService {
     this.loaded = false;
     this.muted = this._loadMutePreference();
     this.listeners = new Set();
+    this._unlockBound = false;
   }
 
   _loadMutePreference() {
@@ -56,6 +57,52 @@ class SoundService {
       }
     });
     this.loaded = true;
+  }
+
+  // Unlock audio playback on the user's first gesture. Browsers block
+  // programmatic .play() until the page has received a user interaction
+  // on the current page load. Priming each Audio element (muted) during a
+  // real gesture lifts that block for the rest of the session, so a
+  // draft-start sound that fires after a route change still plays.
+  // Safe to call multiple times; only the first arms the listeners.
+  unlockOnFirstGesture() {
+    if (this._unlockBound) return;
+    this._unlockBound = true;
+
+    const unlock = () => {
+      if (!this.loaded) this.init();
+
+      Object.values(this.sounds).forEach((audio) => {
+        try {
+          audio.muted = true;
+          const p = audio.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              audio.pause();
+              audio.currentTime = 0;
+              audio.muted = false;
+            }).catch(() => {
+              audio.muted = false;
+            });
+          } else {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.muted = false;
+          }
+        } catch (e) {
+          audio.muted = false;
+        }
+      });
+
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('keydown', unlock);
+      console.log('[sound] Audio unlocked on first gesture');
+    };
+
+    document.addEventListener('click', unlock);
+    document.addEventListener('touchstart', unlock);
+    document.addEventListener('keydown', unlock);
   }
 
   play(name) {
@@ -104,4 +151,5 @@ class SoundService {
 }
 
 const soundService = new SoundService();
+soundService.unlockOnFirstGesture();
 export default soundService;
