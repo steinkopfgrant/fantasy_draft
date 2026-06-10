@@ -1643,7 +1643,7 @@ class ContestService {
       try {
         for (let idx = 0; idx < entriesToOrder.length; idx++) {
           await db.ContestEntry.update(
-            { draft_position: -(idx + 1) },
+            { draft_position: null },
             { where: { id: entriesToOrder[idx].id } }
           );
         }
