@@ -57,6 +57,16 @@ module.exports = (sequelize) => {
         min: 0
       }
     },
+
+    // Cumulative loss from returned/disputed deposits the user already spent.
+    // Written by TransactionService on 'deposit_reversal' when a return can't
+    // be fully recovered from balance. (No min:0 — it's a one-way accumulator.)
+    disputed_losses: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+      comment: 'Cumulative loss from returned/disputed deposits already spent'
+    },
+
     tickets: {
       type: DataTypes.INTEGER,
       defaultValue: 5,
@@ -64,7 +74,7 @@ module.exports = (sequelize) => {
         min: 0
       }
     },
-    
+
     // Cosmetics - Equipped stamp frame
     equipped_stamp: {
       type: DataTypes.STRING(50),
@@ -72,7 +82,7 @@ module.exports = (sequelize) => {
       defaultValue: null,
       comment: 'Currently equipped stamp frame: beta_tester, cash_king, or null'
     },
-    
+
     // Market Mover specific fields
     market_mover_votes_cast: {
       type: DataTypes.INTEGER,
@@ -94,7 +104,7 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Last time user claimed daily tickets'
     },
-    
+
     role: {
       type: DataTypes.ENUM('user', 'admin', 'moderator'),
       defaultValue: 'user'
@@ -116,7 +126,7 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Last time user claimed weekly ticket bonus'
     },
-    
+
     // Push notification fields
     push_subscription: {
       type: DataTypes.JSONB,
@@ -128,7 +138,7 @@ module.exports = (sequelize) => {
       defaultValue: false,
       comment: 'Whether user has push notifications enabled'
     },
-    
+
     // Achievement fields
     achievement_points: {
       type: DataTypes.INTEGER,
@@ -165,7 +175,7 @@ module.exports = (sequelize) => {
       defaultValue: [],
       comment: 'Array of unlocked badge IDs'
     },
-    
+
     // Profile customization
     profile_color: {
       type: DataTypes.STRING(7),
@@ -181,7 +191,7 @@ module.exports = (sequelize) => {
         len: [0, 500]
       }
     },
-    
+
     // Statistics tracking
     total_contests_entered: {
       type: DataTypes.INTEGER,
@@ -204,7 +214,7 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: 'Win percentage'
     },
-    
+
     // Preferences
     email_notifications: {
       type: DataTypes.BOOLEAN,
@@ -226,7 +236,7 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
       defaultValue: true
     },
-    
+
     // Security
     two_factor_enabled: {
       type: DataTypes.BOOLEAN,
@@ -252,7 +262,7 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false
     },
-    
+
     // Timestamps
     created_at: {
       type: DataTypes.DATE,
@@ -304,17 +314,17 @@ module.exports = (sequelize) => {
     delete values.two_factor_secret;
     delete values.password_reset_token;
     delete values.email_verification_token;
-    
+
     // Add computed Market Mover stats
     values.marketMoverStats = {
       votes_cast: values.market_mover_votes_cast || 0,
       bid_up_wins: values.market_mover_wins || 0,
       ownership_checks: values.ownership_checks_made || 0,
-      vote_success_rate: values.market_mover_votes_cast > 0 
+      vote_success_rate: values.market_mover_votes_cast > 0
         ? ((values.market_mover_wins / values.market_mover_votes_cast) * 100).toFixed(1)
         : '0'
     };
-    
+
     return values;
   };
 
@@ -327,17 +337,17 @@ module.exports = (sequelize) => {
   // Check if user can claim daily tickets
   User.prototype.canClaimDailyTickets = function() {
     if (!this.last_daily_ticket_claim) return true;
-    
+
     const now = new Date();
     const lastClaim = new Date(this.last_daily_ticket_claim);
-    
+
     // Reset at midnight UTC
     const todayMidnight = new Date(now);
     todayMidnight.setUTCHours(0, 0, 0, 0);
-    
+
     const lastClaimMidnight = new Date(lastClaim);
     lastClaimMidnight.setUTCHours(0, 0, 0, 0);
-    
+
     return todayMidnight > lastClaimMidnight;
   };
 
@@ -346,10 +356,10 @@ module.exports = (sequelize) => {
     if (amount < 0) {
       throw new Error('Cannot add negative tickets');
     }
-    
+
     this.tickets = (this.tickets || 0) + amount;
     await this.save();
-    
+
     // Log the transaction (assuming you have a Transaction model)
     if (this.sequelize.models.Transaction) {
       await this.sequelize.models.Transaction.create({
@@ -360,7 +370,7 @@ module.exports = (sequelize) => {
         description: reason || 'Tickets added'
       });
     }
-    
+
     return this.tickets;
   };
 
@@ -369,14 +379,14 @@ module.exports = (sequelize) => {
     if (amount < 0) {
       throw new Error('Cannot use negative tickets');
     }
-    
+
     if (this.tickets < amount) {
       throw new Error('Insufficient tickets');
     }
-    
+
     this.tickets -= amount;
     await this.save();
-    
+
     // Log the transaction
     if (this.sequelize.models.Transaction) {
       await this.sequelize.models.Transaction.create({
@@ -387,7 +397,7 @@ module.exports = (sequelize) => {
         description: reason || 'Tickets used'
       });
     }
-    
+
     return this.tickets;
   };
 
@@ -398,7 +408,7 @@ module.exports = (sequelize) => {
       bid_up_wins: this.market_mover_wins || 0,
       ownership_checks: this.ownership_checks_made || 0,
       tickets: this.tickets || 0,
-      vote_success_rate: this.market_mover_votes_cast > 0 
+      vote_success_rate: this.market_mover_votes_cast > 0
         ? ((this.market_mover_wins / this.market_mover_votes_cast) * 100).toFixed(1)
         : 0
     };
@@ -418,7 +428,7 @@ module.exports = (sequelize) => {
       ownership_master: 3,
       market_mover_champion: 20
     };
-    
+
     const amount = ticketRewards[achievementType];
     if (amount) {
       await this.addTickets(amount, `Achievement: ${achievementType}`);
@@ -432,9 +442,9 @@ module.exports = (sequelize) => {
     if (this.total_contests_entered > 0) {
       this.win_rate = (this.total_contests_won / this.total_contests_entered) * 100;
     }
-    
+
     // Update Market Mover vote success rate can be calculated here if needed
-    
+
     await this.save();
   };
 

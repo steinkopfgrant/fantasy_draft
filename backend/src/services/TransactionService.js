@@ -1,13 +1,13 @@
 // backend/src/services/TransactionService.js
 /**
  * TransactionService - THE ONLY AUTHORIZED WAY TO MODIFY USER BALANCES
- * 
+ *
  * RULES:
  * 1. NEVER update user.balance directly anywhere in the codebase
  * 2. ALL balance changes MUST go through this service
  * 3. Every balance change creates a transaction record
  * 4. Use idempotency keys for operations that might retry (webhooks, etc)
- * 
+ *
  * This ensures:
  * - Complete audit trail of all money movement
  * - Atomic balance updates (no race conditions)
@@ -24,7 +24,7 @@ class TransactionService {
 
   /**
    * Core method - records a transaction and updates user balance atomically
-   * 
+   *
    * @param {string} userId - User ID
    * @param {number} amount - Positive for credit, negative for debit
    * @param {string} type - Transaction type enum value
@@ -58,7 +58,8 @@ class TransactionService {
     // Validate type
     const validTypes = [
       'deposit', 'withdrawal', 'entry_fee', 'entry_refund',
-      'contest_winnings', 'promo_credit', 'adjustment'
+      'contest_winnings', 'promo_credit', 'adjustment',
+      'deposit_reversal', 'withdrawal_refund'
     ];
     if (!validTypes.includes(type)) {
       throw new Error(`Invalid transaction type: ${type}`);
@@ -83,7 +84,7 @@ class TransactionService {
     // Use existing transaction or create new one
     const shouldManageTransaction = !existingTransaction;
     const t = existingTransaction || await this.sequelize.transaction({
-      isolationLevel: this.sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+      isolationLevel: this.sequelize.constructor.Transaction.ISOLATION_LEVELS.SERIALIZABLE
     });
 
     try {
@@ -100,8 +101,9 @@ class TransactionService {
       const previousBalance = parseFloat(user.balance || 0);
       const newBalance = previousBalance + numericAmount;
 
-      // Prevent negative balances for debits
-      if (newBalance < 0) {
+      // Prevent negative balances for debits — EXCEPT deposit reversals, which
+      // legitimately represent money the user owes after a returned deposit.
+      if (newBalance < 0 && type !== 'deposit_reversal') {
         throw new Error(
           `Insufficient balance. Current: $${previousBalance.toFixed(2)}, ` +
           `Attempted: $${Math.abs(numericAmount).toFixed(2)}`
@@ -125,8 +127,18 @@ class TransactionService {
         created_at: new Date()
       }, { transaction: t });
 
-      // Update user balance
-      await user.update({ balance: newBalance }, { transaction: t });
+      // Update user balance. For a reversal that can't be fully covered, book the
+      // unrecoverable portion to disputed_losses in the same locked transaction.
+      const userUpdate = { balance: newBalance };
+      if (type === 'deposit_reversal') {
+        const reversalAmount = Math.abs(numericAmount);
+        const recoverable = Math.max(0, Math.min(previousBalance, reversalAmount));
+        const loss = reversalAmount - recoverable;
+        if (loss > 0) {
+          userUpdate.disputed_losses = parseFloat(user.disputed_losses || 0) + loss;
+        }
+      }
+      await user.update(userUpdate, { transaction: t });
 
       // Commit if we created the transaction
       if (shouldManageTransaction) {
@@ -296,11 +308,11 @@ class TransactionService {
     const { limit = 50, offset = 0, type = null, startDate = null, endDate = null } = options;
 
     const where = { user_id: userId };
-    
+
     if (type) {
       where.type = type;
     }
-    
+
     if (startDate || endDate) {
       where.created_at = {};
       if (startDate) where.created_at[this.sequelize.Op.gte] = startDate;
@@ -345,8 +357,8 @@ class TransactionService {
       order: [['created_at', 'DESC']]
     });
 
-    const lastRecordedBalance = lastTransaction 
-      ? parseFloat(lastTransaction.balance_after) 
+    const lastRecordedBalance = lastTransaction
+      ? parseFloat(lastTransaction.balance_after)
       : 0;
 
     return {
@@ -378,7 +390,7 @@ class TransactionService {
 
     for (const user of users) {
       const reconciliation = await this.reconcileUser(user.id);
-      
+
       if (reconciliation.isReconciled) {
         results.reconciled++;
       } else {
@@ -390,7 +402,7 @@ class TransactionService {
     console.log(`   Total users: ${results.total}`);
     console.log(`   Reconciled: ${results.reconciled}`);
     console.log(`   Discrepancies: ${results.discrepancies.length}`);
-    
+
     if (results.discrepancies.length > 0) {
       console.log(`\n⚠️ USERS WITH DISCREPANCIES:`);
       for (const d of results.discrepancies) {

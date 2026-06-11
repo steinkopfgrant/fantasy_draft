@@ -559,19 +559,6 @@ async function startServer() {
       console.log('⚠️ MarketMover service not available:', error.message);
     }
 
-    // Log payment config status
-    if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_SECRET_KEY.includes('REPLACE')) {
-      console.log('✅ Stripe payments configured');
-    } else {
-      console.log('⚠️ Stripe not configured - add STRIPE_SECRET_KEY to .env');
-    }
-    
-    if (process.env.SOLANA_DEPOSIT_WALLET && !process.env.SOLANA_DEPOSIT_WALLET.includes('REPLACE')) {
-      console.log('✅ Solana deposits configured');
-    } else {
-      console.log('⚠️ Solana not configured - add SOLANA_DEPOSIT_WALLET to .env');
-    }
-
     console.log('✅ Rate limiting enabled');
     console.log('✅ Sentry error monitoring active');
     console.log('✅ BetterStack log shipping active');
