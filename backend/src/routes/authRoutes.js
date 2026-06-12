@@ -1,12 +1,17 @@
 // backend/src/routes/authRoutes.js
 // SECURITY HARDENED VERSION
+//
+// GEO POLICY (updated): Registration and free play are OPEN in all states.
+// Geo-restriction is enforced only on real-money paths (cash contest entry,
+// deposits) via the geoRestriction middleware on those routes — NOT here.
+// We still collect and store the user's declared state at signup so the
+// money-path checks have it available.
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../models');
 const authMiddleware = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
-const { geoRestriction } = require('../middleware/geoRestriction');
 
 // ============================================
 // SECURITY: Validate JWT_SECRET exists at startup
@@ -42,19 +47,20 @@ const generateToken = (user) => {
 // ============================================
 // POST /register - Create new account
 // Rate limited: 20 attempts per 15 minutes
-// Geo-restricted: blocks signup from prohibited states (IP-based)
+// OPEN to all states — registration and free play are not geo-restricted.
+// State is collected and stored for later real-money gating only.
 // ============================================
-router.post('/register', authLimiter, geoRestriction, async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { username, email, password, state } = req.body;
-    
+
     console.log('\n=== REGISTRATION ATTEMPT ===');
     console.log('Username:', username);
     console.log('Email:', email ? email.substring(0, 3) + '***' : 'not provided');
+    console.log('Declared state:', state || 'not provided');
     console.log('Timestamp:', new Date().toISOString());
     console.log('IP Address:', req.ip);
-    console.log('Detected state (from IP):', req.detectedState || 'unknown');
-    
+
     // Validation
     if (!username || !email || !password) {
       return res.status(400).json({
@@ -94,17 +100,17 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
         error: 'Please provide a valid email address'
       });
     }
-    
+
     // Check if user exists
     const existingUser = await db.User.findOne({
       where: {
         [db.Sequelize.Op.or]: [
-          { email: email.toLowerCase() }, 
+          { email: email.toLowerCase() },
           { username: username.toLowerCase() }
         ]
       }
     });
-    
+
     if (existingUser) {
       console.log('❌ User already exists');
       // Don't reveal which field exists (security)
@@ -113,8 +119,9 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
         error: 'An account with that email or username already exists'
       });
     }
-    
-    // Validate declared state
+
+    // Validate declared state format (still required so we can gate
+    // real-money play later) — but we do NOT block any state at signup.
     if (!state || state.length !== 2) {
       return res.status(400).json({
         success: false,
@@ -122,16 +129,9 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
       });
     }
 
-    // Defense in depth: also check declared state against blocked list
-    // (IP check above is primary; this catches edge cases like user
-    // declaring a blocked state while their IP is in an allowed one)
-    const { BLOCKED_STATES } = require('../middleware/geoRestriction');
-    if (BLOCKED_STATES.includes(state.toUpperCase())) {
-      return res.status(403).json({
-        success: false,
-        error: 'Paid fantasy sports contests are not currently available in your state.'
-      });
-    }
+    // NOTE: No blocked-state rejection here. Free play is open everywhere.
+    // The geoRestriction middleware enforces the blocked-state list on the
+    // cash contest entry and deposit routes instead.
 
     // Create user (password will be hashed by the model hook)
     const user = await db.User.create({
@@ -140,12 +140,12 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
       password, // Model hook will hash this
       state: state.toUpperCase()
     });
-    
+
     console.log('✅ User created:', user.id);
-    
+
     // Generate token
     const token = generateToken(user);
-    
+
     res.status(201).json({
       success: true,
       token,
@@ -160,7 +160,7 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
         is_admin: user.is_admin || false
       }
     });
-    
+
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({
@@ -177,31 +177,31 @@ router.post('/register', authLimiter, geoRestriction, async (req, res) => {
 router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, username, password } = req.body;
-    
+
     // Accept either email or username
     const loginField = email || username;
-    
+
     console.log('\n=== LOGIN ATTEMPT ===');
     console.log('Login field:', loginField ? loginField.substring(0, 3) + '***' : 'not provided');
     console.log('Timestamp:', new Date().toISOString());
     console.log('IP Address:', req.ip);
-    
+
     if (!loginField || !password) {
       return res.status(400).json({
         success: false,
         error: 'Please provide email/username and password'
       });
     }
-    
+
     // Find user by email or username
-    const whereClause = email 
+    const whereClause = email
       ? { email: email.toLowerCase() }
       : { username: username.toLowerCase() };
-    
+
     const user = await db.User.findOne({
       where: whereClause
     });
-    
+
     if (!user) {
       console.log('❌ User not found');
       // Use same error message to prevent user enumeration
@@ -210,7 +210,7 @@ router.post('/login', authLimiter, async (req, res) => {
         error: 'Invalid credentials'
       });
     }
-    
+
     // Check if account is active
     if (user.is_active === false) {
       console.log('❌ Account deactivated');
@@ -219,10 +219,10 @@ router.post('/login', authLimiter, async (req, res) => {
         error: 'This account has been deactivated'
       });
     }
-    
+
     // Check password
     const isValid = await user.validatePassword(password);
-    
+
     if (!isValid) {
       console.log('❌ Invalid password for user:', user.id);
       return res.status(401).json({
@@ -230,16 +230,16 @@ router.post('/login', authLimiter, async (req, res) => {
         error: 'Invalid credentials'
       });
     }
-    
+
     // Update last login
     user.last_login = new Date();
     await user.save();
-    
+
     // Generate token
     const token = generateToken(user);
-    
+
     console.log('✅ Login successful for:', user.username);
-    
+
     res.json({
       success: true,
       token,
@@ -254,7 +254,7 @@ router.post('/login', authLimiter, async (req, res) => {
         is_admin: user.is_admin || false
       }
     });
-    
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
@@ -270,14 +270,14 @@ router.post('/login', authLimiter, async (req, res) => {
 router.get('/verify', authMiddleware, async (req, res) => {
   try {
     const user = await db.User.findByPk(req.user.id);
-    
+
     if (!user) {
       return res.status(401).json({
         success: false,
         error: 'User not found'
       });
     }
-    
+
     res.json({
       success: true,
       user: {
@@ -291,7 +291,7 @@ router.get('/verify', authMiddleware, async (req, res) => {
         is_admin: user.is_admin || false
       }
     });
-    
+
   } catch (error) {
     res.status(401).json({
       success: false,
@@ -306,14 +306,14 @@ router.get('/verify', authMiddleware, async (req, res) => {
 router.get('/check', authMiddleware, async (req, res) => {
   try {
     const user = await db.User.findByPk(req.user.id);
-    
+
     if (!user) {
       return res.status(401).json({
         success: false,
         error: 'User not found'
       });
     }
-    
+
     res.json({
       user: {
         id: user.id,
@@ -326,7 +326,7 @@ router.get('/check', authMiddleware, async (req, res) => {
         is_admin: user.is_admin || false
       }
     });
-    
+
   } catch (error) {
     console.error('Auth check error:', error);
     res.status(401).json({
@@ -342,14 +342,14 @@ router.get('/check', authMiddleware, async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const user = await db.User.findByPk(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
       });
     }
-    
+
     res.json({
       success: true,
       user: {
@@ -377,17 +377,17 @@ router.get('/me', authMiddleware, async (req, res) => {
 router.post('/refresh', authMiddleware, async (req, res) => {
   try {
     const user = await db.User.findByPk(req.user.id);
-    
+
     if (!user || user.is_active === false) {
       return res.status(401).json({
         success: false,
         error: 'Invalid session'
       });
     }
-    
+
     // Generate new token
     const token = generateToken(user);
-    
+
     res.json({
       success: true,
       token,
@@ -402,7 +402,7 @@ router.post('/refresh', authMiddleware, async (req, res) => {
         is_admin: user.is_admin || false
       }
     });
-    
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -416,7 +416,7 @@ router.post('/refresh', authMiddleware, async (req, res) => {
 // ============================================
 router.post('/logout', authMiddleware, (req, res) => {
   console.log('👋 User logged out:', req.user.username);
-  
+
   // In a production system with refresh tokens, you'd invalidate the token here
   // For now, just acknowledge the logout
   res.json({
