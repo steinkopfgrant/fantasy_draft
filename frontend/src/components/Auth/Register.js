@@ -1,4 +1,9 @@
 // frontend/src/components/Auth/Register.js
+//
+// GEO POLICY (updated): Registration and free play are OPEN in all states.
+// Blocked states are NOT prevented from signing up — they simply see an
+// informational notice that CASH contests aren't available where they are.
+// Real-money gating happens on the deposit / cash-entry paths, not here.
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -33,7 +38,10 @@ const US_STATES = [
   { code: 'DC', name: 'District of Columbia' },
 ];
 
-const BLOCKED_STATES = [
+// States where CASH contests are restricted. Users from these states can
+// still register and play free contests — this list only drives the
+// informational notice below and the cash-path gating elsewhere.
+const CASH_RESTRICTED_STATES = [
   'HI', 'ID', 'MT', 'NV', 'WA',
   'AL', 'AZ', 'CO', 'CT', 'DE', 'IN', 'IA', 'LA', 'ME', 'MI',
   'MS', 'MO', 'NH', 'NJ', 'NY', 'OH', 'PA', 'TN', 'VT', 'VA',
@@ -51,17 +59,17 @@ const Register = () => {
     tosAccepted: false
   });
   const [localError, setLocalError] = useState('');
-  
+
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+
   const loading = useSelector(selectAuthLoading);
   const authError = useSelector(selectAuthError);
-  
+
   useEffect(() => {
     dispatch(clearError());
   }, [dispatch]);
-  
+
   useEffect(() => {
     if (authError) {
       setLocalError(authError);
@@ -92,20 +100,17 @@ const Register = () => {
     return age;
   };
 
-  const isBlockedState = formData.state && BLOCKED_STATES.includes(formData.state);
+  // Informational only — does NOT block registration.
+  const isCashRestrictedState = formData.state && CASH_RESTRICTED_STATES.includes(formData.state);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
 
-    // State validation
+    // State selection still required (stored for later cash gating) —
+    // but no state is blocked from signing up.
     if (!formData.state) {
       setLocalError('Please select your state of residence');
-      return;
-    }
-
-    if (BLOCKED_STATES.includes(formData.state)) {
-      setLocalError('Paid fantasy sports contests are not currently available in your state.');
       return;
     }
 
@@ -146,7 +151,7 @@ const Register = () => {
         dateOfBirth: formData.dateOfBirth,
         tosAcceptedAt: new Date().toISOString()
       }));
-      
+
       if (register.fulfilled.match(resultAction)) {
         console.log('Registration successful');
       } else {
@@ -220,10 +225,11 @@ const Register = () => {
       backgroundPosition: 'right 12px center',
       paddingRight: '32px',
     },
-    blockedWarning: {
-      color: '#e74c3c',
-      backgroundColor: 'rgba(231, 76, 60, 0.1)',
-      border: '1px solid rgba(231, 76, 60, 0.3)',
+    // Soft, informational notice (teal accent) — not an error.
+    stateInfoNotice: {
+      color: '#a8b2d1',
+      backgroundColor: 'rgba(0, 212, 170, 0.08)',
+      border: '1px solid rgba(0, 212, 170, 0.25)',
       borderRadius: '6px',
       padding: '10px 12px',
       marginTop: '0.4rem',
@@ -266,11 +272,11 @@ const Register = () => {
     button: {
       width: '100%',
       padding: '12px',
-      backgroundColor: (loading || isBlockedState) ? '#1a3a5c' : '#00d4aa',
-      color: (loading || isBlockedState) ? '#8892b0' : '#0a192f',
+      backgroundColor: loading ? '#1a3a5c' : '#00d4aa',
+      color: loading ? '#8892b0' : '#0a192f',
       border: 'none',
       borderRadius: '8px',
-      cursor: (loading || isBlockedState) ? 'not-allowed' : 'pointer',
+      cursor: loading ? 'not-allowed' : 'pointer',
       fontSize: '1rem',
       fontWeight: 600,
       transition: 'background-color 0.2s',
@@ -297,11 +303,11 @@ const Register = () => {
   return (
     <div style={styles.container}>
       <h2 style={styles.title}>Create Account</h2>
-      
+
       {localError && (
         <div style={styles.error}>{localError}</div>
       )}
-      
+
       <form onSubmit={handleSubmit}>
         <div style={styles.fieldGroup}>
           <label style={styles.label}>Username</label>
@@ -318,7 +324,7 @@ const Register = () => {
             onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
           />
         </div>
-        
+
         <div style={styles.fieldGroup}>
           <label style={styles.label}>Email</label>
           <input
@@ -342,23 +348,20 @@ const Register = () => {
             value={formData.state}
             onChange={handleChange}
             required
-            style={{
-              ...styles.select,
-              borderColor: isBlockedState ? '#e74c3c' : 'rgba(255, 255, 255, 0.1)',
-            }}
-            onFocus={(e) => e.target.style.borderColor = isBlockedState ? '#e74c3c' : '#00d4aa'}
-            onBlur={(e) => e.target.style.borderColor = isBlockedState ? '#e74c3c' : 'rgba(255, 255, 255, 0.1)'}
+            style={styles.select}
+            onFocus={(e) => e.target.style.borderColor = '#00d4aa'}
+            onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
           >
             <option value="">Select your state</option>
             {US_STATES.map(s => (
               <option key={s.code} value={s.code}>
-                {s.name}{BLOCKED_STATES.includes(s.code) ? ' (unavailable)' : ''}
+                {s.name}{CASH_RESTRICTED_STATES.includes(s.code) ? ' (free play only)' : ''}
               </option>
             ))}
           </select>
-          {isBlockedState ? (
-            <div style={styles.blockedWarning}>
-              Paid fantasy sports contests are not currently available in {US_STATES.find(s => s.code === formData.state)?.name}. This is required by state law.
+          {isCashRestrictedState ? (
+            <div style={styles.stateInfoNotice}>
+              Cash contests aren&apos;t available in {US_STATES.find(s => s.code === formData.state)?.name} yet — but you can register and play free contests right now.
             </div>
           ) : (
             <p style={styles.stateNote}>Required for legal compliance</p>
@@ -382,7 +385,7 @@ const Register = () => {
           />
           <p style={styles.dobNote}>You must be 18 or older to participate</p>
         </div>
-        
+
         <div style={styles.fieldGroup}>
           <label style={styles.label}>Password</label>
           <input
@@ -399,7 +402,7 @@ const Register = () => {
             onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
           />
         </div>
-        
+
         <div style={styles.fieldGroup}>
           <label style={styles.label}>Confirm Password</label>
           <input
@@ -433,18 +436,18 @@ const Register = () => {
             I understand that BidBlitz involves real-money contests.
           </label>
         </div>
-        
-        <button 
-          type="submit" 
-          disabled={loading || isBlockedState}
+
+        <button
+          type="submit"
+          disabled={loading}
           style={styles.button}
-          onMouseOver={(e) => { if (!loading && !isBlockedState) e.target.style.backgroundColor = '#00ffcc'; }}
-          onMouseOut={(e) => { if (!loading && !isBlockedState) e.target.style.backgroundColor = '#00d4aa'; }}
+          onMouseOver={(e) => { if (!loading) e.target.style.backgroundColor = '#00ffcc'; }}
+          onMouseOut={(e) => { if (!loading) e.target.style.backgroundColor = '#00d4aa'; }}
         >
-          {loading ? 'Creating account...' : isBlockedState ? 'Unavailable in Your State' : 'Create Account'}
+          {loading ? 'Creating account...' : 'Create Account'}
         </button>
       </form>
-      
+
       <p style={styles.footer}>
         Already have an account?{' '}
         <Link to="/login" style={styles.footerLink}>Login</Link>
