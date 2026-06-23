@@ -5,6 +5,9 @@ const { body } = require('express-validator');
 const auth = require('../middleware/auth');
 const marketMoverController = require('../controllers/marketMoverController');
 const { geoRestriction } = require('../middleware/geoRestriction');
+// NOTE: geoRestriction import retained intentionally. Voting is geo-open during
+// free-to-play. RE-ADD geoRestriction to the /vote route below before any cash
+// consideration is attached to Market Mover. See flip-back marker [GEO-VOTE].
 
 // Optional auth middleware - populates req.user if token present, but doesn't require it
 const optionalAuth = (req, res, next) => {
@@ -81,8 +84,10 @@ router.get('/bid-up-player', marketMoverController.getBidUpPlayer);
 router.get('/available-players', marketMoverController.getAvailablePlayers);
 
 // Protected routes (auth required)
-// Voting is geo-restricted: only users in allowed US states can influence the Market Mover board
-router.post('/vote', auth, geoRestriction, validateVote, marketMoverController.voteForPlayer);
+// [GEO-VOTE] Voting is currently geo-OPEN for free-to-play. Any logged-in user
+// can cast a vote regardless of state. Re-add `geoRestriction` between `auth`
+// and `validateVote` to re-fence voting when cash consideration is introduced.
+router.post('/vote', auth, validateVote, marketMoverController.voteForPlayer);
 router.post('/ownership', auth, validateOwnership, marketMoverController.checkOwnership);
 router.get('/voting-eligibility', auth, marketMoverController.checkVotingEligibility);
 router.get('/voting-history', auth, marketMoverController.getVotingHistory);
