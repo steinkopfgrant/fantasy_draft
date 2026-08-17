@@ -1,6 +1,7 @@
 // backend/src/services/draftService.js
 const Redis = require('ioredis');
 const { PLAYER_POOLS, getMatchupString } = require('../utils/gameLogic');
+const lineupRules = require('../utils/lineupRules');
 
 // Sport-specific configuration
 const SPORT_CONFIG = {
@@ -173,6 +174,58 @@ class DraftService {
       roster[pos] = null;
     });
     return roster;
+  }
+
+  // ==========================================================================
+  // LINEUP CONSTRAINTS (max 3 per team; at least 2 distinct games)
+  //
+  // See backend/src/utils/lineupRules.js for the rules themselves. These are
+  // the service-level helpers that bind those rules to sport/slot logic.
+  // ==========================================================================
+
+  lineupOpts(sport = 'nfl') {
+    const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nfl;
+    return { sport, rosterSize: config.positions.length };
+  }
+
+  // Predicate for lineupRules.hasAnyLegalPick — is there ANY open slot this
+  // player could occupy? Reuses findBestSlotForPlayer so slot eligibility has
+  // exactly one definition.
+  canFillAnySlot(roster, sport = 'nfl') {
+    return (player) => this.findBestSlotForPlayer(player, roster || {}, sport) !== null;
+  }
+
+  // Returns { allowed, relaxed, code }.
+  //   allowed=true,  relaxed=false -> normal legal pick
+  //   allowed=true,  relaxed=true  -> violates a rule, but the drafter has NO
+  //                                   legal alternative (sniped out). Let it
+  //                                   through and flag it; forcing a skip here
+  //                                   would cost them a roster slot because of
+  //                                   another drafter's action.
+  //   allowed=false                -> blocked; a legal alternative exists.
+  evaluateLineupConstraint(draft, team, candidate, sport = 'nfl') {
+    const opts = this.lineupOpts(sport);
+    const check = lineupRules.validateLineupConstraints(team.roster || {}, candidate, opts);
+    if (check.valid) return { allowed: true, relaxed: false, code: null };
+
+    const budget = Math.max(0, team.budget || 0) + (team.bonus || 0);
+    const escapeExists = lineupRules.hasAnyLegalPick(
+      draft.playerBoard,
+      team.roster || {},
+      budget,
+      this.canFillAnySlot(team.roster, sport),
+      opts
+    );
+
+    if (escapeExists) {
+      return { allowed: false, relaxed: false, code: check.code, message: check.message };
+    }
+
+    console.warn(
+      `⚠️ [LINEUP-RELAXED] ${team.username} has no legal pick (${check.code}) — ` +
+      `allowing ${candidate.name} (${candidate.team}). Budget $${budget}.`
+    );
+    return { allowed: true, relaxed: true, code: check.code };
   }
   
   // ==========================================================================
@@ -397,11 +450,26 @@ class DraftService {
           throw new Error(`${playerPos} players must be placed in the ${playerPos} slot`);
         }
       }
+
+      // ----------------------------------------------------------------------
+      // LINEUP CONSTRAINTS — authoritative gate.
+      // Max 3 players per team; lineup must span 2+ games by the time only one
+      // roster slot remains. Relaxed only when the drafter has no legal pick
+      // left at all (see evaluateLineupConstraint).
+      // ----------------------------------------------------------------------
+      const constraint = this.evaluateLineupConstraint(currentDraft, currentTeam, pick.player, sport);
+      if (!constraint.allowed) {
+        console.log(`🚨 BLOCKED (${constraint.code}): ${pick.player.name} (${pick.player.team}) for ${currentTeam.username}`);
+        const err = new Error(constraint.message);
+        err.code = constraint.code;
+        throw err;
+      }
       
       currentDraft.picks.push({
         ...pick,
         teamIndex: currentTeamIndex,
         pickNumber: currentDraft.currentTurn + 1,
+        constraintRelaxed: constraint.relaxed || undefined,
         timestamp: new Date().toISOString()
       });
       
@@ -414,6 +482,7 @@ class DraftService {
       
       currentTeam.roster[pick.rosterSlot] = pick.player;
       currentTeam.budget -= pick.player.price;
+      if (constraint.relaxed) currentTeam.constraintRelaxed = true;
       
       if (pick.contestType === 'kingpin' || pick.contestType === 'firesale') {
         const bonus = this.calculateKingpinBonus(currentTeam, pick.player, sport);
@@ -514,6 +583,25 @@ class DraftService {
       
       draft.status = 'completed';
       draft.completedAt = new Date().toISOString();
+
+      // Audit final lineups. Non-blocking — logs only. Any violation here
+      // should correspond to a [LINEUP-RELAXED] warning earlier in the draft.
+      try {
+        const sport = draft.sport || 'nfl';
+        const opts = this.lineupOpts(sport);
+        (draft.teams || []).forEach(team => {
+          const audit = lineupRules.auditLineup(team.roster || {}, opts);
+          if (!audit.valid) {
+            console.warn(
+              `⚠️ [LINEUP-AUDIT] ${team.username} finished with violations ` +
+              `[${audit.violations.join(', ')}] — games: ${audit.distinctGames}, ` +
+              `max same team: ${audit.maxSameTeam}, relaxed: ${!!team.constraintRelaxed}`
+            );
+          }
+        });
+      } catch (auditErr) {
+        console.error('Lineup audit failed (non-fatal):', auditErr.message);
+      }
       
       const key = `state:${contestId}`;
       await this.redis.set(key, JSON.stringify(draft), 'EX', 86400);
@@ -752,6 +840,12 @@ class DraftService {
       
       const budget = currentTeam.budget;
       console.log(`🤖 AutoPick (${sport.toUpperCase()}) for ${currentTeam.username}: Budget $${budget}, Empty slots: ${emptySlots.join(', ')}`);
+
+      // Lineup-constraint filter for autopick candidates. Uses the same
+      // evaluate path as makePick so autopick can never hand a drafter a
+      // lineup they'd have been blocked from building manually.
+      const lineupAllows = (player) =>
+        this.evaluateLineupConstraint(draft, currentTeam, player, sport).allowed;
       
       // Check pre-selection first
       if (preSelection) {
@@ -765,18 +859,26 @@ class DraftService {
             const targetSlot = this.findBestSlotForPlayer(boardPlayer, currentTeam.roster || {}, sport);
             
             if (targetSlot && emptySlots.includes(targetSlot)) {
-              console.log(`🎯 AUTO-PICK using pre-selected player: ${name} -> ${targetSlot}`);
-              
-              const pick = {
-                player: boardPlayer,
-                rosterSlot: targetSlot,
-                row,
-                col,
-                isAutoPick: true,
-                wasPreSelected: true
-              };
-              
-              return await this.makePick(contestId, userId, pick);
+              // A pre-selected player that breaks the lineup rules must NOT be
+              // sent to makePick — it would throw, land in the catch below, and
+              // cost the drafter their whole turn. Fall through to the
+              // algorithm instead.
+              if (!lineupAllows(boardPlayer)) {
+                console.log(`⚠️ Pre-selection ${name} violates lineup constraints, falling back to algorithm`);
+              } else {
+                console.log(`🎯 AUTO-PICK using pre-selected player: ${name} -> ${targetSlot}`);
+                
+                const pick = {
+                  player: boardPlayer,
+                  rosterSlot: targetSlot,
+                  row,
+                  col,
+                  isAutoPick: true,
+                  wasPreSelected: true
+                };
+                
+                return await this.makePick(contestId, userId, pick);
+              }
             }
           }
         }
@@ -819,6 +921,11 @@ class DraftService {
                 canFillSlot = (playerPos === targetSlot) || (player.position === targetSlot);
               }
             }
+
+            // Skip candidates that would break the lineup rules. When the
+            // drafter has no legal option at all, evaluateLineupConstraint
+            // returns allowed=true (relaxed), so this never starves.
+            if (canFillSlot && !lineupAllows(player)) continue;
             
             if (canFillSlot) {
               if (!slotBest || player.price > slotBest.price) {

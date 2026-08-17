@@ -33,6 +33,7 @@ import {
 } from '../../store/slices/draftSlice';
 import { selectAuthUser } from '../../store/slices/authSlice';
 import socketService from '../../services/socket';
+import { isPickAllowed, getBlockedCellKeys } from '../../utils/lineupRules';
 import './DraftScreen.css';
 import './DraftScreen.mobile.css';
 import {
@@ -185,6 +186,22 @@ const DraftScreen = ({ showToast }) => {
     if (!Array.isArray(teams)) return null;
     return teams.find(team => getUserId(team) === currentUserId) || null;
   }, [teams, getUserId, currentUserId]);
+
+  // ==================== LINEUP CONSTRAINTS ====================
+  // Max 3 players from one team; lineup must span 2+ games once only one
+  // roster slot would remain (pick 4 in a clean draft). Blocked cells are just
+  // grayed out — no toast, no explanation. Server is authoritative; this is UX.
+  const lineupOpts = useMemo(
+    () => ({ rosterSize: sportConfig.rosterSize }),
+    [sportConfig]
+  );
+
+  // Computed regardless of whose turn it is, because mobile pre-selection
+  // happens off-turn and must not stash a blocked player.
+  const blockedCellKeys = useMemo(
+    () => (myTeam ? getBlockedCellKeys(playerBoard, myTeam.roster || {}, lineupOpts) : new Set()),
+    [playerBoard, myTeam, lineupOpts]
+  );
 
   const sortedTeams = useMemo(() => {
     if (!teams || teams.length === 0) return [];
@@ -376,6 +393,8 @@ const DraftScreen = ({ showToast }) => {
 
     for (const targetSlot of prioritizedSlots) {
       let bestPlayer = null, bestRow = -1, bestCol = -1, highestPrice = -1;
+      // Best constraint-VIOLATING option, kept only as a last resort.
+      let fallbackPlayer = null, fallbackRow = -1, fallbackCol = -1, fallbackPrice = -1;
 
       for (let row = 0; row < board.length; row++) {
         for (let col = 0; col < board[row].length; col++) {
@@ -386,11 +405,20 @@ const DraftScreen = ({ showToast }) => {
           const canFillSlot = targetSlot === playerPosition ||
             (targetSlot === 'FLEX' && sportConfig.flexEligible.includes(playerPosition));
 
-          if (canFillSlot && player.price > highestPrice) {
-            bestPlayer = player;
-            bestRow = row;
-            bestCol = col;
-            highestPrice = player.price;
+          if (!canFillSlot) continue;
+
+          if (isPickAllowed(roster, player, { rosterSize: sportConfig.rosterSize })) {
+            if (player.price > highestPrice) {
+              bestPlayer = player;
+              bestRow = row;
+              bestCol = col;
+              highestPrice = player.price;
+            }
+          } else if (player.price > fallbackPrice) {
+            fallbackPlayer = player;
+            fallbackRow = row;
+            fallbackCol = col;
+            fallbackPrice = player.price;
           }
         }
       }
@@ -398,6 +426,15 @@ const DraftScreen = ({ showToast }) => {
       if (bestPlayer) {
         console.log(`🤖 Auto-pick: ${bestPlayer.name} (${bestPlayer.position}) → ${targetSlot} for $${highestPrice}`);
         return { row: bestRow, col: bestCol, player: bestPlayer, targetSlot, price: highestPrice };
+      }
+
+      // No constraint-legal option for this slot. Rather than skip the turn and
+      // forfeit a roster slot (which would punish the drafter for another
+      // drafter's snipe), take the best illegal one — the server applies the
+      // same relaxation and flags the entry.
+      if (fallbackPlayer) {
+        console.warn(`⚠️ Auto-pick relaxed (no constraint-legal option): ${fallbackPlayer.name} → ${targetSlot}`);
+        return { row: fallbackRow, col: fallbackCol, player: fallbackPlayer, targetSlot, price: fallbackPrice, constraintRelaxed: true };
       }
     }
 
@@ -1308,6 +1345,15 @@ const DraftScreen = ({ showToast }) => {
     const availableSlots = getAvailableSlots(fixedMyTeam, player);
     if (!availableSlots.length) { toast(`No available slots for ${player.name}!`, 'error'); return; }
 
+    // Lineup constraints. Silent by design — the cell is already non-clickable,
+    // so reaching here means a stale board or a race. Returning before the
+    // optimistic board/roster dispatches below keeps the UI from placing the
+    // pick and then snapping back when the server rejects it.
+    if (!isPickAllowed(fixedMyTeam.roster || {}, player, { rosterSize: sportConfig.rosterSize })) {
+      console.log(`🚫 Blocked by lineup constraints: ${player.name} (${player.team})`);
+      return;
+    }
+
     const totalBudget = Math.max(0, fixedMyTeam.budget || 0) + (fixedMyTeam.bonus || 0);
     const calculatedBudget = Math.max(0, 15 - calculateTotalSpent(fixedMyTeam.roster)) + (fixedMyTeam.bonus || 0);
     const actualBudget = Math.min(totalBudget, calculatedBudget);
@@ -1362,7 +1408,7 @@ const DraftScreen = ({ showToast }) => {
       roomId, playerId, playerData: player, position: rosterSlot,
       row, col, slot: rosterSlot, roster_slot: rosterSlot
     }));
-  }, [actualIsMyTurn, playerBoard, teams, currentUserId, roomId, dispatch, toast, myTeam, isPicking, standardizeSlotName, getUserId, currentTurn, picks, calculateTotalSpent, validateAndFixBudget, getAvailableSlots]);
+  }, [actualIsMyTurn, playerBoard, teams, currentUserId, roomId, dispatch, toast, myTeam, isPicking, standardizeSlotName, getUserId, currentTurn, picks, calculateTotalSpent, validateAndFixBudget, getAvailableSlots, sportConfig]);
 
   // ==================== AUTO-PICK ====================
   const handleAutoPick = useCallback(() => {
@@ -1473,6 +1519,10 @@ const DraftScreen = ({ showToast }) => {
   const handleMobilePlayerTap = useCallback((player, rowIndex, colIndex) => {
     if (player.drafted || isPicking) return;
 
+    // Without this, a blocked player still gets written to localStorage as a
+    // pre-selection and auto-drafted when the timer expires.
+    if (myTeam && !isPickAllowed(myTeam.roster || {}, player, { rosterSize: sportConfig.rosterSize })) return;
+
     mobileSelectPlayer({ ...player, row: rowIndex, col: colIndex, matchup: player.matchup || null }, rowIndex, colIndex);
 
     if (roomId && currentUserId) {
@@ -1483,7 +1533,7 @@ const DraftScreen = ({ showToast }) => {
       socketService.emit('pre-select', preSelectData);
       try { localStorage.setItem(`preselect_${roomId}`, JSON.stringify(preSelectData.player)); } catch (e) { /* ignore */ }
     }
-  }, [isPicking, mobileSelectPlayer, roomId, currentUserId]);
+  }, [isPicking, mobileSelectPlayer, roomId, currentUserId, myTeam, sportConfig]);
 
   const handleMobileConfirm = useCallback((player) => {
     if (!player || isPicking || !actualIsMyTurn) return;
@@ -1893,6 +1943,7 @@ const DraftScreen = ({ showToast }) => {
                   (mobileSelectedPlayer?.row === rowIndex && mobileSelectedPlayer?.col === colIndex) ||
                   (localStoragePreSelection?.row === rowIndex && localStoragePreSelection?.col === colIndex)
                 );
+                const isBlocked = blockedCellKeys.has(`${rowIndex}-${colIndex}`);
 
                 return (
                   <div
@@ -1901,13 +1952,14 @@ const DraftScreen = ({ showToast }) => {
                       ${player.drafted ? 'drafted' : ''}
                       ${(draftedByColor && !hasUniqueStamp) ? `drafted-by-${draftedByColor}` : ''}
                       ${isAutoSuggestion ? 'auto-suggestion' : ''}
-                      ${actualIsMyTurn && !player.drafted && !isPicking ? 'clickable' : ''}
+                      ${actualIsMyTurn && !player.drafted && !isPicking && !isBlocked ? 'clickable' : ''}
+                      ${isBlocked && !player.drafted ? 'constraint-blocked' : ''}
                       ${isPicking ? 'disabled' : ''}
                       ${isMobileSelected ? 'mobile-selected' : ''}
                     `}
                     onClick={() => handlePlayerCardClick(player, rowIndex, colIndex)}
                     style={{
-                      cursor: (!player.drafted && !isPicking && (isMobile || actualIsMyTurn)) ? 'pointer' : 'default',
+                      cursor: (!player.drafted && !isPicking && !isBlocked && (isMobile || actualIsMyTurn)) ? 'pointer' : 'default',
                       position: 'relative'
                     }}
                   >

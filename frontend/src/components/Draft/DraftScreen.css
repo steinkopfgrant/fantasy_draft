@@ -1235,3 +1235,11 @@
     display: none;
   }
 }
+/* Cell that would break a lineup rule (3-per-team cap, or the two-game
+   requirement once only one roster slot remains). Deliberately understated —
+   no error styling, no badge. It just reads as unavailable. */
+.player-card.constraint-blocked {
+  opacity: 0.42;
+  filter: grayscale(0.65);
+  pointer-events: none;
+}
