@@ -494,6 +494,22 @@ const RulesPage = () => {
                   you can afford who legally fills it. All lineup requirements apply to auto-picks
                   exactly as they do to manual picks.
                 </p>
+                <p>
+                  <strong>If two or more eligible players are tied at the same price</strong>, auto-pick
+                  takes the one that appears earliest on the board, reading the way you would read a
+                  page — top row first, then left to right within that row. Rows run in descending
+                  price order ($5 at the top down to $1), with the Wildcards row last. Columns run
+                  QB, RB, WR, TE, then the flexible slot.
+                </p>
+                <div className="snake-example">
+                  <p><strong>Example.</strong> Auto-pick is filling your RB slot and two $5 running backs are available: one in the RB column of the $5 row, one in the Wildcards row. The $5 row comes first, so that running back is selected. If instead both $5 running backs were in the $5 row — one in the RB column and one in the flexible column — the RB column comes first.</p>
+                </div>
+                <p className="note">
+                  A player shown in a flexible or Wildcards cell is still a running back, wide
+                  receiver, or tight end, and auto-pick may place that player in the matching
+                  position slot rather than your FLEX slot. Quarterbacks are never eligible for the
+                  FLEX slot.
+                </p>
                 <p className="note">
                   On mobile, you may pre-select a player before your turn. If that player is still
                   available and can legally be added to your lineup when your timer expires, your

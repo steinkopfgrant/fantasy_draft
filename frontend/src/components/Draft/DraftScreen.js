@@ -401,9 +401,21 @@ const DraftScreen = ({ showToast }) => {
           const player = board[row][col];
           if (!player?.name || player.drafted || !player.position || player.price > totalBudget) continue;
 
-          const playerPosition = standardizeSlotName(player.position);
-          const canFillSlot = targetSlot === playerPosition ||
-            (targetSlot === 'FLEX' && sportConfig.flexEligible.includes(playerPosition));
+          // Read the player's UNDERLYING position, not the cell's label. FLEX
+          // cells carry position:'FLEX' with the real position in
+          // originalPosition — reading only `position` made every FLEX and
+          // wildcard cell invisible to the RB/WR/TE slots, so the client and
+          // server auto-picks disagreed about where the same player belonged.
+          const playerPosition = standardizeSlotName(player.originalPosition || player.position);
+          const isQB = playerPosition === 'QB' || standardizeSlotName(player.position) === 'QB';
+
+          // QBs may only occupy the QB slot. Previously enforced by accident
+          // (the literal string 'FLEX' never matched a flexEligible entry);
+          // now that playerPosition resolves to the real position, the bar has
+          // to be explicit — matching draftService.autoPick.
+          const canFillSlot = targetSlot === 'FLEX'
+            ? (!isQB && sportConfig.flexEligible.includes(playerPosition))
+            : (targetSlot === playerPosition);
 
           if (!canFillSlot) continue;
 
