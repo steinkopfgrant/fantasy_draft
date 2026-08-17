@@ -1,57 +1,70 @@
 // backend/src/middleware/geoRestriction.js
-// Blocks users from states where paid DFS is banned or requires licensing
-// Uses Cloudflare regional headers for IP-based geolocation
+// Restricts paid contests to an explicit list of eligible jurisdictions.
+// Uses Cloudflare regional headers for IP-based geolocation.
 //
-// BANNED: DFS prohibited outright
-// LICENSE REQUIRED: Block until registered as an operator
-// TAX/NOTIFICATION: Block until paperwork filed
-// GRAY AREA: AG opinions or contested legal status
-// Confirm with DFS lawyer before changing this list
+// ALLOWLIST, NOT A BLOCKLIST.
+// Anything not named below is ineligible by default. This is deliberate: a
+// blocklist fails OPEN — a jurisdiction nobody remembered to add, or one that
+// starts regulating next session, is silently permitted. An allowlist fails
+// CLOSED. For a real-money contest that is the only safe default.
+//
+// This list MUST stay in sync with ELIGIBLE_JURISDICTIONS in
+// frontend/src/components/Rules/RulesPage.js. The rules page publishes this
+// list to users; if the two disagree, the published rules are wrong.
+//
+// Confirm with DFS counsel before changing this list.
 
-const BLOCKED_STATES = [
-  // Outright banned
-  'HI', // Hawaii
-  'ID', // Idaho
-  'MT', // Montana
-  'NV', // Nevada
-  'WA', // Washington
-  // Gray area (AG opinions / contested)
-  'CA', // California - July 2025 AG advisory opinion suggests DFS may violate gambling law
-  // License/registration required
+const ELIGIBLE_STATES = [
   'AL', // Alabama
-  'AZ', // Arizona
-  'CO', // Colorado
-  'CT', // Connecticut
-  'DE', // Delaware
-  'IN', // Indiana
-  'IA', // Iowa
-  'LA', // Louisiana
-  'ME', // Maine
-  'MI', // Michigan
-  'MS', // Mississippi
-  'MO', // Missouri
-  'NH', // New Hampshire
-  'NJ', // New Jersey
-  'NY', // New York
-  'OH', // Ohio
-  'PA', // Pennsylvania
-  'TN', // Tennessee
-  'VT', // Vermont
-  'VA', // Virginia
-  // Tax/notification required
-  'AR', // Arkansas
-  'MD', // Maryland
-  'MA', // Massachusetts
+  'AK', // Alaska
+  'DC', // District of Columbia
+  'FL', // Florida
+  'GA', // Georgia
+  'IL', // Illinois
+  'KS', // Kansas (statutory exemption)
+  'KY', // Kentucky
+  'MN', // Minnesota
+  'NE', // Nebraska
+  'NM', // New Mexico
+  'NC', // North Carolina
+  'ND', // North Dakota
+  'OK', // Oklahoma (see tribal-lands note below)
+  'OR', // Oregon
+  'RI', // Rhode Island
+  'SC', // South Carolina (elevated caution)
+  'SD', // South Dakota (elevated caution)
+  'UT', // Utah (elevated caution — 2026 amendments)
+  'WV', // West Virginia
+  'WI', // Wisconsin
+  'WY', // Wyoming (home state)
 ];
 
+// NOTE — Oklahoma: counsel flagged a tribal-lands qualifier. Cloudflare region
+// headers resolve to state level only and cannot distinguish tribal lands, so
+// this middleware permits Oklahoma statewide. If sub-state handling is
+// required, it needs a different geolocation source and must be resolved
+// before launch.
+
+const ELIGIBLE_SET = new Set(ELIGIBLE_STATES);
+
+// Full US map so ineligible-state messaging can name any region Cloudflare
+// reports, not just the ones that happen to be eligible.
 const STATE_NAMES = {
-  HI: 'Hawaii', ID: 'Idaho', MT: 'Montana', NV: 'Nevada', WA: 'Washington',
-  CA: 'California',
-  AL: 'Alabama', AZ: 'Arizona', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
-  IN: 'Indiana', IA: 'Iowa', LA: 'Louisiana', ME: 'Maine', MI: 'Michigan',
-  MS: 'Mississippi', MO: 'Missouri', NH: 'New Hampshire', NJ: 'New Jersey',
-  NY: 'New York', OH: 'Ohio', PA: 'Pennsylvania', TN: 'Tennessee', VT: 'Vermont',
-  VA: 'Virginia', AR: 'Arkansas', MD: 'Maryland', MA: 'Massachusetts'
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia',
+  FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois',
+  IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan',
+  MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana',
+  NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota',
+  OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania',
+  RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota',
+  TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
+  WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  // Territories Cloudflare may report
+  PR: 'Puerto Rico', VI: 'U.S. Virgin Islands', GU: 'Guam',
+  AS: 'American Samoa', MP: 'Northern Mariana Islands',
 };
 
 // In strict mode (production), missing headers = block. In dev = allow.
@@ -62,7 +75,7 @@ const STRICT_GEO = process.env.STRICT_GEO === 'true' || process.env.NODE_ENV ===
 function checkIpGeo(req) {
   const country = req.headers['cf-ipcountry'];
   const region = (req.headers['cf-region-code'] || '').toUpperCase();
-  
+
   // No headers — likely local dev or CF not configured
   if (!country || !region) {
     if (STRICT_GEO) {
@@ -72,19 +85,19 @@ function checkIpGeo(req) {
     console.log('⚠️ Geo headers missing (allowing in non-strict/dev mode)');
     return { allowed: true, reason: 'dev_bypass', state: null, country: null };
   }
-  
+
   // Block non-US
   if (country !== 'US') {
     console.log(`🌍 Blocked non-US entry from ${country}`);
     return { allowed: false, reason: 'non_us', state: null, country };
   }
-  
-  // Block prohibited US states
-  if (BLOCKED_STATES.includes(region)) {
-    console.log(`🚫 Blocked entry from prohibited state: ${region}`);
-    return { allowed: false, reason: 'blocked_state', state: region, country };
+
+  // ALLOWLIST: anything not explicitly eligible is blocked.
+  if (!ELIGIBLE_SET.has(region)) {
+    console.log(`🚫 Blocked entry from ineligible state: ${region}`);
+    return { allowed: false, reason: 'ineligible_state', state: region, country };
   }
-  
+
   return { allowed: true, reason: 'ok', state: region, country };
 }
 
@@ -93,7 +106,7 @@ function checkIpGeo(req) {
 const geoRestriction = (req, res, next) => {
   try {
     const ipCheck = checkIpGeo(req);
-    
+
     if (!ipCheck.allowed) {
       if (ipCheck.reason === 'non_us') {
         return res.status(403).json({
@@ -102,10 +115,11 @@ const geoRestriction = (req, res, next) => {
           code: 'GEO_NON_US'
         });
       }
-      if (ipCheck.reason === 'blocked_state') {
+      if (ipCheck.reason === 'ineligible_state') {
         return res.status(403).json({
           success: false,
           error: `BidBlitz is not currently available in ${STATE_NAMES[ipCheck.state] || ipCheck.state}. We're working on expanding to more states.`,
+          // Code preserved for backward compatibility with existing clients.
           code: 'GEO_BLOCKED_STATE',
           state: ipCheck.state
         });
@@ -118,13 +132,13 @@ const geoRestriction = (req, res, next) => {
         });
       }
     }
-    
+
     // Attach detected state to request for downstream use
     if (ipCheck.state) {
       req.detectedState = ipCheck.state;
       req.userState = ipCheck.state;
     }
-    
+
     next();
   } catch (error) {
     console.error('❌ Geo restriction check failed:', error);
@@ -137,9 +151,10 @@ const geoRestriction = (req, res, next) => {
   }
 };
 
-module.exports = { 
-  geoRestriction, 
-  BLOCKED_STATES,
+module.exports = {
+  geoRestriction,
+  ELIGIBLE_STATES,
+  ELIGIBLE_SET,
   STATE_NAMES,
   checkIpGeo
 };
